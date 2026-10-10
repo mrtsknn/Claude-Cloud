@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Devril</string>
+    <string name="title_activity_main">Devril</string>
+    <string name="package_name">com.indiestudio.devril</string>
+    <string name="custom_url_scheme">com.indiestudio.devril</string>
+</resources>
