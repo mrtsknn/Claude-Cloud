@@ -12,13 +12,13 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.5.3"),
-        .package(name: "CapacitorCommunityAdmob", path: "../../../../../../../../node_modules/@capacitor-community/admob"),
-        .package(name: "CapacitorCommunityInAppReview", path: "../../../../../../../../node_modules/@capacitor-community/in-app-review"),
-        .package(name: "CapacitorApp", path: "../../../../../../../../node_modules/@capacitor/app"),
-        .package(name: "CapacitorHaptics", path: "../../../../../../../../node_modules/@capacitor/haptics"),
-        .package(name: "CapacitorSplashScreen", path: "../../../../../../../../node_modules/@capacitor/splash-screen"),
-        .package(name: "CapacitorStatusBar", path: "../../../../../../../../node_modules/@capacitor/status-bar"),
-        .package(name: "CapgoNativePurchases", path: "../../../../../../../../node_modules/@capgo/native-purchases")
+        .package(name: "CapacitorCommunityAdmob", path: "../../../../../node_modules/@capacitor-community/admob"),
+        .package(name: "CapacitorCommunityInAppReview", path: "../../../../../node_modules/@capacitor-community/in-app-review"),
+        .package(name: "CapacitorApp", path: "../../../../../node_modules/@capacitor/app"),
+        .package(name: "CapacitorHaptics", path: "../../../../../node_modules/@capacitor/haptics"),
+        .package(name: "CapacitorSplashScreen", path: "../../../../../node_modules/@capacitor/splash-screen"),
+        .package(name: "CapacitorStatusBar", path: "../../../../../node_modules/@capacitor/status-bar"),
+        .package(name: "CapgoNativePurchases", path: "../../../../../node_modules/@capgo/native-purchases")
     ],
     targets: [
         .target(
