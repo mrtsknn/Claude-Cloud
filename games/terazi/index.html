@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#dce4ea" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <title>Terazi</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="hud">
+        <button class="icon-btn" id="settings-btn" aria-label="settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+        </button>
+        <div class="level">
+          <span class="eyebrow" data-i18n="level"></span>
+          <b id="level">1</b>
+          <span class="stars" id="stars"><i>★</i><i>★</i><i>★</i></span>
+        </div>
+        <button class="icon-btn" id="restart-btn" aria-label="restart">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" /></svg>
+        </button>
+      </header>
+      <canvas id="stage"></canvas>
+      <div class="toast" id="toast" hidden></div>
+      <nav class="tools">
+        <button class="tool" id="undo-btn">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3" /></svg>
+          <span data-i18n="undo"></span>
+        </button>
+        <button class="tool" id="hint-btn">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" /></svg>
+          <span data-i18n="hint"></span><i class="badge" id="hint-badge">1</i>
+        </button>
+      </nav>
+    </div>
+
+    <div class="overlay" id="settings" hidden>
+      <div class="sheet">
+        <h2 data-i18n="settings"></h2>
+        <label class="row"><span data-i18n="sound"></span><input type="checkbox" id="opt-sound" class="switch" /></label>
+        <label class="row"><span data-i18n="vibration"></span><input type="checkbox" id="opt-haptics" class="switch" /></label>
+        <button class="btn" id="close-settings" data-i18n="resume"></button>
+        <p class="foot"><a href="#" id="privacy-link" data-i18n="privacy"></a> · <span id="version"></span></p>
+      </div>
+    </div>
+
+    <div class="overlay" id="win" hidden>
+      <div class="sheet center">
+        <p class="eyebrow" id="win-title"></p>
+        <div class="big" data-i18n="complete"></div>
+        <div class="stars big-stars" id="win-stars"><i>★</i><i>★</i><i>★</i></div>
+        <p class="muted" id="win-moves"></p>
+        <button class="btn" id="next-btn" data-i18n="next"></button>
+      </div>
+    </div>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

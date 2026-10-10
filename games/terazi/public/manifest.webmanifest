@@ -1,0 +1,13 @@
+{
+  "name": "Terazi",
+  "short_name": "Terazi",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#dce4ea",
+  "theme_color": "#dce4ea",
+  "icons": [
+    { "src": "icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any" },
+    { "src": "icon.svg", "type": "image/svg+xml", "sizes": "any" }
+  ]
+}
