@@ -11,12 +11,13 @@
     <title>Wordlink</title>
   </head>
   <body>
+    <div id="scenery" aria-hidden="true"></div>
     <div id="app">
       <header class="hud">
         <button class="icon-btn" id="settings-btn" aria-label="pause">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6v12M15 6v12" /></svg>
         </button>
-        <div class="level"><span class="eyebrow" data-i18n="level"></span><b id="level">1</b></div>
+        <div class="level"><span class="eyebrow" id="hud-eyebrow" data-i18n="level"></span><b id="level">1</b><span class="hud-sub" id="hud-sub"></span></div>
         <button class="coins" id="coins-pill" aria-label="coins"><i class="coin"></i><b id="coins">0</b><span class="plus">+</span></button>
       </header>
 

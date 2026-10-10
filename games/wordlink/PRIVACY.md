@@ -12,6 +12,9 @@ stars, coins, themes, missions and settings are saved only on your device. Anony
   form is shown. See https://policies.google.com/technologies/ads. Buying "Remove ads" stops full-screen ads.
 - **In-app purchases.** Purchases are handled by the App Store / Google Play; Wordlink never sees your
   payment details and only stores which products you own, on your device.
+- **Reminders and sharing.** If you agree, the app schedules a daily puzzle reminder on your device (local
+  notifications; nothing is sent to a server). You can turn it off in your phone's settings. Sharing a
+  result only opens your phone's share sheet with the text you see; Wordlink sends nothing itself.
 
 Contact: mrtbnymntskn@gmail.com
 
@@ -26,5 +29,8 @@ temaların, görevlerin ve ayarların yalnızca cihazında saklanır. Oyunu iyil
   satın alınınca tam ekran reklamlar biter.
 - **Uygulama içi satın alma.** Ödemeler App Store / Google Play üzerinden yapılır; Wordlink ödeme bilgilerini
   görmez, yalnızca hangi ürünlere sahip olduğunu cihazında saklar.
+- **Hatırlatıcı ve paylaşım.** İzin verirsen uygulama günlük bulmaca hatırlatıcısını cihazında planlar (yerel
+  bildirim; sunucuya bir şey gönderilmez). Telefon ayarlarından kapatabilirsin. Sonuç paylaşmak yalnızca
+  telefonunun paylaşım ekranını gördüğün metinle açar; Wordlink kendisi bir şey göndermez.
 
 İletişim: mrtbnymntskn@gmail.com
