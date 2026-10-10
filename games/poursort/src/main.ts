@@ -1,10 +1,14 @@
 import './style.css';
 import {
+  createMeta,
+  createProfile,
   createStore,
   haptic,
-  interstitialMoment,
+  initAds,
+  initStore,
   maybeRequestReview,
   pentatonic,
+  rewardedAvailable,
   setHapticsEnabled,
   setSoundEnabled,
   setupNative,
@@ -24,33 +28,57 @@ import {
   isSolved,
   pour,
   solve,
+  starsFor,
   type Move,
   type Tube,
   type Tubes,
 } from './game';
 import { t } from './i18n';
+import { SKINS, type Skin } from './skins';
 
 // TODO(mağaza): gizlilik politikasını yayınladığın adresle değiştir.
 const PRIVACY_URL = 'https://github.com/mrtsknn/Claude-Cloud/blob/main/games/poursort/PRIVACY.md';
 declare const __APP_VERSION__: string;
 
-// 12 liquids, ordered so the colours that appear together in early levels are the most
-// distinct (blue/yellow, then red, green…); similar hues only meet in later levels.
-const LIQUIDS = [
-  '#2563eb', '#facc15', '#ef4444', '#16a34a', '#7c3aed', '#f97316',
-  '#14b8a6', '#f472b6', '#84cc16', '#38bdf8', '#d946ef', '#8b5a2b',
-];
+// Current skin: 12 liquids (see skins.ts for the ordering rule) + glass style.
+let SKIN: Skin = SKINS[0];
+let LIQUIDS = SKIN.liquids;
+let repaintHero = () => {};
 const UNDOS_PER_LEVEL = 5;
+const LEVELS = 500;
+const MAX_EXTRA_TUBES = 2;
+// Helps beyond the free ones are paid with coins or a rewarded video.
+const PRICE = { hint: 30, tube: 50, undo: 20 };
 
 // ───────────────────────── persistence ─────────────────────────
 interface Save {
   level: number;
   tubes: Tubes;
   history: Tubes[];
+  /** Undos left before the next refill. */
   undos: number;
-  extraUsed: boolean;
+  undosUsed: number;
+  /** Extra empty tubes added this level (first free, second paid). */
+  extra: number;
   moves: number;
   hintsUsed: number;
+}
+
+/** Accepts saves from v1.0 (`extraUsed`, no `undosUsed`) and anything half-written. */
+function normalize(raw: unknown): Save | null {
+  const r = raw as Partial<Save> & { extraUsed?: boolean };
+  if (!r || typeof r !== 'object' || !Array.isArray(r.tubes) || typeof r.level !== 'number' || r.level < 1) return null;
+  const undos = typeof r.undos === 'number' ? r.undos : UNDOS_PER_LEVEL;
+  return {
+    level: Math.floor(r.level),
+    tubes: r.tubes,
+    history: Array.isArray(r.history) ? r.history : [],
+    undos,
+    undosUsed: typeof r.undosUsed === 'number' ? r.undosUsed : UNDOS_PER_LEVEL - Math.min(UNDOS_PER_LEVEL, undos),
+    extra: typeof r.extra === 'number' ? r.extra : r.extraUsed ? 1 : 0,
+    moves: typeof r.moves === 'number' ? r.moves : 0,
+    hintsUsed: typeof r.hintsUsed === 'number' ? r.hintsUsed : 0,
+  };
 }
 
 const store = createStore('poursort');
@@ -59,10 +87,10 @@ setSoundEnabled(settings.sound);
 setHapticsEnabled(settings.haptics);
 
 function freshLevel(level: number): Save {
-  return { level, tubes: generateLevel(level), history: [], undos: UNDOS_PER_LEVEL, extraUsed: false, moves: 0, hintsUsed: 0 };
+  return { level, tubes: generateLevel(level), history: [], undos: UNDOS_PER_LEVEL, undosUsed: 0, extra: 0, moves: 0, hintsUsed: 0 };
 }
 
-let S: Save = store.get<Save | null>('save', null) ?? freshLevel(1);
+let S: Save = normalize(store.get<unknown>('save', null)) ?? freshLevel(1);
 let levelStartedAt = Date.now();
 const save = () => store.set('save', S);
 
@@ -78,7 +106,7 @@ document.documentElement.lang = navigator.language.slice(0, 2) === 'tr' ? 'tr' :
 document.querySelectorAll<HTMLElement>('[data-i18n]').forEach((el) => {
   el.textContent = t(el.dataset.i18n as Parameters<typeof t>[0]);
 });
-$('version').textContent = `v${__APP_VERSION__}`;
+const COIN = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#ffc83d" stroke="#b57d10" stroke-width="2"/><circle cx="12" cy="12" r="5" fill="none" stroke="#e0a21c" stroke-width="1.6"/></svg>';
 
 let toastTimer = 0;
 function toast(text: string, ms = 2200) {
@@ -92,8 +120,15 @@ function toast(text: string, ms = 2200) {
 function refreshHud() {
   $('level').textContent = String(S.level);
   $('undo-count').textContent = S.undos > 0 ? String(S.undos) : '+';
-  $<HTMLButtonElement>('tube-btn').disabled = S.extraUsed;
-  $('tube-badge').hidden = S.extraUsed;
+  const price = (el: HTMLElement, free: boolean, cost: number) => {
+    el.classList.toggle('free', free);
+    el.classList.toggle('coin', !free);
+    el.innerHTML = free ? t('free') : `${COIN}${cost}`;
+  };
+  price($('hint-badge'), S.hintsUsed === 0, PRICE.hint);
+  price($('tube-badge'), S.extra === 0, PRICE.tube);
+  $<HTMLButtonElement>('tube-btn').disabled = S.extra >= MAX_EXTRA_TUBES;
+  $('tube-badge').hidden = S.extra >= MAX_EXTRA_TUBES;
 }
 
 // ───────────────────────── layout ─────────────────────────
@@ -219,7 +254,7 @@ function drawTube(tube: Tube, extra: { color: number; units: number } | null, sl
   const y = 0;
   // glass body
   tubePath(x, y, w, h);
-  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.fillStyle = SKIN.glass;
   ctx.fill();
 
   // liquid
@@ -262,16 +297,16 @@ function drawTube(tube: Tube, extra: { color: number; units: number } | null, sl
   ctx.restore();
 
   // glass highlights and outline
-  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.fillStyle = SKIN.shine;
   ctx.beginPath();
   ctx.roundRect(x - w * 0.32, y + h * 0.08, w * 0.1, h * 0.62, w * 0.05);
   ctx.fill();
   tubePath(x, y, w, h);
   ctx.lineWidth = Math.max(2, w * 0.06);
-  ctx.strokeStyle = 'rgba(52, 64, 110, 0.28)';
+  ctx.strokeStyle = SKIN.rim;
   ctx.stroke();
   // lip
-  ctx.fillStyle = 'rgba(52, 64, 110, 0.22)';
+  ctx.fillStyle = SKIN.rim;
   ctx.beginPath();
   ctx.roundRect(x - w / 2 - w * 0.08, y - w * 0.06, w * 1.16, w * 0.14, w * 0.07);
   ctx.fill();
@@ -284,7 +319,7 @@ function drawTube(tube: Tube, extra: { color: number; units: number } | null, sl
     ctx.save();
     ctx.translate(x, y - ch * 0.35 - (1 - k) * h * 0.25);
     ctx.globalAlpha = k;
-    ctx.fillStyle = '#c08a57';
+    ctx.fillStyle = SKIN.cork;
     ctx.beginPath();
     ctx.roundRect(-cw / 2, -ch / 2, cw, ch, ch * 0.3);
     ctx.fill();
@@ -449,6 +484,7 @@ function onPourLanded(a: PourAnim, now: number) {
     caps.set(a.to, now);
     const s = slots[a.to];
     burst(s.x, s.y, [LIQUIDS[a.color - 1], '#ffffff'], 26, 320, 380);
+    profile.progress('tubes');
     [0, 2, 4, 7].forEach((st, i) => tone({ freq: pentatonic(st), duration: 0.16, volume: 0.45, delay: i * 0.06 }));
     haptic.success();
   }
@@ -472,6 +508,7 @@ function doPour(from: number, to: number) {
   S.tubes = res.tubes;
   S.moves++;
   save();
+  profile.progress('pours');
   selected = -1;
   hint = null;
   const fill = before[to].length;
@@ -511,6 +548,7 @@ function tapTube(i: number) {
 
 canvas.addEventListener('pointerdown', (e) => {
   unlockAudio();
+  if (meta.covering || paying) return;
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
@@ -528,34 +566,48 @@ canvas.addEventListener('pointerdown', (e) => {
   if (best >= 0) tapTube(best);
   else if (selected >= 0) selected = -1;
 });
-
 function win() {
   const colors = LIQUIDS.slice(0, colorsForLevel(S.level));
   burst(W * 0.25, H * 0.2, colors, 60, 600, 500);
   burst(W * 0.75, H * 0.2, colors, 60, 600, 500);
   [0, 2, 4, 5, 7, 9].forEach((st, i) => tone({ freq: pentatonic(st), duration: 0.22, volume: 0.45, delay: i * 0.08 }));
   haptic.success();
+  const stars = starsFor(S);
   track('level_complete', {
     level: S.level,
+    stars,
     moves: S.moves,
-    undos_used: UNDOS_PER_LEVEL - Math.min(UNDOS_PER_LEVEL, S.undos),
+    undos_used: S.undosUsed,
     hints_used: S.hintsUsed,
-    extra_tube: S.extraUsed,
+    extra_tubes: S.extra,
     duration_s: Math.round((Date.now() - levelStartedAt) / 1000),
   });
-  $('win-title').textContent = t('levelN', { n: S.level });
-  $('win-moves').textContent = t('moves', { n: S.moves });
   // Persist progress immediately so quitting on the win screen never loses the level;
-  // the solved board stays on screen until "Next level".
+  // the solved board stays on screen behind the win sheet until "Next".
   const completed = S.level;
   nextLevel = freshLevel(completed + 1);
   store.set('save', nextLevel);
-  store.set('completed', completed);
-  setTimeout(() => ($('win').hidden = false), 500);
+  const advance = () => {
+    startLevel(nextLevel ?? freshLevel(completed + 1));
+    nextLevel = null;
+  };
+  setTimeout(() => {
+    meta.showWin({
+      level: completed,
+      stars,
+      coins: 10 + stars * 5,
+      onNext: () => {
+        haptic.medium();
+        advance();
+      },
+      onMenu: advance,
+    });
+    if (profile.data.firstRun) profile.finishFirstRun();
+  }, 500);
   maybeRequestReview(completed, completed >= 5);
 }
 
-function startLevel(state: Save) {
+function startLevel(state: Save, resumed = false) {
   S = state;
   save();
   selected = -1;
@@ -568,22 +620,66 @@ function startLevel(state: Save) {
   syncCaps(performance.now());
   refreshHud();
   $('toast').hidden = true;
-  track('level_start', { level: S.level, colors: colorsForLevel(S.level), resumed: false });
+  track('level_start', { level: S.level, colors: colorsForLevel(S.level), resumed });
 }
 
-$('next-btn').addEventListener('click', async () => {
-  $('win').hidden = true;
-  haptic.medium();
-  startLevel(nextLevel ?? freshLevel(S.level + 1));
-  nextLevel = null;
-  if (S.level > 4) await interstitialMoment('next_level');
-});
-
-$('restart-btn').addEventListener('click', () => {
-  unlockAudio();
+function restartLevel() {
   if (anim || winPending) return;
   track('level_restart', { level: S.level, moves: S.moves });
   startLevel(freshLevel(S.level));
+}
+
+// ───────────────────────── paid helps (coins or video) ─────────────────────────
+let paying: ((ok: boolean) => void) | null = null;
+
+/** Offers a help for coins or a rewarded video; resolves true once it is paid for. */
+function pay(title: string, price: number, placement: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const root = document.createElement('div');
+    root.className = 'meta-root pay';
+    root.innerHTML = `<div class="m-overlay"><div class="m-sheet"><div class="m-result">
+      <h2></h2><p class="m-note"></p>
+      <button class="m-btn" data-coins>${COIN}<span></span></button>
+      <button class="m-btn alt" data-video><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9v6l5-3z" fill="currentColor"/></svg><span></span></button>
+      <button class="m-btn ghost" data-cancel></button></div></div></div>`;
+    root.querySelector('h2')!.textContent = title;
+    root.querySelector('.m-note')!.textContent = t('buyNote', { n: profile.data.coins });
+    root.querySelector('[data-coins] span')!.textContent = t('payCoins', { n: price });
+    root.querySelector('[data-video] span')!.textContent = t('payVideo');
+    root.querySelector('[data-cancel]')!.textContent = t('cancel');
+    const coinBtn = root.querySelector<HTMLButtonElement>('[data-coins]')!;
+    coinBtn.classList.toggle('short', profile.data.coins < price);
+    (root.querySelector('[data-video]') as HTMLElement).hidden = !rewardedAvailable();
+    document.body.appendChild(root);
+    const done = (ok: boolean) => {
+      paying = null;
+      root.remove();
+      resolve(ok);
+    };
+    paying = done;
+    coinBtn.addEventListener('click', () => {
+      if (!profile.spend(price)) {
+        haptic.error();
+        meta.toast(t('notEnough'));
+        return;
+      }
+      track('coins_spend', { placement, price });
+      done(true);
+    });
+    root.querySelector('[data-video]')!.addEventListener('click', async () => {
+      if (await showRewarded(placement)) done(true);
+      else meta.toast(t('noVideo'));
+    });
+    root.querySelector('[data-cancel]')!.addEventListener('click', () => done(false));
+    root.querySelector('.m-overlay')!.addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) done(false);
+    });
+  });
+}
+
+$('restart-btn').addEventListener('click', () => {
+  unlockAudio();
+  restartLevel();
 });
 
 $('undo-btn').addEventListener('click', async () => {
@@ -591,12 +687,13 @@ $('undo-btn').addEventListener('click', async () => {
   if (anim || winPending) return;
   if (!S.history.length) return toast(t('noUndo'));
   if (S.undos <= 0) {
-    if (!(await showRewarded('undo'))) return;
+    if (!(await pay(t('buyUndo'), PRICE.undo, 'undo'))) return;
     S.undos = UNDOS_PER_LEVEL;
     toast(t('undoRefill'));
   }
   S.tubes = S.history.pop()!;
   S.undos--;
+  S.undosUsed++;
   S.moves++;
   selected = -1;
   hint = null;
@@ -612,27 +709,29 @@ $('undo-btn').addEventListener('click', async () => {
 $('hint-btn').addEventListener('click', async () => {
   unlockAudio();
   if (anim || winPending) return;
-  // First hint in a level is free; more are behind a rewarded ad.
-  if (S.hintsUsed > 0 && !(await showRewarded('hint'))) return;
+  // Never charge for a hint that cannot help.
   const moves = solve(S.tubes, 40_000);
   if (!moves || !moves.length) {
     toast(t('noHint'), 3000);
     return;
   }
+  // First hint in a level is free; more cost coins or a video.
+  if (S.hintsUsed > 0 && !(await pay(t('buyHint'), PRICE.hint, 'hint'))) return;
   S.hintsUsed++;
   save();
+  refreshHud();
   selected = -1;
   hint = { move: moves[0], until: performance.now() + 4000 };
   haptic.light();
-  track('hint', { level: S.level });
+  track('hint', { level: S.level, paid: S.hintsUsed > 1 });
 });
 
 $('tube-btn').addEventListener('click', async () => {
   unlockAudio();
   if (anim || winPending) return;
-  if (S.extraUsed) return toast(t('tubeUsed'));
-  if (!(await showRewarded('extra_tube'))) return;
-  S.extraUsed = true;
+  if (S.extra >= MAX_EXTRA_TUBES) return toast(t('tubeMax'));
+  if (S.extra > 0 && !(await pay(t('buyTube'), PRICE.tube, 'extra_tube'))) return;
+  S.extra++;
   S.tubes = [...S.tubes, []];
   S.history = S.history.map((h) => [...h, []]);
   save();
@@ -641,58 +740,176 @@ $('tube-btn').addEventListener('click', async () => {
   refreshHud();
   toast(t('tubeAdded'));
   haptic.success();
-  track('extra_tube', { level: S.level });
+  track('extra_tube', { level: S.level, paid: S.extra > 1 });
 });
 
-// settings
-const opts: [string, 'sound' | 'haptics' | 'symbols'][] = [
-  ['opt-sound', 'sound'],
-  ['opt-haptics', 'haptics'],
-  ['opt-symbols', 'symbols'],
-];
-for (const [id, k] of opts) {
-  const el = $<HTMLInputElement>(id);
-  el.checked = settings[k];
-  el.addEventListener('change', () => {
-    settings[k] = el.checked;
-    setSoundEnabled(settings.sound);
-    setHapticsEnabled(settings.haptics);
-    store.set('settings', settings);
-    if (k === 'haptics') haptic.medium();
-  });
+// ───────────────────────── meta (menu, map, missions, daily, shop) ─────────────────────────
+function applySkin(id: string) {
+  SKIN = SKINS.find((s) => s.id === id) ?? SKINS[0];
+  LIQUIDS = SKIN.liquids;
+  const root = document.documentElement.style;
+  root.setProperty('--bg-top', SKIN.bg[0]);
+  root.setProperty('--bg-bottom', SKIN.bg[1]);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', SKIN.bg[1]);
+  repaintHero();
 }
-$('settings-btn').addEventListener('click', () => {
+
+// Was there a v1.0 player before the meta layer existed? Their reached level is migrated below.
+const hadProfile = (() => {
+  try {
+    return localStorage.getItem('poursort.profile') !== null;
+  } catch {
+    return true;
+  }
+})();
+
+const profile = createProfile({
+  game: 'poursort',
+  levelCount: LEVELS,
+  defaultSkin: SKINS[0].id,
+  skinIds: SKINS.map((s) => s.id),
+  missions: [
+    { id: 'levels', targets: [2, 3, 5], reward: (n) => 20 + n * 10 },
+    { id: 'stars', targets: [4, 6, 9], reward: (n) => 20 + n * 5 },
+    { id: 'perfect', targets: [1, 2, 3], reward: (n) => 30 + n * 10 },
+    { id: 'pours', targets: [40, 80, 150], reward: (n) => 20 + Math.round(n / 4) },
+    { id: 'tubes', targets: [10, 20, 40], reward: (n) => 20 + n },
+  ],
+});
+applySkin(profile.data.skin);
+{
+  // The save always holds the level the player has reached (a solved level is saved as the next one).
+  const reached = Math.min(LEVELS, Math.max(S.level, store.get('completed', 0) + 1));
+  if (!hadProfile && reached > 1) {
+    // v1.0 players: every level they passed counts as cleared (1 star) on the new map.
+    for (let i = 0; i < reached - 1; i++) profile.data.stars[i] = Math.max(1, profile.data.stars[i]);
+    profile.data.firstRun = false;
+  }
+  if (profile.data.unlocked < reached) profile.data.unlocked = reached;
+  profile.save();
+}
+
+/** Home-screen artwork: a rack of tubes in the current skin, one sealed. Repainted by applySkin. */
+function heroArt() {
+  const el = document.createElement('div');
+  el.className = 'hero';
+  const rack = [[1, 1, 1, 1], [3, 2, 3], [2, 4, 2, 3], [4, 4]];
+  const paint = () => {
+    const w = 34;
+    const h = 128;
+    const gap = 22;
+    const uh = 27;
+    const parts = rack.map((tube, i) => {
+      const x = 14 + i * (w + gap);
+      const y = 30;
+      const body = `M${x} ${y} V${y + h - w / 2} A${w / 2} ${w / 2} 0 0 0 ${x + w} ${y + h - w / 2} V${y} Z`;
+      const liquid = tube
+        .map((c, k) => `<rect x="${x}" y="${y + h - 4 - (k + 1) * uh}" width="${w}" height="${uh + (k === 0 ? 6 : 0.5)}" fill="${LIQUIDS[c - 1]}"/>`)
+        .join('');
+      const sealed = tube.length === 4 && tube.every((c) => c === tube[0]);
+      const cork = sealed ? `<rect x="${x + 2}" y="${y - 13}" width="${w - 4}" height="15" rx="4" fill="${SKIN.cork}"/>` : '';
+      return `<g class="hero-tube" style="animation-delay:${i * 160}ms">
+        <clipPath id="hc${i}"><path d="${body}"/></clipPath>
+        <path d="${body}" fill="${SKIN.glass}"/>
+        <g clip-path="url(#hc${i})">${liquid}<rect x="${x}" y="${y + h - 4 - tube.length * uh}" width="${w}" height="3" fill="rgba(255,255,255,0.35)"/></g>
+        <rect x="${x + 6}" y="${y + 10}" width="4" height="${h * 0.6}" rx="2" fill="${SKIN.shine}"/>
+        <path d="${body}" fill="none" stroke="${SKIN.rim}" stroke-width="2.5"/>
+        <rect x="${x - 3}" y="${y - 2}" width="${w + 6}" height="5" rx="2.5" fill="${SKIN.rim}"/>${cork}</g>`;
+    });
+    el.innerHTML = `<svg viewBox="0 0 230 172" width="230" height="172" aria-hidden="true">${parts.join('')}</svg>`;
+  };
+  paint();
+  repaintHero = paint;
+  return el;
+}
+
+const symbolsRow = document.createElement('label');
+symbolsRow.className = 'm-row';
+symbolsRow.innerHTML = `<span></span><input type="checkbox" class="m-switch">`;
+symbolsRow.querySelector('span')!.textContent = t('symbols');
+const symbolsInput = symbolsRow.querySelector('input')!;
+symbolsInput.checked = settings.symbols;
+symbolsInput.addEventListener('change', () => {
+  settings.symbols = symbolsInput.checked;
+  store.set('settings', settings);
+});
+
+const meta = createMeta({
+  title: 'Pour Sort',
+  hero: heroArt(),
+  tagline: t('tagline'),
+  version: __APP_VERSION__,
+  privacyUrl: PRIVACY_URL,
+  profile,
+  levels: {
+    count: LEVELS,
+    play: (n) => {
+      unlockAudio();
+      // Same level as the saved one (or the open-ended run past the map): resume it.
+      if (S.level === n || (n === LEVELS && S.level > LEVELS)) {
+        if (winPending && nextLevel) {
+          startLevel(nextLevel);
+          nextLevel = null;
+        } else track('level_start', { level: S.level, colors: colorsForLevel(S.level), resumed: S.moves > 0 });
+        return;
+      }
+      startLevel(freshLevel(n));
+    },
+  },
+  missionText: (id, n) => t(`mission_${id}` as 'mission_levels', { n }),
+  skins: SKINS.map((s) => ({ id: s.id, name: t(`skin_${s.id}` as 'skin_classic'), price: s.price, swatch: s.swatch })),
+  onSkin: applySkin,
+  settings,
+  onSettings: (s) => {
+    setSoundEnabled(s.sound);
+    setHapticsEnabled(s.haptics);
+    store.set('settings', settings);
+  },
+  extraSettings: symbolsRow,
+});
+profile.onChange(refreshHud);
+
+function openPause() {
   unlockAudio();
-  $('settings').hidden = false;
-});
-$('close-settings').addEventListener('click', () => ($('settings').hidden = true));
-$('settings').addEventListener('click', (e) => {
-  if (e.target === e.currentTarget) $('settings').hidden = true;
-});
-$('privacy-link').addEventListener('click', (e) => {
-  e.preventDefault();
-  window.open(PRIVACY_URL, '_blank');
-});
+  if (winPending || meta.covering) return;
+  selected = -1;
+  meta.showPause({ onResume: () => {}, onRestart: () => startLevel(freshLevel(S.level)) });
+}
+$('settings-btn').addEventListener('click', openPause);
 
 // ───────────────────────── boot ─────────────────────────
 refreshHud();
+void initAds();
+void initStore();
 void setupNative({
   darkBackground: false,
   onPause: save,
   onBack: () => {
-    if (!$('settings').hidden) {
-      $('settings').hidden = true;
+    if (paying) {
+      paying(false);
       return true;
     }
+    if (meta.back()) return true;
+    if (meta.covering) return false;
     if (selected >= 0) {
       selected = -1;
       return true;
     }
-    return false;
+    openPause();
+    return true;
   },
 });
+meta.showHome();
 requestAnimationFrame(frame);
 // Exposed for e2e/screenshot scripts.
-(window as unknown as { __poursort: unknown }).__poursort = { get state() { return S; }, tap: tapTube, solve, busy: () => !!anim || winPending, goto: (level: number) => startLevel(freshLevel(level)), load: (s: Save) => startLevel(s),
+(window as unknown as { __poursort: unknown }).__poursort = {
+  get state() {
+    return S;
+  },
+  tap: tapTube,
+  solve,
+  busy: () => !!anim || winPending,
+  goto: (level: number) => startLevel(freshLevel(level)),
+  load: (s: unknown) => startLevel(normalize(s)!),
   freezePour: (ms: number) => (frozenAt = anim ? anim.t0 + ms : null),
 };

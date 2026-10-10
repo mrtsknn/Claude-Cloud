@@ -8,6 +8,7 @@ import {
   isSolved,
   pour,
   solve,
+  starsFor,
   topRun,
   usefulMoves,
   type Tubes,
@@ -83,5 +84,15 @@ describe('level generation', () => {
     for (const n of counts.values()) expect(n).toBe(CAPACITY);
     expect(tubes.every((t) => t.length === 0 || topRun(t) < 3)).toBe(true);
     expect(solve(tubes)).not.toBeNull();
+  });
+});
+
+describe('stars', () => {
+  it('rates by helps used', () => {
+    expect(starsFor({ undosUsed: 0, hintsUsed: 0, extra: 0 })).toBe(3);
+    expect(starsFor({ undosUsed: 1, hintsUsed: 0, extra: 0 })).toBe(2);
+    expect(starsFor({ undosUsed: 0, hintsUsed: 1, extra: 1 })).toBe(2);
+    expect(starsFor({ undosUsed: 2, hintsUsed: 1, extra: 0 })).toBe(1);
+    expect(starsFor({ undosUsed: 0, hintsUsed: 0, extra: 2 })).toBe(2);
   });
 });
