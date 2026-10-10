@@ -1,0 +1,56 @@
+import { createI18n } from '@studio/kit';
+
+const en = {
+  title: 'Bake Rush',
+  tagline: 'Bake it golden, serve it fast',
+  level: 'Level {n}',
+  goal: 'Goal {n}',
+  trayFull: 'Tray is full — tap an item to bin it',
+  burnt: 'Burnt!',
+  combo: 'Combo x{n}',
+  wrong: 'Not on their order',
+  ovensFull: 'All ovens are busy',
+  hint: 'Tap dough → oven → customer',
+  timeUp: "Time's up!",
+  needMore: '{n} / {t} coins',
+  mission_levels: 'Complete {n} levels',
+  mission_stars: 'Collect {n} stars',
+  mission_perfect: 'Get 3 stars {n} times',
+  mission_served: 'Serve {n} customers',
+  mission_combo: 'Serve {n} customers in a combo',
+  skin_classic: 'Classic',
+  skin_mint: 'Mint',
+  skin_ocean: 'Seaside',
+  skin_sun: 'Sunflower',
+  skin_plum: 'Plum',
+  skin_night: 'Night shift',
+};
+
+const tr: typeof en = {
+  title: 'Fırın',
+  tagline: 'Altın gibi pişir, hızlı servis et',
+  level: 'Seviye {n}',
+  goal: 'Hedef {n}',
+  trayFull: 'Tepsi dolu — atmak için ürüne dokun',
+  burnt: 'Yandı!',
+  combo: 'Kombo x{n}',
+  wrong: 'Siparişinde yok',
+  ovensFull: 'Tüm fırınlar dolu',
+  hint: 'Hamur → fırın → müşteri',
+  timeUp: 'Süre doldu!',
+  needMore: '{n} / {t} jeton',
+  mission_levels: '{n} seviye bitir',
+  mission_stars: '{n} yıldız topla',
+  mission_perfect: '{n} kez 3 yıldız al',
+  mission_served: '{n} müşteriye servis yap',
+  mission_combo: 'Komboyla {n} müşteriye servis yap',
+  skin_classic: 'Klasik',
+  skin_mint: 'Nane',
+  skin_ocean: 'Sahil',
+  skin_sun: 'Ayçiçeği',
+  skin_plum: 'Erik',
+  skin_night: 'Gece vardiyası',
+};
+
+export const t = createI18n({ en, tr });
+export const lang = navigator.language.slice(0, 2).toLowerCase() === 'tr' ? 'tr' : 'en';
