@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Terazi</string>
+    <string name="title_activity_main">Terazi</string>
+    <string name="package_name">com.indiestudio.terazi</string>
+    <string name="custom_url_scheme">com.indiestudio.terazi</string>
+</resources>

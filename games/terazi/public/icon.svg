@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="0%" r="120%"><stop offset="0" stop-color="#eef2f5"/><stop offset="1" stop-color="#b9c7d2"/></radialGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <g id="art">
+    <defs>
+      <linearGradient id="stone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6f2ea"/><stop offset="1" stop-color="#d2c7b2"/></linearGradient>
+      <linearGradient id="brass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f0d695"/><stop offset="1" stop-color="#b3842f"/></linearGradient>
+    </defs>
+    <rect x="484" y="430" width="56" height="370" rx="8" fill="url(#stone)"/>
+    <rect x="392" y="790" width="240" height="48" rx="18" fill="url(#stone)"/>
+    <path d="M512 382 L578 470 L446 470 Z" fill="#b88b37"/>
+    <rect x="132" y="350" width="760" height="64" rx="22" fill="url(#stone)" stroke="#a8977a" stroke-opacity=".35" stroke-width="4"/>
+    <rect x="432" y="306" width="160" height="36" rx="18" fill="#4caf7d"/>
+    <ellipse cx="512" cy="324" rx="26" ry="12" fill="#fff" fill-opacity=".85"/>
+    <line x1="342" y1="414" x2="342" y2="470" stroke="#5a4c30" stroke-width="6"/>
+    <circle cx="342" cy="484" r="15" fill="none" stroke="#b3842f" stroke-width="9"/>
+    <path d="M290 500 H394 L420 660 Q422 676 406 676 H278 Q262 676 264 660 Z" fill="url(#brass)"/>
+    <text x="342" y="626" font-family="Georgia,serif" font-size="120" font-weight="700" fill="#4a3713" text-anchor="middle">4</text>
+    <line x1="812" y1="414" x2="812" y2="470" stroke="#5a4c30" stroke-width="6"/>
+    <circle cx="812" cy="484" r="15" fill="none" stroke="#b3842f" stroke-width="9"/>
+    <path d="M770 500 H854 L874 610 Q876 624 862 624 H762 Q748 624 750 610 Z" fill="url(#brass)"/>
+    <text x="812" y="590" font-family="Georgia,serif" font-size="96" font-weight="700" fill="#4a3713" text-anchor="middle">2</text>
+  </g>
+</svg>
