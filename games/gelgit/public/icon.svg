@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="0%" r="120%">
+      <stop offset="0" stop-color="#4fd3d6"/><stop offset="1" stop-color="#128a9f"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <g id="art">
+    <path d="M120 720 C 300 630, 724 630, 904 720 L 904 860 C 700 900, 324 900, 120 860 Z" fill="#f3dcab"/>
+    <path d="M120 720 C 300 630, 724 630, 904 720" fill="none" stroke="#ffffff" stroke-width="30" stroke-linecap="round"/>
+    <path d="M512 236 L 512 150" stroke="#a97a3e" stroke-width="16" stroke-linecap="round"/>
+    <path d="M512 140 Q 570 140 630 170 Q 570 194 512 200 Z" fill="#ff7a59"/>
+    <path d="M300 700 V 486 h 40 v -40 h 44 v 40 h 40 v -40 h 44 V 700 Z" fill="#d7ad68" stroke="#a97a3e" stroke-width="12" stroke-linejoin="round"/>
+    <path d="M600 700 V 486 h 40 v -40 h 44 v 40 h 40 v -40 h 44 V 700 Z" fill="#d7ad68" stroke="#a97a3e" stroke-width="12" stroke-linejoin="round"/>
+    <path d="M410 700 V 300 h 46 v -60 h 44 v 60 h 24 v -60 h 44 v 60 h 46 V 700 Z" fill="#f1d39b" stroke="#a97a3e" stroke-width="12" stroke-linejoin="round"/>
+    <path d="M470 700 V 620 a 42 42 0 0 1 84 0 V 700 Z" fill="#b98a4a"/>
+    <circle cx="512" cy="420" r="28" fill="#b98a4a"/>
+  </g>
+</svg>
