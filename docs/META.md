@@ -45,4 +45,5 @@ Açık renkli ana menüde `--m-home-ink` koyu bir renge ayarlanır.
   hatırlatmalar. İzni ilk ekranda değil, iyi bir anda iste (ör. ilk kazanmadan sonra). Native için oyuna
   `@capacitor/local-notifications` bağımlılığı eklenir.
 - `shareResult({ title, text, url })`: skor/eser paylaşma (native paylaşım sayfası, web'de Web Share ya da kopyalama).
-  Native için `@capacitor/share` eklenir. Metne mağaza bağlantısı koy.
+  Native için `@capacitor/share` eklenir. Metne mağaza bağlantısı koy. `imageDataUrl` verilirse resim de paylaşılır
+  (native için ayrıca `@capacitor/filesystem`).

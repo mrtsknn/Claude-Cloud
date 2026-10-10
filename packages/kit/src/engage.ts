@@ -6,6 +6,7 @@
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Share } from '@capacitor/share';
+import { Directory, Filesystem } from '@capacitor/filesystem';
 import { track } from './analytics';
 
 const native = () => Capacitor.isNativePlatform();
@@ -76,7 +77,15 @@ export async function shareResult(o: { title: string; text: string; url?: string
   track('share', { title: o.title });
   try {
     if (native()) {
-      await Share.share({ title: o.title, text: o.text, url: o.url, dialogTitle: o.title });
+      let files: string[] | undefined;
+      if (o.imageDataUrl) {
+        // The share sheet needs a file: write the image to the cache directory first.
+        const data = o.imageDataUrl.slice(o.imageDataUrl.indexOf(',') + 1);
+        const ext = o.imageDataUrl.startsWith('data:image/png') ? 'png' : 'jpg';
+        const saved = await Filesystem.writeFile({ path: `share-${Date.now()}.${ext}`, data, directory: Directory.Cache }).catch(() => null);
+        if (saved) files = [saved.uri];
+      }
+      await Share.share({ title: o.title, text: o.text, url: o.url, files, dialogTitle: o.title });
       return true;
     }
     const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
