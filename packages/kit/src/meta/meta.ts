@@ -44,7 +44,7 @@ const lang: 'en' | 'tr' = typeof navigator !== 'undefined' && navigator.language
 const tt = (k: Key, vars: Record<string, string | number> = {}) => T[lang][k].replace(/\{(\w+)\}/g, (_, v) => String(vars[v] ?? ''));
 
 const ICON = {
-  coin: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="#ffc83d" stroke="#b57d10" stroke-width="2"/><path d="M12 7v10M9.5 9.5h4a1.5 1.5 0 0 1 0 3h-3a1.5 1.5 0 0 0 0 3h4" fill="none" stroke="#8a5b06" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  coin: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="#ffc83d" stroke="#b57d10" stroke-width="2"/><circle cx="12" cy="12" r="5" fill="none" stroke="#e0a21c" stroke-width="1.6"/><path d="M9 8.5a5 5 0 0 1 3-1.2" stroke="#fff3c4" stroke-width="1.6"/></svg>',
   star: '<svg viewBox="0 0 24 24"><path d="M12 2.8l2.8 5.8 6.3.8-4.6 4.4 1.2 6.3L12 17l-5.7 3.1 1.2-6.3L2.9 9.4l6.3-.8z"/></svg>',
   map: '<svg viewBox="0 0 24 24"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/></svg>',
   target: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>',
@@ -80,6 +80,8 @@ export interface MetaConfig {
   onSkin?: (id: string) => void;
   settings: { sound: boolean; haptics: boolean };
   onSettings: (s: { sound: boolean; haptics: boolean }) => void;
+  /** Game artwork shown in the middle of the home screen (animated preview, mascot…). */
+  hero?: HTMLElement;
   /** Extra rows for the settings sheet (e.g. a language toggle). */
   extraSettings?: HTMLElement;
 }
@@ -100,7 +102,7 @@ export function createMeta(cfg: MetaConfig) {
   const home = el(`
     <section class="m-screen m-home" hidden>
       <header class="m-top">${coinPill()}<button class="m-icon" data-act="settings" aria-label="${tt('settings')}">${ICON.gear}</button></header>
-      <div class="m-hero"><h1 class="m-logo"></h1><p class="m-tag"></p></div>
+      <div class="m-hero"><h1 class="m-logo" translate="no"></h1><p class="m-tag"></p><div class="m-art"></div></div>
       <div class="m-bottom">
         <button class="m-strip" data-act="missions">${ICON.target}<span class="m-strip-body"><span data-strip-text></span><span class="m-bar"><i data-strip-bar></i></span></span><i class="m-badge" data-strip-badge hidden>!</i></button>
         <div class="m-cards"></div>
@@ -114,6 +116,7 @@ export function createMeta(cfg: MetaConfig) {
     </section>`);
   home.querySelector('.m-logo')!.textContent = cfg.title;
   home.querySelector('.m-tag')!.textContent = cfg.tagline;
+  if (cfg.hero) home.querySelector('.m-art')!.appendChild(cfg.hero);
   const cards = home.querySelector('.m-cards')!;
   if (cfg.levels) {
     cards.appendChild(
@@ -486,7 +489,7 @@ export function createMeta(cfg: MetaConfig) {
     P.progress('games');
     const price = [100, 200, 400][o.continuesUsed] ?? 0;
     const wrap = el(`<div class="m-result"><p class="m-eyebrow">${isBest ? tt('newBest') : o.label ?? tt('over')}</p>
-      <div class="m-score">${o.score}</div><p class="m-note">${ICON.trophy} ${tt('best')} ${P.data.best}</p>
+      <div class="m-score">${o.score}</div>${isBest ? '' : `<p class="m-note">${ICON.trophy} ${tt('best')} ${P.data.best}</p>`}
       ${o.coins ? `<p class="m-reward">${ICON.coin}<b>+${o.coins}</b></p>` : ''}
       ${o.canContinue && price ? `<button class="m-btn alt" data-cont-ad>${ICON.ad} ${tt('contAd')}</button><button class="m-btn ghost" data-cont-coins>${tt('cont')} · ${ICON.coin}${price}</button>` : ''}
       <button class="m-btn" data-retry>${tt('retry')}</button>

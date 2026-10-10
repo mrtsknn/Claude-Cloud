@@ -1,12 +1,14 @@
 import './style.css';
 import {
+  createMeta,
+  createProfile,
   createStore,
+  initAds,
+  initStore,
   haptic,
-  interstitialMoment,
   maybeRequestReview,
   pentatonic,
   setupNative,
-  showRewarded,
   setHapticsEnabled,
   setSoundEnabled,
   tone,
@@ -28,9 +30,10 @@ import {
   type Piece,
 } from './game';
 import { t } from './i18n';
+import { SKINS } from './skins';
 
 // ───────────────────────── palette ─────────────────────────
-const PALETTE = ['#ff6b6b', '#ffb547', '#9be15d', '#3dd9a4', '#4cb8ff', '#7b8cff', '#c17bff'];
+let PALETTE = SKINS[0].colors;
 
 function shade(hex: string, amt: number) {
   const n = parseInt(hex.slice(1), 16);
@@ -44,8 +47,8 @@ function shade(hex: string, amt: number) {
 const PRIVACY_URL = 'https://github.com/mrtsknn/Claude-Cloud/blob/main/games/snapgrid/PRIVACY.md';
 declare const __APP_VERSION__: string;
 
-const LIGHT = PALETTE.map((c) => shade(c, 0.35));
-const DARK = PALETTE.map((c) => shade(c, -0.28));
+let LIGHT = PALETTE.map((c) => shade(c, 0.35));
+let DARK = PALETTE.map((c) => shade(c, -0.28));
 
 // ───────────────────────── persistence & settings ─────────────────────────
 const store = createStore('snapgrid');
@@ -392,7 +395,7 @@ function updateHover() {
 
 canvas.addEventListener('pointerdown', (e) => {
   unlockAudio();
-  if (over || drag) return;
+  if (over || drag || meta.covering) return;
   const { x, y } = pointerPos(e);
   if (y < L.ty - L.cell * 0.5) return;
   const slot = Math.max(0, Math.min(2, Math.floor((x - L.bx) / (L.bs / 3))));
@@ -472,6 +475,8 @@ function commit(slot: number, row: number, col: number) {
       }
     });
     const n = res.lineCount;
+    profile.progress('lines', n);
+    if (game.streak >= 2) profile.progress('combo');
     for (let i = 0; i < n + 2; i++) {
       tone({ freq: pentatonic(i + game.streak - 1), duration: 0.18, type: 'sine', volume: 0.5, delay: i * 0.06 });
     }
@@ -530,17 +535,8 @@ function bumpScore() {
 }
 
 function showGameOver() {
-  const isBest = game.score >= best && game.score > 0;
   haptic.error();
   [392, 330, 262].forEach((f, i) => tone({ freq: f, duration: 0.25, type: 'triangle', volume: 0.4, delay: i * 0.14 }));
-  $('go-title').textContent = isBest ? t('newBest') : t('noMoves');
-  $('go-score').textContent = String(game.score);
-  $('go-best').textContent = t('best', { n: best });
-  $('go-best').hidden = isBest;
-  $('revive-btn').hidden = revived;
-  $('go-lines').textContent = String(game.lines);
-  $('go-moves').textContent = String(game.moves);
-  $('gameover').hidden = false;
   track('game_over', {
     revived,
     score: game.score,
@@ -549,21 +545,34 @@ function showGameOver() {
     duration_s: Math.round((Date.now() - startedAt) / 1000),
     best,
   });
+  meta.showLose({
+    score: game.score,
+    label: t('noMoves'),
+    coins: Math.floor(game.score / 40),
+    continuesUsed: revived ? 1 : 0,
+    canContinue: !revived,
+    onContinue: revive,
+    onRetry: () => {
+      finishGame();
+      restart();
+    },
+    onMenu: () => {
+      finishGame();
+      restart();
+    },
+  });
 }
 
 function finishGame() {
   gamesPlayed++;
   store.set('gamesPlayed', gamesPlayed);
   store.remove('save');
+  profile.progress('points', game.score);
   maybeRequestReview(gamesPlayed, game.score >= best && game.score > 0);
 }
 
-async function revive() {
-  $('gameover').hidden = true;
-  if (!(await showRewarded('revive'))) {
-    $('gameover').hidden = false;
-    return;
-  }
+/** Continue after game over (paid by the meta screen with coins or a video). */
+function revive() {
   revived = true;
   over = false;
   game = { ...game, tray: rescueTray(game.board, Math.random) };
@@ -591,70 +600,104 @@ function restart() {
   track('game_start', { resumed: false });
 }
 
-$('again-btn').addEventListener('click', async () => {
-  $('gameover').hidden = true;
-  haptic.medium();
-  finishGame();
-  restart();
-  await interstitialMoment('play_again');
-});
-$('revive-btn').addEventListener('click', () => void revive());
-$('privacy-link').addEventListener('click', (e) => {
-  e.preventDefault();
-  window.open(PRIVACY_URL, '_blank');
-});
-$('version').textContent = `v${__APP_VERSION__}`;
+// ───────────────────────── meta (menu, missions, daily, shop) ─────────────────────────
+function applySkin(id: string) {
+  const skin = SKINS.find((s) => s.id === id) ?? SKINS[0];
+  PALETTE = skin.colors;
+  LIGHT = PALETTE.map((c) => shade(c, 0.35));
+  DARK = PALETTE.map((c) => shade(c, -0.28));
+}
 
-// settings sheet
-const soundOpt = $<HTMLInputElement>('opt-sound');
-const hapticsOpt = $<HTMLInputElement>('opt-haptics');
-soundOpt.checked = settings.sound;
-hapticsOpt.checked = settings.haptics;
-soundOpt.addEventListener('change', () => {
-  settings.sound = soundOpt.checked;
-  setSoundEnabled(settings.sound);
-  store.set('settings', settings);
+const profile = createProfile({
+  game: 'snapgrid',
+  levelCount: 0,
+  defaultSkin: SKINS[0].id,
+  skinIds: SKINS.map((s) => s.id),
+  missions: [
+    { id: 'games', targets: [2, 3, 5], reward: (n) => 15 + n * 8 },
+    { id: 'lines', targets: [10, 20, 35], reward: (n) => 20 + n * 2 },
+    { id: 'combo', targets: [2, 3, 5], reward: (n) => 25 + n * 10 },
+    { id: 'points', targets: [500, 1500, 3000], reward: (n) => 20 + Math.round(n / 50) },
+  ],
 });
-hapticsOpt.addEventListener('change', () => {
-  settings.haptics = hapticsOpt.checked;
-  setHapticsEnabled(settings.haptics);
-  store.set('settings', settings);
-  haptic.medium();
+applySkin(profile.data.skin);
+// Players from v1.0 keep their best score.
+if (profile.data.best < best) {
+  profile.data.best = best;
+  profile.save();
+}
+
+/** Home-screen artwork: a little board of the current palette with blocks dropping in. */
+function heroArt() {
+  const el = document.createElement('div');
+  el.className = 'hero';
+  const pattern = [1, 1, 0, 2, 3, 3, 4, 0, 5, 0, 6, 6, 7, 7, 0, 2];
+  el.innerHTML = pattern.map((c, i) => `<i data-c="${c}" style="animation-delay:${i * 70}ms"></i>`).join('');
+  const paint = () =>
+    el.querySelectorAll<HTMLElement>('i').forEach((cell) => {
+      const c = Number(cell.dataset.c);
+      cell.style.background = c ? PALETTE[c - 1] : 'rgba(255,255,255,0.07)';
+      cell.style.boxShadow = c ? `inset 0 -5px 0 ${DARK[c - 1]}` : 'none';
+    });
+  paint();
+  profile.onChange(paint);
+  return el;
+}
+
+const meta = createMeta({
+  title: 'Snapgrid',
+  hero: heroArt(),
+  tagline: t('tagline'),
+  version: __APP_VERSION__,
+  privacyUrl: PRIVACY_URL,
+  profile,
+  endless: {
+    title: t('classic'),
+    play: () => {
+      if (over || isGameOver(game)) restart();
+      unlockAudio();
+    },
+  },
+  missionText: (id, n) => t(`mission_${id}` as 'mission_games', { n }),
+  skins: SKINS.map((s) => ({ id: s.id, name: t(`skin_${s.id}` as 'skin_classic'), price: s.price, swatch: s.swatch })),
+  onSkin: applySkin,
+  settings,
+  onSettings: (s) => {
+    setSoundEnabled(s.sound);
+    setHapticsEnabled(s.haptics);
+    store.set('settings', s);
+  },
 });
+
 $('settings-btn').addEventListener('click', () => {
   unlockAudio();
-  $('settings').hidden = false;
-});
-$('close-settings').addEventListener('click', () => ($('settings').hidden = true));
-$('settings').addEventListener('click', (e) => {
-  if (e.target === e.currentTarget) $('settings').hidden = true;
-});
-$('restart-btn').addEventListener('click', () => {
-  $('settings').hidden = true;
-  if (over) finishGame();
-  else if (game.moves > 0) track('game_abandon', { score: game.score, moves: game.moves });
-  $('gameover').hidden = true;
-  restart();
+  if (over) return;
+  meta.showPause({
+    onResume: () => {},
+    onRestart: () => {
+      if (game.moves > 0) track('game_abandon', { score: game.score, moves: game.moves });
+      restart();
+    },
+  });
 });
 
 // ───────────────────────── boot ─────────────────────────
 scoreEl.textContent = String(game.score);
 bestEl.textContent = String(best);
-if (isGameOver(game)) {
-  // Closed the app on the game-over screen: show it again instead of silently resetting.
-  over = true;
-  overAt = performance.now();
-  setTimeout(showGameOver, 300);
-}
+if (isGameOver(game)) restart();
 
+void initAds();
+void initStore();
 void setupNative({
   onPause: () => !over && game.moves > 0 && store.set('save', game),
   onBack: () => {
-    if (!$('settings').hidden) {
-      $('settings').hidden = true;
+    if (meta.back()) return true;
+    if (!meta.covering) {
+      $('settings-btn').click();
       return true;
     }
     return false;
   },
 });
+meta.showHome();
 requestAnimationFrame(frame);

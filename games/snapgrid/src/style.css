@@ -6,6 +6,12 @@
   --accent: #ffcf5c;
   --sheet: #1f2752;
   --line: rgba(255, 255, 255, 0.08);
+  /* meta layer theme (kit meta.css) */
+  --m-bg: radial-gradient(120% 80% at 50% 0%, #2a3570, #10142a);
+  --m-ink: #1b2142;
+  --m-accent: #ffcf5c;
+  --m-accent-ink: #2a1a00;
+  --m-alt: #3dd9a4;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   font-family: ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -206,3 +212,8 @@ html, body {
 
 .foot { margin: 4px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
 .foot a { color: var(--muted); }
+
+/* home-screen artwork (kit meta hero slot) */
+.hero { display: grid; grid-template-columns: repeat(4, 46px); gap: 6px; padding: 10px; border-radius: 22px; background: rgba(5, 8, 25, 0.35); }
+.hero i { width: 46px; height: 46px; border-radius: 11px; animation: hero-drop 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+@keyframes hero-drop { from { transform: translateY(-40px); opacity: 0; } }

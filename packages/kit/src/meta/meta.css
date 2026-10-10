@@ -44,10 +44,11 @@
 .m-hero { flex: 1; display: grid; place-content: center; text-align: center; gap: 6px; }
 .m-logo {
   margin: 0; font-size: clamp(44px, 14vw, 72px); font-weight: 900; letter-spacing: 0.02em; line-height: 1;
-  text-transform: uppercase; color: #fff; text-shadow: 0 6px 0 rgba(0, 0, 0, 0.3);
+  color: #fff; text-shadow: 0 6px 0 rgba(0, 0, 0, 0.3);
   animation: m-float 3s ease-in-out infinite;
 }
 .m-tag { margin: 0; font-weight: 700; opacity: 0.85; font-size: 16px; }
+.m-art { display: grid; place-items: center; margin-top: 18px; min-height: 0; }
 
 .m-bottom { display: flex; flex-direction: column; gap: 12px; }
 .m-strip {
