@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#2f6b3a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <title>Çoban</title>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="stage"></canvas>
+      <header class="hud">
+        <button class="icon-btn" id="pause-btn" aria-label="pause">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5v14M15 5v14" /></svg>
+        </button>
+        <b id="level-label"></b>
+        <div class="pills">
+          <span class="pill" id="sheep-pill"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="13" r="6" /><circle cx="18" cy="11" r="3" /></svg><b id="sheep-count">0/0</b></span>
+          <span class="pill" id="time-pill"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8" /><path d="M12 9v4l3 2M10 2h4" /></svg><b id="time">0:00</b></span>
+        </div>
+      </header>
+      <div class="tip" id="tip" hidden></div>
+    </div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
