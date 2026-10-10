@@ -11,6 +11,12 @@
   --mint: #5ee0b8;
   --sheet: #134148;
   --line: rgba(255, 255, 255, 0.1);
+  /* meta layer theme (kit meta.css); skins override the colors at runtime */
+  --m-bg: radial-gradient(120% 80% at 50% 0%, #16525a, #0b2a30);
+  --m-ink: #17323a;
+  --m-accent: #ffb547;
+  --m-accent-ink: #1a2b2f;
+  --m-alt: #2fb08a;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   font-family: ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -65,12 +71,14 @@ html, body {
 .icon-btn:active, .side-btn:active { transform: scale(0.94); }
 
 .coins {
-  justify-self: end;
+  justify-self: end; border: 0; font: inherit; color: var(--ink); cursor: pointer;
   display: flex; align-items: center; gap: 6px;
   padding: 7px 12px 7px 8px; border-radius: 99px;
   background: rgba(0, 0, 0, 0.22);
   font-weight: 800; font-size: 17px; font-variant-numeric: tabular-nums;
 }
+.coins .plus { width: 18px; height: 18px; border-radius: 6px; background: var(--mint); color: var(--tile-ink); display: grid; place-items: center; font-size: 14px; line-height: 1; }
+.coins:active { transform: scale(0.95); }
 .coins.bump { animation: bump 0.4s ease; }
 .coin {
   display: inline-block; width: 20px; height: 20px; border-radius: 50%;
@@ -92,7 +100,7 @@ html, body {
 }
 .cell.blank { background: transparent; }
 .cell.on { background: var(--tile); box-shadow: 0 3px 0 rgba(0, 0, 0, 0.18); animation: pop 0.35s cubic-bezier(0.2, 1.5, 0.4, 1) both; }
-.cell.hinted { background: var(--tile); color: #7d9a97; }
+.cell.hinted { background: var(--tile); color: var(--tile-ink); opacity: 0.6; }
 .cell.flash { animation: flash 0.6s ease; }
 
 .preview-row { position: relative; height: 92px; display: grid; place-items: end center; padding-bottom: 4px; flex: none; }
@@ -174,29 +182,9 @@ html, body {
 }
 .sheet.center { text-align: center; }
 .sheet h2 { margin: 0 0 4px; font-size: 22px; }
-.big { font-size: 40px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
 .muted { margin: 0; color: var(--muted); font-weight: 600; }
-.reward { margin: 0; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 22px; font-weight: 800; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chips span { padding: 5px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); font-weight: 700; text-transform: uppercase; font-size: 14px; }
-
-.row {
-  display: flex; justify-content: space-between; align-items: center; gap: 12px;
-  padding: 10px 2px; font-size: 17px; font-weight: 600; border-bottom: 1px solid var(--line);
-}
-.switch {
-  appearance: none; flex: none; width: 50px; height: 30px; border-radius: 99px;
-  background: rgba(255, 255, 255, 0.15); position: relative; cursor: pointer; transition: background 0.2s; margin: 0;
-}
-.switch::after {
-  content: ''; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%;
-  background: #fff; transition: transform 0.2s;
-}
-.switch:checked { background: var(--mint); }
-.switch:checked::after { transform: translateX(20px); }
-.seg { display: flex; background: rgba(0, 0, 0, 0.25); border-radius: 12px; padding: 3px; }
-.seg button { border: 0; background: transparent; color: var(--muted); font: inherit; font-weight: 800; padding: 6px 14px; border-radius: 9px; cursor: pointer; }
-.seg button[aria-checked='true'] { background: var(--tile); color: var(--tile-ink); }
 
 .btn {
   border: 0; border-radius: 18px; padding: 16px; font: inherit; font-size: 18px; font-weight: 800;
@@ -204,8 +192,35 @@ html, body {
   box-shadow: 0 6px 0 var(--accent-dark); cursor: pointer; margin-top: 6px;
 }
 .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--accent-dark); }
-.foot { margin: 4px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
-.foot a { color: var(--muted); }
+
+/* word-language row inside the meta settings sheet */
+.lang-seg { display: flex; background: rgba(0, 0, 0, 0.08); border-radius: 12px; padding: 3px; }
+.lang-seg button { border: 0; background: transparent; color: inherit; opacity: 0.55; font: inherit; font-weight: 800; padding: 6px 14px; border-radius: 9px; cursor: pointer; }
+.lang-seg button[aria-checked='true'] { background: var(--m-accent); color: var(--m-accent-ink); opacity: 1; }
+.credits { margin: 2px 0 6px; font-size: 12px; font-weight: 600; opacity: 0.6; text-align: center; }
+
+/* home-screen artwork (kit meta hero slot): tiles fill in while the trail traces the wheel */
+.hero { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.hero-tiles { display: flex; gap: 6px; }
+.hero-tiles i {
+  width: 40px; height: 40px; border-radius: 9px; display: grid; place-items: center;
+  font-style: normal; font-weight: 900; font-size: 22px; color: var(--tile-ink);
+  background: var(--tile); box-shadow: 0 4px 0 rgba(0, 0, 0, 0.22);
+  animation: pop 0.4s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+.hero-wheel { position: relative; width: 180px; height: 180px; border-radius: 50%; background: rgba(255, 255, 255, 0.1); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.08); }
+.meta-root .hero-wheel svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hero-wheel polyline {
+  fill: none; stroke: var(--accent); stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; opacity: 0.9;
+  stroke-dasharray: 1; stroke-dashoffset: 1; animation: hero-trace calc(var(--n) * 0.16s) 0.4s linear forwards;
+}
+.hero-wheel b {
+  position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 24px; font-weight: 900; color: var(--ink);
+  animation: hero-on 0.25s ease both;
+}
+@keyframes hero-trace { to { stroke-dashoffset: 0; } }
+@keyframes hero-on { to { background: var(--accent); color: var(--tile-ink); } }
 
 @keyframes fade { from { opacity: 0; } }
 @keyframes popin { from { transform: scale(0.85); opacity: 0; } }
@@ -216,4 +231,5 @@ html, body {
 @keyframes rise { from { transform: translate(-50%, -10px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .cell.on, .overlay, .sheet, .toast { animation: none; }
+  .hero-wheel polyline { animation: none; stroke-dashoffset: 0; }
 }
