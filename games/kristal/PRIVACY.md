@@ -2,15 +2,19 @@
 
 _Last updated / Son güncelleme: 2026-10-10_
 
-**English.** Kristal does not collect, store or share any personal data. Your progress,
-settings and current level are saved only on your device. The app requires no account and no
-permissions. Anonymous gameplay events (for example "level 12 complete, 5 taps") may be recorded
-on the device to improve the game. If a future version shows ads or uses an analytics service,
-this policy will be updated before that version is released, listing the provider and the data
-it receives. Contact: mrtbnymntskn@gmail.com
+**English.** Kristal itself does not collect personal data. Your progress, coins, themes,
+settings and current level are saved only on your device; no account is needed. The app shows
+ads through Google AdMob (optional rewarded videos and occasional ads between levels). AdMob may
+process your device's advertising identifier, IP address and approximate location to show and
+measure ads; on iOS you are asked for tracking permission first, and in the EEA/UK a consent form
+is shown. See https://policies.google.com/technologies/ads. In-app purchases are handled by the
+App Store / Google Play; we never see your payment details. Buying "Remove ads" stops the ads
+between levels. Contact: mrtbnymntskn@gmail.com
 
-**Türkçe.** Kristal hiçbir kişisel veri toplamaz, saklamaz veya paylaşmaz. İlerlemen, ayarların
-ve devam eden seviyen yalnızca cihazında saklanır. Uygulama hesap veya izin gerektirmez.
-Oyunu iyileştirmek için anonim oyun olayları (ör. "seviye 12 bitti, 5 dokunuş") cihazda
-kaydedilebilir. İleride reklam veya analiz hizmeti eklenirse, o sürüm yayınlanmadan önce bu
-politika sağlayıcı ve paylaşılan veriler belirtilerek güncellenir. İletişim: mrtbnymntskn@gmail.com
+**Türkçe.** Kristal kendisi kişisel veri toplamaz. İlerlemen, jetonların, temaların, ayarların ve
+devam eden seviyen yalnızca cihazında saklanır; hesap gerekmez. Uygulama Google AdMob ile reklam
+gösterir (isteğe bağlı ödüllü videolar ve seviye aralarında ara sıra reklam). AdMob reklam
+göstermek ve ölçmek için cihazının reklam kimliğini, IP adresini ve yaklaşık konumunu işleyebilir;
+iOS'ta önce izleme izni sorulur, AEA/İngiltere'de onay formu gösterilir. Ayrıntı:
+https://policies.google.com/technologies/ads. Uygulama içi satın alımlar App Store / Google Play
+üzerinden yapılır; ödeme bilgilerini görmeyiz. "Reklamları kaldır" seviye arası reklamları kapatır. İletişim: mrtbnymntskn@gmail.com
