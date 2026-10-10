@@ -10,16 +10,19 @@ export interface NativeOptions {
   onBack?: () => boolean;
   /** Called when the app goes to background; save state here. */
   onPause?: () => void;
+  /** Whether the game background is dark (light status-bar icons) or light. Default: dark. */
+  darkBackground?: boolean;
 }
 
 /** One-call native chrome setup shared by all games: status bar, splash, back button, lifecycle. */
-export async function setupNative({ onBack, onPause }: NativeOptions = {}) {
+export async function setupNative({ onBack, onPause, darkBackground = true }: NativeOptions = {}) {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') onPause?.();
   });
   if (!isNative()) return;
   try {
-    await StatusBar.setStyle({ style: Style.Dark });
+    // Style.Dark = light icons for dark backgrounds.
+    await StatusBar.setStyle({ style: darkBackground ? Style.Dark : Style.Light });
     if (Capacitor.getPlatform() === 'android') await StatusBar.setOverlaysWebView({ overlay: true });
   } catch {
     /* plugin missing on this platform */

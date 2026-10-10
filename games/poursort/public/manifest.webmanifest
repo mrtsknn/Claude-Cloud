@@ -1,0 +1,13 @@
+{
+  "name": "Pour Sort",
+  "short_name": "Pour Sort",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#e9edf6",
+  "theme_color": "#e9edf6",
+  "icons": [
+    { "src": "icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any" },
+    { "src": "icon.svg", "type": "image/svg+xml", "sizes": "any" }
+  ]
+}

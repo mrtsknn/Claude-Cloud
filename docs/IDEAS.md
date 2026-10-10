@@ -5,7 +5,7 @@ Her fikir: tek mekanik, bir günde bitirilebilir, herkese hitap eder. Sıra = ö
 | # | Ad (çalışma) | Tür | Referans | Neden |
 |---|---|---|---|---|
 | 1 | **Snapgrid** ✅ | Blok yerleştirme | Block Blast, Woodoku | Kanıtlanmış talep, sıfır öğrenme |
-| 2 | **Pour Sort** | Renk/sıvı sıralama | Water Sort Puzzle, Ball Sort | Rahatlatıcı, seviye üretimi algoritmik, çok geniş kitle |
+| 2 | **Pour Sort** ✅ | Renk/sıvı sıralama | Water Sort Puzzle, Ball Sort | Rahatlatıcı, seviye üretimi algoritmik, çok geniş kitle |
 | 3 | **Wordlink** | Kelime bulma (harf çarkı) | Wordscapes, Word Connect | Her yaşta oynanıyor; TR+EN sözlükle iki pazar |
 | 4 | **Tiny Tycoon** | Idle/tycoon | Idle Miner, My Mini Mart | Uzun retention, ödüllü reklama çok uygun |
 | 5 | **Knot Untie** | İp/çizgi çözme | Twisted Tangle, Untangle | Voodoo tarzı tatmin hissi, basit fizik |
