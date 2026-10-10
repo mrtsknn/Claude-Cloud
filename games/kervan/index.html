@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#f3dfb4" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <title>Kervan</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="wallet">
+          <i class="coin big-coin"></i>
+          <div class="wallet-text">
+            <b id="coins">0</b>
+            <span id="rate">0/s</span>
+          </div>
+        </div>
+        <div class="stars-chip" id="stars-chip" hidden><i class="star"></i><span id="stars">0</span></div>
+        <button class="icon-btn" id="settings-btn" aria-label="settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+        </button>
+      </header>
+      <div class="map-wrap">
+        <canvas id="map"></canvas>
+        <div class="tut" id="tut" hidden></div>
+      </div>
+      <section class="sheet-panel">
+        <nav class="tabs">
+          <button class="tab active" data-tab="cities" data-i18n="tabCities"></button>
+          <button class="tab" data-tab="rep" id="tab-rep"><span data-i18n="tabRep"></span><i class="dot" id="rep-dot" hidden></i></button>
+        </nav>
+        <div class="pane" id="pane-cities"></div>
+        <div class="pane" id="pane-rep" hidden>
+          <div class="rep-card">
+            <div class="rep-stars"><i class="star big"></i><b id="rep-stars">0</b></div>
+            <p class="muted" data-i18n="repInfo"></p>
+            <div class="rep-compare">
+              <div><span class="eyebrow" data-i18n="repMult"></span><b id="rep-now">x1.0</b></div>
+              <svg viewBox="0 0 24 24" class="arrow" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+              <div><span class="eyebrow" data-i18n="repGain"></span><b id="rep-after">x1.0</b><small id="rep-gain"></small></div>
+            </div>
+            <p class="rep-need" id="rep-need"></p>
+            <button class="btn" id="prestige-btn" data-i18n="repBtn"></button>
+          </div>
+        </div>
+      </section>
+    </div>
+    <canvas id="fx"></canvas>
+
+    <div class="overlay" id="settings" hidden>
+      <div class="sheet">
+        <h2 data-i18n="settings"></h2>
+        <label class="row"><span data-i18n="sound"></span><input type="checkbox" id="opt-sound" class="switch" /></label>
+        <label class="row"><span data-i18n="vibration"></span><input type="checkbox" id="opt-haptics" class="switch" /></label>
+        <button class="btn" id="close-settings" data-i18n="resume"></button>
+        <p class="foot"><a href="#" id="privacy-link" data-i18n="privacy"></a> · <span id="version"></span></p>
+      </div>
+    </div>
+
+    <div class="overlay" id="welcome" hidden>
+      <div class="sheet center">
+        <p class="eyebrow" data-i18n="welcome"></p>
+        <p class="muted" id="away-for"></p>
+        <p class="muted small" data-i18n="awayEarned"></p>
+        <div class="big"><i class="coin big-coin"></i><span id="away-coins">0</span></div>
+        <div class="btn-row">
+          <button class="btn ghost" id="claim-btn" data-i18n="collect"></button>
+          <button class="btn" id="claim2-btn"><span data-i18n="double"></span> <small data-i18n="watchAd"></small></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="confirm" hidden>
+      <div class="sheet center">
+        <i class="star big"></i>
+        <p class="lead" id="confirm-text"></p>
+        <div class="btn-row">
+          <button class="btn ghost" id="confirm-no" data-i18n="no"></button>
+          <button class="btn" id="confirm-yes" data-i18n="yes"></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="banner" id="banner" hidden><span class="eyebrow" id="banner-eyebrow"></span><b id="banner-title"></b></div>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
