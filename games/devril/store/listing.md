@@ -15,6 +15,7 @@
   ▸ 200 levels from a tiny 4×4 to a winding 8×8, with pinned tiles that won't turn
   ▸ Beat par for three stars, every level has a proven solution
   ▸ No timer, no lives, fully offline
+  ▸ Daily missions, a 7-day reward calendar and six tile themes — oak, walnut, marble, jade, candy, midnight
 
   Made to feel good
   • Wooden tiles that click as the chain climbs a little melody
@@ -36,6 +37,7 @@
   ▸ Küçük 4×4'ten kıvrımlı 8×8'e 200 seviye; dönmeyen sabit taşlar
   ▸ Hedefi tuttur, üç yıldız al; her seviyenin kanıtlanmış çözümü var
   ▸ Süre yok, can yok, tamamen internetsiz
+  ▸ Günlük görevler, 7 günlük ödül takvimi ve altı taş teması — meşe, ceviz, mermer, yeşim, şeker, gece
 
   İyi hissettirmek için
   • Zincir ilerledikçe melodi gibi yükselen ahşap tık sesleri
@@ -46,9 +48,12 @@
 
 - **Kategori:** Games → Puzzle
 - **Yaş derecesi:** 4+ / PEGI 3 / Everyone
-- **Veri güvenliği / gizlilik etiketi:** "Veri toplanmıyor" — reklam/analiz sağlayıcısı eklenirse güncelle.
+- **Veri güvenliği / gizlilik etiketi:** Uygulama AdMob reklamları (ödüllü video, seviye arası geçiş) ve
+  uygulama içi satın alma (başlangıç paketi, reklamsız, jeton paketleri) içerir. Formlarda "Reklam içerir",
+  "Uygulama içi satın alma" ve AdMob'un topladığı cihaz/reklam kimliği beyan edilmeli; iOS'ta ATT izni istenir.
 
 ## Ekran görüntüleri
 
 `store/screenshots/<dil>/<boyut>/` — `ios-6.9` (1290×2796), `ios-6.5` (1242×2688), `android` (1080×1920).
+Sahneler: `1-chain` (devrilen zincir), `2-puzzle` (Gece teması, pinli 7×7), `3-stars` (kazanma), `4-home` (ana menü).
 Yeniden üretmek: `scripts/screenshots.mjs`.

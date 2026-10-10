@@ -347,8 +347,12 @@ export function generateLevel(level: number): Level {
   throw new Error(`could not generate level ${level}`);
 }
 
-/** 3 stars at or under par, 2 within par+3, otherwise 1. */
-export function starsFor(taps: number, par: number) {
+/**
+ * 3 stars at or under par, 2 within par+3, otherwise 1. Hint turns are free (they are not
+ * taps), so a level solved with any hint earns at most 2 stars — otherwise hints beat par.
+ */
+export function starsFor(taps: number, par: number, hinted = false): number {
+  if (hinted) return Math.min(2, starsFor(taps, par));
   if (taps <= par) return 3;
   if (taps <= par + 3) return 2;
   return 1;

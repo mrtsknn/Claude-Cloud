@@ -109,6 +109,12 @@ describe('stars', () => {
     expect(starsFor(8, 5)).toBe(2);
     expect(starsFor(9, 5)).toBe(1);
   });
+  it('caps a hinted level at 2 stars', () => {
+    expect(starsFor(0, 5, true)).toBe(2);
+    expect(starsFor(5, 5, true)).toBe(2);
+    expect(starsFor(8, 5, true)).toBe(2);
+    expect(starsFor(9, 5, true)).toBe(1);
+  });
 });
 
 describe('level generation', () => {

@@ -8,12 +8,13 @@ mkdirSync(outDir, { recursive: true });
 
 const scenes = [
   { name: '1-chain', level: 46, chain: 0.55 }, // frozen mid-topple
-  { name: '2-puzzle', level: 128 }, // big board with pinned tiles
+  { name: '2-puzzle', level: 128, skin: 'midnight' }, // big board with pinned tiles, shop theme
   { name: '3-stars', level: 18, win: true },
+  { name: '4-home', home: true }, // meta home: hero dominoes, missions, level card
 ];
 const captions = {
-  en: ['Turn the tiles. Push once.', 'Plan the perfect chain', 'Beat par for three stars'],
-  tr: ['Taşları çevir, tek seferde devir', 'Kusursuz zinciri kur', 'Hedefi tuttur, üç yıldız al'],
+  en: ['Turn the tiles. Push once.', 'Plan the perfect chain', 'Beat par for three stars', '200 levels, daily missions & themes'],
+  tr: ['Taşları çevir, tek seferde devir', 'Kusursuz zinciri kur', 'Hedefi tuttur, üç yıldız al', '200 seviye, günlük görevler ve temalar'],
 };
 
 const browser = await chromium.launch();
@@ -25,8 +26,25 @@ for (const lang of ['en', 'tr']) {
     const page = await ctx.newPage();
     await page.goto(url);
     await page.waitForTimeout(300);
-    await page.evaluate((l) => window.__devril.goto(l), sc.level);
-    await page.waitForTimeout(300);
+    if (sc.home) {
+      // A player a few days in: 17 levels done, some coins; hero frozen mid-topple.
+      await page.evaluate(() => {
+        const p = window.__devril.profile;
+        p.data.unlocked = 18;
+        for (let i = 0; i < 17; i++) p.data.stars[i] = i % 4 === 2 ? 2 : 3;
+        p.data.coins = 340;
+        p.progress('levels', 1);
+        document.querySelectorAll('.hero i').forEach((el, i) => {
+          el.style.animationDelay = `${-(1.25 - i * 0.16)}s`;
+          el.style.animationPlayState = 'paused';
+        });
+      });
+      await page.waitForTimeout(200);
+    } else {
+      if (sc.skin) await page.evaluate((id) => window.__devril.skin(id), sc.skin);
+      await page.evaluate((l) => window.__devril.goto(l), sc.level);
+      await page.waitForTimeout(300);
+    }
     if (sc.chain || sc.win) {
       await page.evaluate(() => {
         const d = window.__devril;
