@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3aa6e6"/><stop offset="1" stop-color="#bfe8ff"/></linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="0" fill="url(#sky)"/>
+  <g stroke-linecap="round">
+    <defs>
+    <clipPath id="dome"><path d="M232 470 A280 200 0 0 1 792 470 Q736 440 680 470 Q624 440 568 470 Q512 440 456 470 Q400 440 344 470 Q288 440 232 470 Z"/></clipPath>
+    </defs>
+    <g clip-path="url(#dome)">
+      <rect x="232" y="260" width="94" height="220" fill="#ff5a4e"/>
+      <rect x="326" y="260" width="94" height="220" fill="#ffffff"/>
+      <rect x="420" y="260" width="92" height="220" fill="#ff5a4e"/>
+      <rect x="512" y="260" width="92" height="220" fill="#ffffff"/>
+      <rect x="604" y="260" width="94" height="220" fill="#ff5a4e"/>
+      <rect x="698" y="260" width="94" height="220" fill="#ffffff"/>
+    </g>
+    <path d="M250 466 L512 640 M390 462 L512 640 M634 462 L512 640 M774 466 L512 640" stroke="#0f2a44" stroke-width="8" fill="none" opacity="0.6"/>
+    <path d="M462 650 L512 670 L562 650 M512 640 L512 730 M478 800 L512 730 L546 800" stroke="#ff8a00" stroke-width="34" fill="none"/>
+    <circle cx="512" cy="615" r="34" fill="#ffffff" stroke="#0f2a44" stroke-width="8"/>
+    <path d="M300 880 L724 880 L690 940 L334 940 Z" fill="#e85d3f"/>
+    <rect x="320" y="862" width="384" height="20" fill="#f4ead2"/>
+    <rect x="472" y="862" width="80" height="20" fill="#ff5a4e"/>
+  </g>
+</svg>
