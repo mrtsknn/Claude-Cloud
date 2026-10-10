@@ -480,7 +480,7 @@ export function createMeta(cfg: MetaConfig) {
     label?: string;
     continuesUsed: number;
     canContinue: boolean;
-    onContinue: () => void;
+    onContinue?: () => void;
     onRetry: () => void;
     onMenu?: () => void;
   }) {
@@ -498,12 +498,12 @@ export function createMeta(cfg: MetaConfig) {
     wrap.querySelector('[data-cont-ad]')?.addEventListener('click', async () => {
       if (!(await showRewarded('continue'))) return;
       closeSheet();
-      o.onContinue();
+      o.onContinue?.();
     });
     wrap.querySelector('[data-cont-coins]')?.addEventListener('click', () => {
       if (!P.spend(price)) return toast(tt('notEnough'));
       closeSheet();
-      o.onContinue();
+      o.onContinue?.();
     });
     wrap.querySelector('[data-retry]')!.addEventListener('click', async () => {
       closeSheet();
@@ -516,6 +516,41 @@ export function createMeta(cfg: MetaConfig) {
       showHome();
     });
     if (isBest) haptic.success();
+    openSheet(wrap, () => delete sheetBody.dataset.modal);
+  }
+
+  /**
+   * Level failed (out of time, hearts, moves…): retry / menu, with an optional paid continue.
+   * Unlike showLose it never touches the endless best score.
+   */
+  function showFail(o: { level: number; reason?: string; continuesUsed?: number; onContinue?: () => void; onRetry: () => void; onMenu?: () => void }) {
+    const price = o.onContinue ? ([100, 200, 400][o.continuesUsed ?? 0] ?? 0) : 0;
+    const wrap = el(`<div class="m-result"><p class="m-eyebrow">${tt('level', { n: o.level })}</p><h2>${o.reason ?? tt('over')}</h2>
+      ${price ? `<button class="m-btn alt" data-cont-ad>${ICON.ad} ${tt('contAd')}</button><button class="m-btn ghost" data-cont-coins>${tt('cont')} · ${ICON.coin}${price}</button>` : ''}
+      <button class="m-btn" data-retry>${tt('retry')}</button>
+      <button class="m-btn ghost" data-menu>${tt('menu')}</button></div>`);
+    sheetBody.dataset.modal = '1';
+    wrap.querySelector('[data-cont-ad]')?.addEventListener('click', async () => {
+      if (!(await showRewarded('continue'))) return;
+      closeSheet();
+      o.onContinue?.();
+    });
+    wrap.querySelector('[data-cont-coins]')?.addEventListener('click', () => {
+      if (!P.spend(price)) return toast(tt('notEnough'));
+      closeSheet();
+      o.onContinue?.();
+    });
+    wrap.querySelector('[data-retry]')!.addEventListener('click', () => {
+      closeSheet();
+      o.onRetry();
+    });
+    wrap.querySelector('[data-menu]')!.addEventListener('click', () => {
+      closeSheet();
+      o.onMenu?.();
+      showHome();
+    });
+    haptic.error();
+    track('level_fail', { level: o.level });
     openSheet(wrap, () => delete sheetBody.dataset.modal);
   }
 
@@ -551,6 +586,7 @@ export function createMeta(cfg: MetaConfig) {
     hideHome,
     showWin,
     showLose,
+    showFail,
     showPause,
     openShop,
     openSettings,

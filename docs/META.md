@@ -22,7 +22,8 @@ const meta = createMeta({ title, tagline, version, privacyUrl, profile, skins: S
 void initAds(); void initStore();
 meta.showHome();
 // Oyun içi: kazanınca  meta.showWin({ level, stars, coins: 10 + stars*5, onNext: () => startLevel(level+1) })
-//           kaybedince meta.showLose({ score, coins, continuesUsed, canContinue, onContinue, onRetry })
+//           kaybedince (sonsuz) meta.showLose({ score, coins, continuesUsed, canContinue, onContinue, onRetry })
+//           seviye başarısız  meta.showFail({ level, reason, continuesUsed?, onContinue?, onRetry })  (rekora dokunmaz)
 // Android geri: setupNative({ onBack: () => meta.back() || (pause(), true) })
 ```
 Standart görev kimlikleri meta tarafından otomatik ilerletilir: `levels`, `stars`, `perfect` (showWin), `games` (showLose).
