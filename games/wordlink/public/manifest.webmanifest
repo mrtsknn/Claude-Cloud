@@ -1,0 +1,13 @@
+{
+  "name": "Wordlink",
+  "short_name": "Wordlink",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f3a40",
+  "theme_color": "#0f3a40",
+  "icons": [
+    { "src": "icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any" },
+    { "src": "icon.svg", "type": "image/svg+xml", "sizes": "any" }
+  ]
+}

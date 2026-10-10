@@ -7,6 +7,7 @@ Kurallar ve iş akışı: [`CLAUDE.md`](CLAUDE.md).
 |---|---|---|
 | [Snapgrid](games/snapgrid/GAME.md) | Blok yerleştirme puzzle | v1.0.0 — mağazaya hazır |
 | [Pour Sort](games/poursort/GAME.md) | Sıvı renk sıralama | v1.0.0 — mağazaya hazır |
+| [Wordlink](games/wordlink/GAME.md) | Kelime bulmaca (TR/EN) | v1.0.0 — mağazaya hazır |
 
 ```bash
 npm install

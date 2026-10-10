@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f3a40" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <title>Wordlink</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="hud">
+        <button class="icon-btn" id="settings-btn" aria-label="settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+        </button>
+        <div class="level"><span class="eyebrow" data-i18n="level"></span><b id="level">1</b></div>
+        <div class="coins" id="coins-pill"><i class="coin"></i><b id="coins">0</b></div>
+      </header>
+
+      <main class="board-wrap"><div class="board" id="board"></div></main>
+
+      <div class="preview-row"><div class="toast" id="toast" hidden></div><div class="preview" id="preview"></div></div>
+
+      <section class="play">
+        <button class="side-btn" id="bonus-btn" aria-label="bonus words">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z" /></svg>
+          <span class="meter"><i id="bonus-meter"></i></span>
+        </button>
+        <div class="wheel" id="wheel">
+          <svg class="trail" id="trail"><polyline id="trail-line" /></svg>
+          <div class="hand" id="hand" hidden>👆</div>
+        </div>
+        <div class="side-col">
+          <button class="side-btn" id="hint-btn" aria-label="hint">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" /></svg>
+            <span class="price"><i class="coin"></i><span id="hint-price">25</span></span>
+          </button>
+          <button class="side-btn" id="shuffle-btn" aria-label="shuffle">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" /></svg>
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <div class="overlay" id="settings" hidden>
+      <div class="sheet">
+        <h2 data-i18n="settings"></h2>
+        <label class="row"><span data-i18n="sound"></span><input type="checkbox" id="opt-sound" class="switch" /></label>
+        <label class="row"><span data-i18n="vibration"></span><input type="checkbox" id="opt-haptics" class="switch" /></label>
+        <div class="row"><span data-i18n="language"></span>
+          <div class="seg" role="radiogroup"><button id="lang-tr" role="radio">TR</button><button id="lang-en" role="radio">EN</button></div>
+        </div>
+        <button class="btn" id="close-settings" data-i18n="resume"></button>
+        <p class="foot"><a href="#" id="privacy-link" data-i18n="privacy"></a> · <span id="version"></span></p>
+        <p class="foot" data-i18n="credits"></p>
+      </div>
+    </div>
+
+    <div class="overlay" id="bonus-sheet" hidden>
+      <div class="sheet">
+        <h2 data-i18n="bonusTitle"></h2>
+        <p class="muted" id="bonus-info"></p>
+        <div class="chips" id="bonus-list"></div>
+        <button class="btn" id="close-bonus" data-i18n="resume"></button>
+      </div>
+    </div>
+
+    <div class="overlay" id="win" hidden>
+      <div class="sheet center">
+        <p class="eyebrow" id="win-title"></p>
+        <div class="big" id="win-word"></div>
+        <p class="reward"><i class="coin"></i><span>+<span id="win-coins">10</span></span></p>
+        <button class="btn" id="next-btn" data-i18n="next"></button>
+      </div>
+    </div>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
