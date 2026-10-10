@@ -120,7 +120,7 @@ export function createMeta(cfg: MetaConfig) {
   const cards = home.querySelector('.m-cards')!;
   if (cfg.levels) {
     cards.appendChild(
-      el(`<button class="m-card m-card-main" data-act="play-level"><span class="m-card-ico">${ICON.star}</span><span class="m-card-body"><b data-level-title></b><small data-level-sub></small></span><span class="m-go">${ICON.play}</span></button>`),
+      el(`<button class="m-card m-card-main" data-act="play-level"><span class="m-card-ico solid">${ICON.star}</span><span class="m-card-body"><b data-level-title></b><small data-level-sub></small></span><span class="m-go">${ICON.play}</span></button>`),
     );
   }
   if (cfg.endless) {

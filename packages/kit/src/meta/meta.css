@@ -74,7 +74,8 @@
 }
 .m-card-main { background: var(--_accent); color: var(--_accent-ink); padding: 16px 14px; }
 .m-card-ico { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; background: rgba(0, 0, 0, 0.08); }
-.m-card-ico svg { width: 28px; height: 28px; fill: currentColor; stroke: none; }
+.m-card-ico svg { width: 28px; height: 28px; stroke-width: 2.4; }
+.m-card-ico.solid svg { fill: currentColor; stroke: none; }
 .m-card-body { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .m-card-body b { font-size: 22px; font-weight: 900; }
 .m-card-body small { font-size: 14px; font-weight: 700; opacity: 0.75; }
