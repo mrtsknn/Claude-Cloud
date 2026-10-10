@@ -23,8 +23,9 @@ Bu dosya, bu repoda çalışacak yeni bir ajanın (veya insanın) **önce okuyac
    (yarım iş dala girmedi). Kapsam: kurma meta'sı (kasaba/atölye temalı SVG), maceraya can, kaybedince devam,
    seri→başlangıç güçlendiricisi, testere dişi zorluk, her ~20 seviyede yeni hücre/engel, lig, albüm,
    sonuç ekranı düğmelerini `extra`/`buttons` yuvasına taşıma, mağaza görüntülerini yenileme, sürüm 1.2.0.
-2. **Telefon test linki:** claude.ai artifact'ında Wordlink 1.2, Çoban 1.1 (ve sonra Snapgrid 1.2) yok — eski build'ler.
-   Değişen oyunların `dist/` klasörünü yükleyerek güncelle (yüklemede tek seferde en fazla 255 dosya).
+2. **Telefon test linki (Oyun Atölyesi):** https://claude.ai/artifact/7buS3GNa4TbT6NwDyqTXYA
+   2026-10-10 itibarıyla Wordlink 1.2 ve Snapgrid/Kovan/Çömlek/Çoban 1.1 build'leri yüklü. Değişen oyunun
+   `dist/` dosyalarını yükleyerek güncelle (tek yüklemede en fazla 255 dosya). Snapgrid 1.2 bitince güncelle.
 3. **Wordlink mağaza ekran görüntüleri:** v1.1'den kalma; `scripts/screenshots.mjs` ile yeniden çek.
 4. Kovan / Çömlek / Çoban'a tutma katmanı (Snapgrid'den sonra, aynı yöntemle).
 5. README sürüm sütunu güncel tutulmalı (her sürüm yükseltmesinde).
