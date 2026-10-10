@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Snapgrid</string>
+    <string name="title_activity_main">Snapgrid</string>
+    <string name="package_name">com.indiestudio.snapgrid</string>
+    <string name="custom_url_scheme">com.indiestudio.snapgrid</string>
+</resources>

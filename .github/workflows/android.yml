@@ -1,0 +1,38 @@
+name: Android build
+
+# Manuel tetiklenir: Actions → "Android build" → oyun klasörünü seç.
+# Çıktı: imzasız debug APK (cihazda deneme için) + release AAB (Play Console'da imzalanmak üzere).
+on:
+  workflow_dispatch:
+    inputs:
+      game:
+        description: 'games/ altındaki klasör adı'
+        required: true
+        default: snapgrid
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - name: Web build + sync
+        working-directory: games/${{ inputs.game }}
+        run: npm run build && npx cap sync android
+      - name: Gradle
+        working-directory: games/${{ inputs.game }}/android
+        run: ./gradlew assembleDebug bundleRelease --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.game }}-android
+          path: |
+            games/${{ inputs.game }}/android/app/build/outputs/apk/debug/*.apk
+            games/${{ inputs.game }}/android/app/build/outputs/bundle/release/*.aab

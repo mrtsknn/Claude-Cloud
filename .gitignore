@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+# Native projeler `npx cap add` ile üretilir; imzalama dosyaları asla commitlenmez
+*.keystore
+*.jks
+*.p12
+*.mobileprovision
