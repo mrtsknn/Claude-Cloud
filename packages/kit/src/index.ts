@@ -10,3 +10,4 @@ export * from './meta/profile';
 export * from './meta/monetize';
 export * from './meta/meta';
 export * from './engage';
+export * from './retention';

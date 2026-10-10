@@ -8,8 +8,9 @@ Bu dosya, bu repoda çalışacak yeni bir ajanın (veya insanın) **önce okuyac
   i18n tr/en + testler + mağaza görselleri + PRIVACY). Tablo: `README.md`.
 - Derinleştirilen 5 aday (v1.1): **Wordlink, Snapgrid, Kovan, Çömlek, Çoban** — günlük bulmaca,
   bölümler/macera modu, hatırlatma bildirimi, paylaşma, efektler.
-- Sıradaki büyük iş: `docs/RETENTION.md` katmanı (kurma meta'sı, can, lig, albüm, devam
-  reklamı). Önce Wordlink ve Snapgrid'e uygulanır; ölçülür, sonra diğerlerine yayılır.
+- Tutma katmanı (`docs/RETENTION.md`) kit'te hazır (`packages/kit/src/retention/`) ve **Wordlink v1.2**'de
+  tam entegre (okuma dünyası inşası, can, seri, testere dişi zorluk + süreli seviyeler, yeni mekanik
+  ritmi, lig, albüm). Sıradaki: Snapgrid'e aynı API ile uygulamak (rehber: RETENTION.md "API kullanımı").
 
 ## Strateji (neden böyle)
 1. **Yeni oyun ekleme dönemi bitti.** 23 yüzeysel oyun yerine 2–3 derin oyun para kazanır.
@@ -43,10 +44,14 @@ Bu dosya, bu repoda çalışacak yeni bir ajanın (veya insanın) **önce okuyac
   kullanıcı Türkçe konuşur — yanıtlar Türkçe.
 
 ## Bilinen eksikler / kit borçları
-- Sonuç ekranlarına (kazan/kaybet) özel içerik ve ekstra buton eklenecek resmi bir yuva yok;
-  oyunlar kit çizdikten sonra DOM'a ekliyor.
-- `endless` kartı oluşturulduktan sonra güncellenemiyor; harita grid'ine başlık ekleme yuvası yok.
-- Günlük bulmaca `showWin({level:0})` ile kaydedilince görev sayacını ilerletiyor.
+- ~~Sonuç ekranlarına özel içerik / ekstra buton yuvası yok~~ → **düzeldi (v1.2):** `showWin/showFail/showLose`
+  `extra` + `buttons` alır (Wordlink kullanıyor; diğer oyunlar hâlâ DOM'a ekliyor, taşınabilir).
+- ~~`endless` kartı güncellenemiyor; harita başlık yuvası yok~~ → **düzeldi:** `meta.setEndless(...)`,
+  `levels.section(n)` / `levels.tag(n)`.
+- ~~Günlük bulmaca `showWin({level:0})` görev sayacını ilerletiyor~~ → **düzeldi:** `level <= 0` haritaya ve
+  `levels/stars/perfect` görevlerine dokunmaz (Snapgrid'in günlüğü de otomatik düzeldi).
+- Wordlink mağaza ekran görüntüleri v1.1'den (yeni ana menü yok); yayın öncesi yeniden çekilmeli.
+- Lig botları istemci tarafında; gerçek sunucu için `LeagueOpponents` arayüzünü uygulayan sağlayıcı yazılmalı.
 - `scheduleReminders` reddedilmiş izni her çağrıda tekrar istiyor (oyunlar yalnızca "evet" sonrası çağırıyor).
 - Wordlink TR: denetlenmiş liste 620 seviyeye yetiyor; daha fazlası için liste elle genişletilmeli.
 

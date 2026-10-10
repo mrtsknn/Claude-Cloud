@@ -51,13 +51,14 @@ export function visibleCells(level: Level, found: Set<string>, revealed: Set<str
 
 /**
  * Picks the cell a hint reveals: the first hidden letter of the shortest unfound word,
- * which is the most useful single letter for most players.
+ * which is the most useful single letter for most players. `blocked` cells (mystery tile, a
+ * locked word) are never revealed.
  */
-export function hintCell(level: Level, found: Set<string>, revealed: Set<string>): string | null {
+export function hintCell(level: Level, found: Set<string>, revealed: Set<string>, blocked: Set<string> = new Set()): string | null {
   const vis = visibleCells(level, found, revealed);
   const open = level.words.filter((p) => !found.has(p.w)).sort((a, b) => a.w.length - b.w.length);
   for (const p of open) {
-    const k = cellsOf(p).find((key) => !vis.has(key));
+    const k = cellsOf(p).find((key) => !vis.has(key) && !blocked.has(key));
     if (k) return k;
   }
   return null;

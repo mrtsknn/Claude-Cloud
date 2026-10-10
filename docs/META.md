@@ -30,6 +30,16 @@ meta.showHome();
 İlk sonuç ekranından sonra `firstRun` otomatik kapanır (günlük ödül sonraki menü açılışında kendiliğinden açılır).
 `showPause({ onResume, onRestart? })`: idle oyunlarda `onRestart` verilmez. `endless.subtitle` kart alt yazısını değiştirir.
 Standart görev kimlikleri meta tarafından otomatik ilerletilir: `levels`, `stars`, `perfect` (showWin), `games` (showLose).
+**Yuvalar (v1.2):** `topExtra` (üst çubuk, ör. can hapı), `homeButtons: [{ id, icon, label, sub?, badge?, onClick }]`
+(görev şeridinin üstünde hızlı düğmeler: lig, albüm…), `levels.canPlay(n)` (can kapısı; false → ekranda kal),
+`levels.section(n)` (haritada n'den önce başlık), `levels.tag(n)` (karo sınıfı: `hard`/`veryhard` rozetli),
+sonuç ekranlarında `extra` (başlık/ödül altına öğe) + `buttons: [{ id?, label, icon?, cls?, keepOpen?, onClick }]`
+(Menü'nün yanına), `showWin({ eyebrow?, title? })`, `showFail({ offer, attempt })` (`continueOffer` fiyatı +
+`continue_offer/accept` olayları), `interstitial: createInterstitialPolicy()`, `onPurchase(id)`,
+`meta.setEndless({ title?, subtitle?, badge?, cls? })`, `meta.openSheet(el, { modal?, wide?, onClose? })` /
+`meta.closeSheet()` (oyunun kendi sayfaları ve tutma ekranları kitin sayfasında açılır). `showWin({ level: 0 })`
+haritaya ve seviye görevlerine dokunmaz (günlük bulmaca, etkinlik). Tutma katmanı: `docs/RETENTION.md`.
+
 Tema: `:root { --m-bg; --m-ink; --m-card; --m-muted; --m-accent; --m-accent-ink; --m-alt; --m-font; --m-home-ink; --m-strip }` (bkz. meta.css).
 Açık renkli ana menüde `--m-home-ink` koyu bir renge ayarlanır.
 

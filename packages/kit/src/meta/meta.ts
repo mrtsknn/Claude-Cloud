@@ -12,6 +12,7 @@ import { showRewarded, interstitialMoment } from '../ads';
 import { DAILY_REWARDS, AD_COINS, COIN_PACKS, STARTER_PACK_COINS, type ProfileStore } from './profile';
 import { priceOf, purchase, restorePurchases, setNoAds, storeAvailable, rewardedAvailable, type ProductId } from './monetize';
 import { setAdsRemoved } from '../ads';
+import type { ContinueOffer, InterstitialPolicy } from '../retention/offers';
 
 const T = {
   en: {
@@ -67,13 +68,61 @@ export interface MetaSkin {
   swatch: string;
 }
 
+/** Extra button on a result sheet (win / fail / lose), placed next to "Menu". */
+export interface ResultButton {
+  label: string;
+  /** Becomes `data-btn` (tests, styling). */
+  id?: string;
+  /** Inline SVG markup shown before the label. */
+  icon?: string;
+  cls?: 'alt' | 'ghost' | '';
+  /** Keep the sheet open after the tap (e.g. Share). */
+  keepOpen?: boolean;
+  onClick: () => void;
+}
+
+/** Official slots on the result sheets (instead of decorating the kit DOM afterwards). */
+export interface ResultExtras {
+  /** Content placed under the headline / stars / reward (progress rows, rewards…). */
+  extra?: HTMLElement;
+  buttons?: ResultButton[];
+}
+
+/** Quick-access button on the home screen (league, album, events…), in a row above the mission strip. */
+export interface HomeButton {
+  id: string;
+  icon: string;
+  label: string;
+  /** Small second line (rank, pack count…), re-read on every refresh. */
+  sub?: () => string;
+  /** Red badge text, re-read on every refresh; empty / 0 / null hides it. */
+  badge?: () => string | number | null;
+  onClick: () => void;
+}
+
+export interface SheetOptions {
+  /** Taps on the backdrop and Android back do not close it. */
+  modal?: boolean;
+  wide?: boolean;
+  onClose?: () => void;
+}
+
 export interface MetaConfig {
   title: string;
   tagline: string;
   version: string;
   privacyUrl: string;
   profile: ProfileStore;
-  levels?: { count: number; play: (level: number) => void };
+  levels?: {
+    count: number;
+    play: (level: number) => void;
+    /** Gate before a level starts (e.g. lives). Return false to stay on the current screen. */
+    canPlay?: (level: number) => boolean;
+    /** Header placed before level `n` in the map grid (chapters, areas…). */
+    section?: (level: number) => HTMLElement | null;
+    /** Extra class for a map tile (e.g. 'hard', 'veryhard'). */
+    tag?: (level: number) => string;
+  };
   endless?: { title?: string; subtitle?: string; play: () => void };
   missionText: (id: string, target: number) => string;
   skins: MetaSkin[];
@@ -84,6 +133,13 @@ export interface MetaConfig {
   hero?: HTMLElement;
   /** Extra rows for the settings sheet (e.g. a language toggle). */
   extraSettings?: HTMLElement;
+  /** Placed in the home top bar between the coins and the settings button (e.g. a lives pill). */
+  topExtra?: HTMLElement;
+  homeButtons?: HomeButton[];
+  /** Interstitial rules (retention `createInterstitialPolicy`); default: after level 4, time-capped. */
+  interstitial?: InterstitialPolicy;
+  /** After a successful purchase (e.g. starter pack → unlimited lives for 24 h). */
+  onPurchase?: (id: ProductId) => void;
 }
 
 const el = (html: string) => {
@@ -101,9 +157,10 @@ export function createMeta(cfg: MetaConfig) {
   // ───────────────────────── home ─────────────────────────
   const home = el(`
     <section class="m-screen m-home" hidden>
-      <header class="m-top">${coinPill()}<button class="m-icon" data-act="settings" aria-label="${tt('settings')}">${ICON.gear}</button></header>
+      <header class="m-top">${coinPill()}<span class="m-top-extra"></span><button class="m-icon" data-act="settings" aria-label="${tt('settings')}">${ICON.gear}</button></header>
       <div class="m-hero"><h1 class="m-logo" translate="no"></h1><p class="m-tag"></p><div class="m-art"></div></div>
       <div class="m-bottom">
+        <div class="m-quick" hidden></div>
         <button class="m-strip" data-act="missions">${ICON.target}<span class="m-strip-body"><span data-strip-text></span><span class="m-bar"><i data-strip-bar></i></span></span><i class="m-badge" data-strip-badge hidden>!</i></button>
         <div class="m-cards"></div>
         <nav class="m-nav">
@@ -117,6 +174,19 @@ export function createMeta(cfg: MetaConfig) {
   home.querySelector('.m-logo')!.textContent = cfg.title;
   home.querySelector('.m-tag')!.textContent = cfg.tagline;
   if (cfg.hero) home.querySelector('.m-art')!.appendChild(cfg.hero);
+  if (cfg.topExtra) home.querySelector('.m-top-extra')!.appendChild(cfg.topExtra);
+  const quick = home.querySelector('.m-quick') as HTMLElement;
+  for (const b of cfg.homeButtons ?? []) {
+    const btn = el(`<button class="m-qbtn" data-home-btn="${b.id}"><span class="m-qico">${b.icon}</span><span class="m-qbody"><b></b><small></small></span><i class="m-badge" hidden></i></button>`);
+    btn.querySelector('b')!.textContent = b.label;
+    btn.addEventListener('click', () => {
+      unlockAudio();
+      haptic.light();
+      b.onClick();
+    });
+    quick.appendChild(btn);
+    quick.hidden = false;
+  }
   const cards = home.querySelector('.m-cards')!;
   if (cfg.levels) {
     cards.appendChild(
@@ -137,6 +207,7 @@ export function createMeta(cfg: MetaConfig) {
   let onSheetClose: (() => void) | null = null;
   function openSheet(html: string | HTMLElement, onClose?: () => void, wide = false) {
     sheetBody.className = 'm-sheet' + (wide ? ' wide' : '');
+    delete sheetBody.dataset.modal;
     sheetBody.innerHTML = '';
     if (typeof html === 'string') sheetBody.innerHTML = html;
     else sheetBody.appendChild(html);
@@ -197,6 +268,16 @@ export function createMeta(cfg: MetaConfig) {
     mb.hidden = claimable === 0;
     mb.textContent = String(claimable);
     (home.querySelector('[data-badge-daily]') as HTMLElement).hidden = !P.dailyClaimable();
+    for (const b of cfg.homeButtons ?? []) {
+      const btn = quick.querySelector(`[data-home-btn="${b.id}"]`)!;
+      const sub = btn.querySelector('small') as HTMLElement;
+      sub.textContent = b.sub?.() ?? '';
+      sub.hidden = !sub.textContent;
+      const badge = btn.querySelector('.m-badge') as HTMLElement;
+      const v = b.badge?.();
+      badge.hidden = v === null || v === undefined || v === '' || v === 0;
+      badge.textContent = badge.hidden ? '' : String(v);
+    }
   }
   P.onChange(refresh);
 
@@ -208,8 +289,13 @@ export function createMeta(cfg: MetaConfig) {
     for (let n = 1; n <= cfg.levels.count; n++) {
       const locked = n > P.data.unlocked;
       const stars = P.data.stars[n - 1] ?? 0;
+      const head = cfg.levels.section?.(n);
+      if (head) {
+        head.classList.add('m-section');
+        grid.appendChild(head);
+      }
       const b = el(
-        `<button class="m-lvl ${locked ? 'locked' : ''} ${n === P.data.unlocked ? 'current' : ''}">${locked ? ICON.lock : `<b>${n}</b><span class="m-lvl-stars">${[1, 2, 3].map((s) => `<i class="${s <= stars ? 'on' : ''}">${ICON.star}</i>`).join('')}</span>`}</button>`,
+        `<button class="m-lvl ${locked ? 'locked' : ''} ${n === P.data.unlocked ? 'current' : ''} ${cfg.levels.tag?.(n) ?? ''}">${locked ? ICON.lock : `<b>${n}</b><span class="m-lvl-stars">${[1, 2, 3].map((s) => `<i class="${s <= stars ? 'on' : ''}">${ICON.star}</i>`).join('')}</span>`}</button>`,
       );
       if (!locked)
         b.addEventListener('click', () => {
@@ -288,6 +374,7 @@ export function createMeta(cfg: MetaConfig) {
       P.addCoins(COIN_PACKS[id]);
     } else P.save();
     track('iap', { product: id });
+    cfg.onPurchase?.(id);
     coinBurst(1);
     toast(tt('thanks'));
   }
@@ -394,6 +481,7 @@ export function createMeta(cfg: MetaConfig) {
 
   // ───────────────────────── navigation ─────────────────────────
   function startLevel(n: number) {
+    if (cfg.levels!.canPlay && !cfg.levels!.canPlay(n)) return;
     hideHome();
     cfg.levels!.play(n);
   }
@@ -436,25 +524,79 @@ export function createMeta(cfg: MetaConfig) {
   }
 
   // ───────────────────────── results ─────────────────────────
-  /** Level win: stars, coin reward with optional x2 video, next / menu. */
-  function showWin(o: { level: number; stars: number; coins: number; onNext: () => void; onMenu?: () => void }) {
+  /** Puts the game's extra content after `anchor` and its buttons next to Menu. */
+  function addExtras(wrap: HTMLElement, x: ResultExtras, anchor: Element) {
+    if (x.extra) anchor.after(x.extra);
+    if (!x.buttons?.length) return;
+    const menu = wrap.querySelector<HTMLElement>('[data-menu]')!;
+    const row = el(`<div class="m-pair"></div>`);
+    menu.replaceWith(row);
+    for (const b of x.buttons) {
+      const btn = el(`<button class="m-btn ${b.cls ?? 'ghost'}">${b.icon ?? ''}<span></span></button>`);
+      if (b.id) btn.dataset.btn = b.id;
+      btn.querySelector('span')!.textContent = b.label;
+      btn.addEventListener('click', () => {
+        if (!b.keepOpen) {
+          onSheetClose = null;
+          closeSheet();
+        }
+        b.onClick();
+      });
+      row.appendChild(btn);
+    }
+    row.appendChild(menu);
+  }
+  function maybeInterstitial(level: number) {
+    if (cfg.interstitial ? cfg.interstitial.afterWin(level) : level > 4) return interstitialMoment('level_next', cfg.interstitial ? 60 : 120);
+  }
+  /** Continue buttons: rewarded ad (first continue) and/or coins; tracks continue_offer/accept. */
+  function continueButtons(wrap: HTMLElement, offer: ContinueOffer, level: number, onContinue: () => void) {
+    if (offer.ad) track('continue_offer', { kind: 'ad', level });
+    if (offer.coins) track('continue_offer', { kind: 'coins', level, price: offer.coins });
+    wrap.querySelector('[data-cont-ad]')?.addEventListener('click', async () => {
+      if (!(await showRewarded('continue'))) return;
+      track('continue_accept', { kind: 'ad', level });
+      onSheetClose = null;
+      closeSheet();
+      onContinue();
+    });
+    wrap.querySelector('[data-cont-coins]')?.addEventListener('click', () => {
+      if (!P.spend(offer.coins!)) return toast(tt('notEnough'));
+      track('continue_accept', { kind: 'coins', level, price: offer.coins! });
+      onSheetClose = null;
+      closeSheet();
+      onContinue();
+    });
+  }
+  const continueHtml = (offer: ContinueOffer) =>
+    `${offer.ad ? `<button class="m-btn alt" data-cont-ad>${ICON.ad} ${tt('contAd')}</button>` : ''}${offer.coins ? `<button class="m-btn ${offer.ad ? 'ghost' : 'alt'}" data-cont-coins>${tt('cont')} · ${ICON.coin}${offer.coins}</button>` : ''}`;
+
+  /**
+   * Level win: stars, coin reward with optional x2 video, next / menu. `level: 0` (daily puzzle,
+   * events) pays the coins without touching the level map or the level/star missions.
+   */
+  function showWin(o: { level: number; stars: number; coins: number; title?: string; eyebrow?: string; onNext: () => void; onMenu?: () => void } & ResultExtras) {
     if (P.data.firstRun) P.finishFirstRun();
-    const rec = P.recordLevel(o.level, o.stars);
+    if (o.level > 0) {
+      const rec = P.recordLevel(o.level, o.stars);
+      P.progress('levels');
+      if (rec.newStars) P.progress('stars', rec.newStars);
+      if (o.stars === 3) P.progress('perfect');
+    }
     P.addCoins(o.coins);
-    P.progress('levels');
-    if (rec.newStars) P.progress('stars', rec.newStars);
-    if (o.stars === 3) P.progress('perfect');
-    const wrap = el(`<div class="m-result"><p class="m-eyebrow">${tt('level', { n: o.level })}</p><h2>${tt('win')}</h2>
+    const wrap = el(`<div class="m-result"><p class="m-eyebrow"></p><h2></h2>
       <div class="m-stars">${[1, 2, 3].map((s) => `<i class="${s <= o.stars ? 'on' : ''}" style="animation-delay:${s * 150}ms">${ICON.star}</i>`).join('')}</div>
       <p class="m-reward">${ICON.coin}<b data-reward>+${o.coins}</b></p>
       <button class="m-btn" data-next>${tt('next')}</button>
       <button class="m-btn alt" data-double ${rewardedAvailable() ? '' : 'hidden'}>${ICON.ad} ${tt('double')}</button>
       <button class="m-btn ghost" data-menu>${tt('menu')}</button></div>`);
-    sheetBody.dataset.modal = '1';
+    wrap.querySelector('.m-eyebrow')!.textContent = o.eyebrow ?? (o.level > 0 ? tt('level', { n: o.level }) : '');
+    wrap.querySelector('h2')!.textContent = o.title ?? tt('win');
+    addExtras(wrap, o, wrap.querySelector('.m-reward')!);
     wrap.querySelector('[data-next]')!.addEventListener('click', async () => {
       closeSheet();
       o.onNext();
-      if (o.level > 4) await interstitialMoment('level_next');
+      await maybeInterstitial(o.level);
     });
     wrap.querySelector('[data-double]')!.addEventListener('click', async (e) => {
       const b = e.currentTarget as HTMLButtonElement;
@@ -473,7 +615,8 @@ export function createMeta(cfg: MetaConfig) {
     });
     chime();
     haptic.success();
-    openSheet(wrap, () => delete sheetBody.dataset.modal);
+    openSheet(wrap);
+    sheetBody.dataset.modal = '1';
   }
 
   /** Endless game over: score/best, continue (coins with rising price, or video), retry / menu. */
@@ -488,7 +631,7 @@ export function createMeta(cfg: MetaConfig) {
     onContinue?: () => void;
     onRetry: () => void;
     onMenu?: () => void;
-  }) {
+  } & ResultExtras) {
     if (P.data.firstRun) P.finishFirstRun();
     const isBest = P.recordBest(o.score);
     P.addCoins(o.coins);
@@ -500,7 +643,7 @@ export function createMeta(cfg: MetaConfig) {
       ${o.canContinue && price ? `<button class="m-btn alt" data-cont-ad>${ICON.ad} ${tt('contAd')}</button><button class="m-btn ghost" data-cont-coins>${tt('cont')} · ${ICON.coin}${price}</button>` : ''}
       <button class="m-btn" data-retry>${tt('retry')}</button>
       <button class="m-btn ghost" data-menu>${tt('menu')}</button></div>`);
-    sheetBody.dataset.modal = '1';
+    addExtras(wrap, o, wrap.querySelector('.m-score')!);
     wrap.querySelector('[data-cont-ad]')?.addEventListener('click', async () => {
       if (!(await showRewarded('continue'))) return;
       closeSheet();
@@ -514,7 +657,8 @@ export function createMeta(cfg: MetaConfig) {
     wrap.querySelector('[data-retry]')!.addEventListener('click', async () => {
       closeSheet();
       o.onRetry();
-      await interstitialMoment('retry');
+      if (cfg.interstitial) cfg.interstitial.afterLoss();
+      else await interstitialMoment('retry');
     });
     wrap.querySelector('[data-menu]')!.addEventListener('click', () => {
       closeSheet();
@@ -522,30 +666,38 @@ export function createMeta(cfg: MetaConfig) {
       showHome();
     });
     if (isBest) haptic.success();
-    openSheet(wrap, () => delete sheetBody.dataset.modal);
+    openSheet(wrap);
+    sheetBody.dataset.modal = '1';
   }
 
   /**
    * Level failed (out of time, hearts, moves…): retry / menu, with an optional paid continue.
    * Unlike showLose it never touches the endless best score.
    */
-  function showFail(o: { level: number; reason?: string; continuesUsed?: number; onContinue?: () => void; onRetry: () => void; onMenu?: () => void }) {
+  function showFail(
+    o: {
+      level: number;
+      reason?: string;
+      continuesUsed?: number;
+      /** Continue pricing (retention `continueOffer`); default: video or 100 / 200 / 400 coins. */
+      offer?: ContinueOffer;
+      /** Attempt number of this level (analytics). */
+      attempt?: number;
+      onContinue?: () => void;
+      onRetry: () => void;
+      onMenu?: () => void;
+    } & ResultExtras,
+  ) {
     const price = o.onContinue ? ([100, 200, 400][o.continuesUsed ?? 0] ?? 0) : 0;
-    const wrap = el(`<div class="m-result"><p class="m-eyebrow">${tt('level', { n: o.level })}</p><h2>${o.reason ?? tt('over')}</h2>
-      ${price ? `<button class="m-btn alt" data-cont-ad>${ICON.ad} ${tt('contAd')}</button><button class="m-btn ghost" data-cont-coins>${tt('cont')} · ${ICON.coin}${price}</button>` : ''}
+    const offer: ContinueOffer = o.onContinue ? (o.offer ?? { ad: !!price, coins: price || null }) : { ad: false, coins: null };
+    const wrap = el(`<div class="m-result"><p class="m-eyebrow">${tt('level', { n: o.level })}</p><h2></h2>
+      ${continueHtml(offer)}
       <button class="m-btn" data-retry>${tt('retry')}</button>
       <button class="m-btn ghost" data-menu>${tt('menu')}</button></div>`);
-    sheetBody.dataset.modal = '1';
-    wrap.querySelector('[data-cont-ad]')?.addEventListener('click', async () => {
-      if (!(await showRewarded('continue'))) return;
-      closeSheet();
-      o.onContinue?.();
-    });
-    wrap.querySelector('[data-cont-coins]')?.addEventListener('click', () => {
-      if (!P.spend(price)) return toast(tt('notEnough'));
-      closeSheet();
-      o.onContinue?.();
-    });
+    wrap.querySelector('h2')!.textContent = o.reason ?? tt('over');
+    addExtras(wrap, o, wrap.querySelector('h2')!);
+    if (o.onContinue) continueButtons(wrap, offer, o.level, o.onContinue);
+    cfg.interstitial?.afterLoss();
     wrap.querySelector('[data-retry]')!.addEventListener('click', () => {
       closeSheet();
       o.onRetry();
@@ -556,8 +708,9 @@ export function createMeta(cfg: MetaConfig) {
       showHome();
     });
     haptic.error();
-    track('level_fail', { level: o.level });
-    openSheet(wrap, () => delete sheetBody.dataset.modal);
+    track('level_fail', { level: o.level, ...(o.attempt ? { attempt: o.attempt } : {}) });
+    openSheet(wrap);
+    sheetBody.dataset.modal = '1';
   }
 
   function showPause(o: { onResume: () => void; onRestart?: () => void; onMenu?: () => void }) {
@@ -587,9 +740,33 @@ export function createMeta(cfg: MetaConfig) {
     setAdsRemoved(true);
   }
 
+  /** Updates the endless/second mode card after creation (title, subtitle, badge markup). */
+  function setEndless(o: { title?: string; subtitle?: string; badge?: string; cls?: string }) {
+    const card = home.querySelector<HTMLElement>('[data-act="play-endless"]');
+    if (!card) return;
+    if (o.title !== undefined) card.querySelector('.m-card-body b')!.textContent = o.title;
+    if (o.subtitle !== undefined) card.querySelector('.m-card-body small')!.textContent = o.subtitle;
+    if (o.badge !== undefined) card.querySelector('.m-best')!.innerHTML = o.badge;
+    if (o.cls !== undefined) card.className = `m-card ${cfg.levels ? '' : 'm-card-main'} ${o.cls}`;
+  }
+
   return {
     showHome,
     hideHome,
+    setEndless,
+    /** Opens any content in the kit sheet (retention screens, game sheets). */
+    openSheet(content: HTMLElement, o: SheetOptions = {}) {
+      openSheet(content, o.onClose, o.wide);
+      if (o.modal) sheetBody.dataset.modal = '1';
+    },
+    closeSheet,
+    get sheetOpen() {
+      return !sheet.hidden;
+    },
+    /** True while the home screen is up. */
+    get onHome() {
+      return !home.hidden;
+    },
     showWin,
     showLose,
     showFail,
