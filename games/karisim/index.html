@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#e4e7ec" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="./icon-512.png" type="image/png" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <title>Karışım</title>
@@ -13,8 +13,8 @@
   <body>
     <div id="app">
       <header class="hud">
-        <button class="icon-btn" id="settings-btn" aria-label="settings">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+        <button class="icon-btn" id="settings-btn" aria-label="pause">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6v12M15 6v12" /></svg>
         </button>
         <div class="level">
           <span class="eyebrow" data-i18n="level"></span>
@@ -28,16 +28,19 @@
       <section class="card target-card">
         <div class="swatch" id="target"></div>
         <div class="meter-wrap">
-          <div class="meter-head">
-            <span class="eyebrow" data-i18n="closeness"></span>
-            <b id="pct">0%</b>
-          </div>
+          <span class="eyebrow" data-i18n="target"></span>
           <div class="meter"><i id="meter-fill"></i></div>
           <div class="meta"><span id="drops"></span><span id="par"></span></div>
         </div>
       </section>
 
-      <div class="stage-wrap"><canvas id="stage"></canvas></div>
+      <div class="stage-wrap">
+        <canvas id="stage"></canvas>
+        <div class="bowl-pct" id="bowl-pct">
+          <span class="almost" id="almost" data-i18n="almost" hidden></span>
+          <b id="pct">0%</b>
+        </div>
+      </div>
 
       <div class="tubes" id="tubes"></div>
 
@@ -55,24 +58,13 @@
       <div class="toast" id="toast" hidden></div>
     </div>
 
-    <div class="overlay" id="settings" hidden>
-      <div class="sheet">
-        <h2 data-i18n="settings"></h2>
-        <label class="row"><span data-i18n="sound"></span><input type="checkbox" id="opt-sound" class="switch" /></label>
-        <label class="row"><span data-i18n="vibration"></span><input type="checkbox" id="opt-haptics" class="switch" /></label>
-        <button class="btn" id="close-settings" data-i18n="resume"></button>
-        <p class="foot"><a href="#" id="privacy-link" data-i18n="privacy"></a> · <span id="version"></span></p>
-      </div>
-    </div>
-
-    <div class="overlay" id="win" hidden>
+    <div class="overlay" id="hint-sheet" hidden>
       <div class="sheet center">
-        <p class="eyebrow" id="win-title"></p>
-        <div class="win-swatch" id="win-swatch"></div>
-        <div class="stars" id="stars"><i></i><i></i><i></i></div>
-        <div class="big" data-i18n="matched"></div>
-        <p class="muted" id="win-drops"></p>
-        <button class="btn" id="next-btn" data-i18n="next"></button>
+        <h2 data-i18n="hintTitle"></h2>
+        <p class="muted" data-i18n="hintSub"></p>
+        <button class="btn" id="hint-coins"></button>
+        <button class="btn alt" id="hint-video"></button>
+        <button class="btn ghost" id="hint-cancel" data-i18n="cancel"></button>
       </div>
     </div>
 

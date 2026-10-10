@@ -33,6 +33,15 @@ export const MATCH_DE = 0.02;
  */
 export const MIN_GAP = 0.011;
 export const MAX_DROPS = 30;
+/**
+ * Minimum OKLab chroma of a target. Near-greys (e.g. white + black, or complementary mixes)
+ * all read as "some grey" on a phone screen, so the generator rejects them.
+ */
+export const MIN_CHROMA = 0.05;
+/** Closeness at which the UI shows the "almost!" cue. */
+export const ALMOST = 0.95;
+/** Distance at which the meter bottoms out. */
+const FAR_DE = 0.45;
 
 // ───────────────────────── colour ─────────────────────────
 const toLinear = (c: number) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
@@ -95,12 +104,21 @@ export function mix(counts: number[], labs: Lab[]): Lab | null {
 
 export const isMatch = (mixLab: Lab | null, target: Lab, tol = MATCH_DE) => !!mixLab && deltaE(mixLab, target) <= tol;
 
-/** 0..1 "how close" value for the meter; exactly 1 only when matched. */
+export const chroma = (lab: Lab) => Math.hypot(lab[1], lab[2]);
+
+/**
+ * 0..1 "how close" value for the meter; exactly 1 only when matched.
+ * Late levels match within a ΔE the eye can barely see, so the meter is the real guide: it
+ * blends a linear scale (useful far away) with a log scale relative to the level's tolerance
+ * (fine-grained up close). Above ALMOST the bowl is within ~1.5× the tolerance.
+ */
 export function closeness(mixLab: Lab | null, target: Lab, tol = MATCH_DE) {
   if (!mixLab) return 0;
   const d = deltaE(mixLab, target);
   if (d <= tol) return 1;
-  return Math.min(0.99, Math.max(0, 1 - d / 0.4));
+  const lin = 1 - d / FAR_DE;
+  const log = 1 - Math.log(d / tol) / Math.log(FAR_DE / tol);
+  return Math.min(0.99, Math.max(0, 0.55 * lin + 0.45 * log));
 }
 
 export function stars(drops: number, par: number) {
@@ -196,6 +214,7 @@ function attempt(n: number, r: () => number, drops: number): Level | null {
   const labs = tubes.map((p) => hexToOklab(PIGMENTS[p].hex));
   const target = mix(recipe, labs)!;
   if (target[0] < 0.32) return null; // muddy near-black targets are no fun to read
+  if (chroma(target) < MIN_CHROMA) return null; // near-greys are hard to tell apart
   const gap = cheaperGap(labs, target, drops, MIN_GAP);
   if (gap < MIN_GAP) return null;
   return { n, tubes, recipe, target, par: drops, tol: Math.min(MATCH_DE, gap / 2) };
