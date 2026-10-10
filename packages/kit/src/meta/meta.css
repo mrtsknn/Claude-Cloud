@@ -24,6 +24,8 @@
 }
 .meta-root [hidden] { display: none !important; }
 .meta-root svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+/* Game artwork in the home hero keeps its own sizes and paint. */
+.meta-root .m-art svg { width: auto; height: auto; fill: initial; stroke: initial; stroke-width: initial; }
 
 .m-screen {
   position: fixed; inset: 0; z-index: 30;
