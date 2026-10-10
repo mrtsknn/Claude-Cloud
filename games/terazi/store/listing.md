@@ -22,6 +22,11 @@
   • A free hint in every level
   • Soft stone-and-brass look, wooden knocks and gentle chimes
 
+  More to come back for
+  • Level map with stars, three daily missions and a 7-day reward calendar
+  • Six materials for your scale: brass, wood, marble, candy, stone and jade
+  • Optional videos for extra coins; one-time purchase removes ads
+
 ## Türkçe
 
 - **Ad:** Terazi: Denge Bulmacası
@@ -44,13 +49,22 @@
   • Her seviyede ücretsiz ipucu
   • Yumuşak taş-pirinç görünüm, tahta sesi ve hafif çanlar
 
+  Her gün geri dönmek için
+  • Yıldızlı seviye haritası, günde üç görev ve 7 günlük ödül takvimi
+  • Teraziye altı malzeme: pirinç, ahşap, mermer, şeker, taş ve yeşim
+  • İsteğe bağlı videolarla ek jeton; tek seferlik satın alımla reklamsız
+
 ## Kategori ve derecelendirme
 
 - **Kategori:** Games → Puzzle
 - **Yaş derecesi:** 4+ / PEGI 3 / Everyone
-- **Veri güvenliği / gizlilik etiketi:** "Veri toplanmıyor" — reklam/analiz sağlayıcısı eklenirse güncelle.
+- **Uygulama içi satın alma:** Başlangıç paketi, Reklamsız, Jeton yığını, Jeton sandığı (kit ürün kimlikleri)
+- **Reklam:** Evet (AdMob — geçiş reklamı 5. seviyeden sonra sınırlı, ödüllü video isteğe bağlı)
+- **Veri güvenliği / gizlilik etiketi:** Reklam sağlayıcısı (Google AdMob) cihaz tanımlayıcısı ve
+  reklam etkileşimi toplar; iOS'ta ATT izni sorulur. Oyun ilerlemesi yalnızca cihazda.
 
 ## Ekran görüntüleri
 
 `store/screenshots/<dil>/<boyut>/` — `ios-6.9` (1290×2796), `ios-6.5` (1242×2688), `android` (1080×1920).
+Sahneler: `1-tilt` (pirinç), `2-balanced` (mermer, kabarcık yeşil), `3-stack` (ahşap, ±6 yığma), `4-home` (ana menü).
 Yeniden üretmek: `scripts/screenshots.mjs`.
