@@ -8,6 +8,13 @@
   --sheet: #ffffff;
   --chip: rgba(22, 50, 74, 0.06);
   --line: rgba(22, 50, 74, 0.08);
+  /* kit meta theme: deep harbour water on the home screen, white cards */
+  --m-bg: radial-gradient(120% 80% at 50% 0%, #2a9bb0, #0e4f6b 60%, #0a3550);
+  --m-ink: #16324a;
+  --m-muted: #5f7a8c;
+  --m-accent: #ffc23d;
+  --m-accent-ink: #16324a;
+  --m-alt: #17a673;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   font-family: ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -124,7 +131,10 @@ html, body {
   display: grid;
   place-items: center;
 }
-.badge.ad { background: #16a34a; font-size: 10px; letter-spacing: 0.04em; }
+.badge { display: flex; align-items: center; background: var(--ink); font-size: 11px; }
+.badge.free { background: #17a673; font-size: 10px; letter-spacing: 0.06em; }
+.badge .coin, .btn .coin { width: 14px; height: 14px; margin-right: 3px; stroke: none; }
+.btn .coin { width: 22px; height: 22px; vertical-align: -5px; margin-right: 4px; }
 .badge[hidden] { display: none; }
 
 .toast {
@@ -225,6 +235,24 @@ html, body {
   margin-top: 6px;
 }
 .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--accent-dark); }
+.btn.alt { background: linear-gradient(180deg, #1fbf85, #17a673); box-shadow: 0 6px 0 #0d6e4b; }
+.btn.ghost { background: transparent; color: var(--muted); box-shadow: none; font-size: 16px; padding: 10px; }
+.btn:disabled { opacity: 0.45; transform: none; }
+.btn[hidden] { display: none; }
+.btn svg { width: 22px; height: 22px; vertical-align: -5px; fill: none; stroke: currentColor; stroke-width: 2; }
+.sheet.center { align-items: stretch; }
+
+/* kit win sheet addition: moves against par */
+.win-moves { margin: 0; text-align: center; font-weight: 700; color: var(--muted); }
+.win-moves.par { color: #17a673; }
+
+/* home hero: a loaded ship bobbing on the waves */
+.meta-root .hero svg { width: min(300px, 78vw); height: auto; display: block; overflow: visible; }
+.hero-ship { transform-box: view-box; transform-origin: 140px 150px; animation: hero-bob 3.2s ease-in-out infinite; }
+.hero-wave { animation: hero-wave 2.6s linear infinite; }
+.hero-wave.w2 { animation-duration: 1.9s; animation-direction: reverse; }
+@keyframes hero-bob { 0%, 100% { transform: translateY(0) rotate(-1.6deg); } 50% { transform: translateY(5px) rotate(1.6deg); } }
+@keyframes hero-wave { to { transform: translateX(40px); } }
 
 .foot { margin: 4px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
 .foot a { color: var(--muted); }
@@ -233,7 +261,7 @@ html, body {
 @keyframes pop { from { transform: scale(0.85); opacity: 0; } }
 @keyframes rise { from { transform: translate(-50%, 10px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .overlay, .sheet, .toast { animation: none; }
+  .overlay, .sheet, .toast, .hero-ship, .hero-wave { animation: none; }
 }
 
 .tool.sail { color: #fff; background: linear-gradient(180deg, #19a7a9, var(--accent)); box-shadow: 0 3px 0 var(--accent-dark); }

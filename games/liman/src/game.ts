@@ -25,15 +25,28 @@ export function mulberry32(seed: number): Rng {
   };
 }
 
-/** Difficulty ramp: 2 ports & 4 boxes → 4 ports & 14 boxes, heavier boxes, tighter limits. */
+/** Stack height pattern per difficulty tier (added to 3): early levels stay short, late ones mix in tall stacks. */
+const HEIGHT_PATTERN: [number, number[]][] = [
+  [6, [0]],
+  [30, [0, 1, 0, 1, 1]],
+  [80, [1, 0, 2, 1, 1, 2]],
+  [MAX_LEVEL, [1, 2, 2, 1, 2, 0, 2]],
+];
+
+/**
+ * Difficulty ramp: 2 ports & 4 boxes → 4 ports & 14 boxes, heavier boxes, tighter limits.
+ * Stacks are 3–5 high; the column count follows so the spare deck space shrinks over time.
+ */
 export function levelParams(level: number): Level {
   const l = Math.max(1, Math.min(MAX_LEVEL, Math.floor(level)));
   const p = (l - 1) / (MAX_LEVEL - 1);
   const ports = l <= 8 ? 2 : l <= 40 ? 3 : 4;
   const boxes = l === 1 ? 4 : Math.min(14, Math.round(5 + 9 * p + (l % 4 === 0 ? 1 : 0)));
-  const ncols = l <= 6 ? 3 : l <= 35 ? 4 : l <= 90 ? 5 : 6;
   const slack = Math.max(1, Math.round(5 - 4 * p));
-  const height = Math.max(3, Math.min(5, Math.ceil((boxes + slack) / ncols)));
+  const pattern = HEIGHT_PATTERN.find(([upTo]) => l <= upTo)![1];
+  const height = 3 + pattern[l % pattern.length];
+  const minCols = l <= 35 ? 3 : 4;
+  const ncols = Math.max(minCols, Math.min(6, Math.ceil((boxes + slack) / height)));
   const tol = l <= 10 ? 2 : l <= 60 ? 1 : l % 3 === 0 ? 0 : 1;
   return { level: l, ports, height, tol, ncols, boxes };
 }
@@ -206,15 +219,45 @@ function shuffle<T>(arr: T[], rng: Rng) {
   return arr;
 }
 
+/**
+ * The "no thought" strategy: take the dock containers in the order they are shown and drop each
+ * one on a legal column (order rule kept, room left) that best evens the balance; ties go to the
+ * shorter, then the leftmost column. True when that alone gives a ship that may sail.
+ */
+export function greedySolves(ship: Ship, lv: Level): boolean {
+  let s: Ship = { cols: ship.cols.map((c) => c.slice()), dock: ship.dock.slice() };
+  for (const box of ship.dock) {
+    const diff = balance(s).diff;
+    let best = -1;
+    let bestScore = Infinity;
+    for (let c = 0; c < s.cols.length; c++) {
+      const col = s.cols[c];
+      if (col.length >= lv.height || (col.length && col[col.length - 1].port < box.port)) continue;
+      const score = Math.abs(diff + side(c, s.cols.length) * box.w) * 100 + col.length;
+      if (score < bestScore) {
+        bestScore = score;
+        best = c;
+      }
+    }
+    if (best < 0) return false;
+    s = applyMove(s, lv, { id: box.id, to: best })!;
+  }
+  return check(s, lv).ok;
+}
+
+/** From this level on, a dock that the greedy strategy loads correctly is rejected. */
+export const GREEDY_FROM = 6;
+
 /** Builds a valid loaded ship first, then empties it onto the dock in shuffled order. */
 export function generateLevel(level: number): { lv: Level; ship: Ship; solution: Ship } {
   const lv = levelParams(level);
   const rng = mulberry32(level * 7919 + 17);
   const wMax = maxWeight(lv.level);
-  for (let attempt = 0; ; attempt++) {
+  const empty = () => Array.from({ length: lv.ncols }, () => [] as Box[]);
+  for (let attempt = 0; attempt < 400; attempt++) {
     const ports = Array.from({ length: lv.boxes }, (_, i) => (i < lv.ports ? i + 1 : 1 + Math.floor(rng() * lv.ports)));
     const boxes: Box[] = ports.map((port, id) => ({ id, port, w: 1 + Math.floor(rng() * wMax) }));
-    const cols: Box[][] = Array.from({ length: lv.ncols }, () => []);
+    const cols: Box[][] = empty();
     for (const b of boxes) {
       const open = cols.map((_, c) => c).filter((c) => cols[c].length < lv.height);
       cols[open[Math.floor(rng() * open.length)]].push(b);
@@ -228,14 +271,16 @@ export function generateLevel(level: number): { lv: Level; ship: Ship; solution:
       if (!heavy.length) break;
       heavy[Math.floor(rng() * heavy.length)].w--;
     }
-    if (Math.abs(balance(solution).diff) > lv.tol && attempt < 200) continue;
-    if (attempt >= 200) throw new Error(`level ${level}: generation failed`);
+    if (Math.abs(balance(solution).diff) > lv.tol) continue;
     // Must use both sides, otherwise there is nothing to think about.
     if (lv.level > 1 && cols.filter((c, i) => c.length && side(i, lv.ncols) !== 0).length < 2) continue;
-    const dock = shuffle(boxes.map((b) => ({ ...b })), rng);
-    // Reject docks that are already a solution when loaded naively left to right.
-    return { lv, ship: { cols: Array.from({ length: lv.ncols }, () => []), dock }, solution };
+    // Reject docks that load correctly when simply taken left to right (greedySolves).
+    for (let k = 0; k < 12; k++) {
+      const ship: Ship = { cols: empty(), dock: shuffle(boxes.map((b) => ({ ...b })), rng) };
+      if (lv.level < GREEDY_FROM || !greedySolves(ship, lv)) return { lv, ship, solution };
+    }
   }
+  throw new Error(`level ${level}: generation failed`);
 }
 
 /** 3 stars for a clean run at par; −1 for using undo/hints, −1 for extra moves. */
