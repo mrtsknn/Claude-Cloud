@@ -8,10 +8,11 @@ const [url, outDir] = process.argv.slice(2);
 mkdirSync(outDir, { recursive: true });
 
 const captions = {
-  en: ['Swipe letters, make words', 'Crosswords that grow with you', 'Find bonus words, earn coins'],
-  tr: ['Harfleri kaydır, kelime kur', 'Seninle büyüyen bulmacalar', 'Bonus kelime bul, jeton kazan'],
+  en: ['400 levels, daily rewards & themes', 'Swipe letters, make words', 'Crosswords that grow with you', 'Find bonus words, earn coins'],
+  tr: ['400 seviye, günlük ödül ve temalar', 'Harfleri kaydır, kelime kur', 'Seninle büyüyen bulmacalar', 'Bonus kelime bul, jeton kazan'],
 };
 const scenes = [
+  { name: '0-home', home: true },
   { name: '1-swipe', level: 24, solved: 2, swipeLongest: true },
   { name: '2-grid', level: 160, solved: 4 },
   { name: '3-bonus', level: 60, solved: 3, bonus: true },
@@ -26,10 +27,21 @@ for (const lang of ['en', 'tr']) {
       localStorage.setItem('wordlink.settings', JSON.stringify({ sound: false, haptics: false, lang: l }));
       localStorage.setItem('wordlink.coins', '340');
       localStorage.setItem('wordlink.bonusMeter', '6');
+      // a player some way in: 23 levels cleared, mostly with 3 stars
+      const stars = Array.from({ length: 400 }, (_, i) => (i < 23 ? (i % 5 === 3 ? 2 : 3) : 0));
+      localStorage.setItem(`wordlink.map.${l}`, JSON.stringify({ stars, unlocked: 24 }));
     }, lang);
     const page = await ctx.newPage();
     await page.goto(url);
     await page.waitForTimeout(500);
+    if (sc.home) {
+      await page.waitForTimeout(1800); // hero trail finishes tracing
+      const file = `${outDir}/raw-${lang}-${sc.name}.png`;
+      await page.screenshot({ path: file });
+      raw[`${lang}-${sc.name}`] = file;
+      await ctx.close();
+      continue;
+    }
     await page.evaluate((n) => window.__wordlink.goto(n), sc.level);
     const lvl = await page.evaluate(() => window.__wordlink.level);
     const byLen = lvl.words.map((w) => w.w).sort((a, b) => a.length - b.length);

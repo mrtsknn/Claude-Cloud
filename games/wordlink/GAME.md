@@ -29,9 +29,30 @@
 
 ## Çekirdek döngü
 
-Çarktaki harfleri sürükleyerek birleştir → kelime tabloya yerleşir → tüm kelimeler bulununca
-seviye biter (+10 jeton) → sonraki seviye. Jetonlar ipucuna harcanır (25), jeton bitince ödüllü
-video +40 verir.
+Ana menü → Oyna (ya da seviye haritasından seç) → çarktaki harfleri sürükleyerek birleştir →
+kelime tabloya yerleşir → tüm kelimeler bulununca meta kazanma ekranı: yıldız (ipucusuz 3, 1–2 ipucu 2,
+daha fazlası 1) ve `10 + yıldız×5` jeton (videoyla x2) → sonraki seviye. Jetonlar ipucuna harcanır (25);
+jeton yetmezse mağazanın jeton sekmesi açılır (günde 5 ödüllü video, jeton paketleri).
+
+## Meta katmanı (`@studio/kit` meta)
+
+- **Ana menü:** logo, kelime dilini izleyen mini harf çarkı + taş animasyonu (hero), jeton, ayarlar,
+  görev şeridi, "Seviye N" kartı, alt menü Seviyeler · Görevler · Günlük · Mağaza.
+- **Seviye haritası:** 400 seviye, yıldızlı/kilitli; **her kelime dilinin ayrı haritası** var.
+- **Görevler:** standart `levels`, `stars`, `perfect` + oyuna özgü `words` (N kelime bul),
+  `bonus` (N bonus kelime bul). **Günlük ödül:** 7 günlük takvim.
+- **Mağaza:** 6 tahta/taş teması (`src/skins.ts`: Lagün, Kâğıt, Gece yarısı, Böğürtlen, Orman, Kor),
+  videoyla ücretsiz jeton, başlangıç paketi, reklamsız, jeton paketleri, geri yükleme.
+- **Oyun içi:** HUD'daki duraklat düğmesi → `meta.showPause` (devam, baştan, ayarlar, menü);
+  kelime dili (TR/EN) meta ayarlarında `extraSettings` satırı. HUD jeton hapı mağazayı açar.
+- **Dil başına ilerleme, ortak jeton:** tek kit profili (`wordlink.profile`) jeton, görev, günlük ödül
+  ve temaları tutar; profilin `stars`/`unlocked` alanları her zaman aktif dili yansıtır. Her dilin
+  haritası `wordlink.map.<dil>` anahtarında saklanır; dil değişince bu kopya profile yüklenir.
+  Yarım kalan seviye durumu yine `wordlink.progress.<dil>`.
+- **v1.0'dan geçiş:** eski `wordlink.coins` profile aktarılır; her dilde ulaşılan seviyeye kadar
+  harita açılır (geçilen seviyeler 1 yıldız).
+- **Reklam/IAP:** `initAds()` + `initStore()` (test kimlikleri), AdMob test uygulama kimliği
+  AndroidManifest ve Info.plist'te.
 
 ## Zorluk eğrisi
 
@@ -52,20 +73,23 @@ Seviye paketleri dile göre ayrı yüklenir (gzip: TR 28 KB, EN 48 KB).
 - [x] Çengel bulmaca tablosu; bulunan kelimeler sırayla açılır, tekrar bulunan kelime parlar
 - [x] Geçersiz kelimede önizleme sallanır; bonus/tekrar/doğru için ayrı renk ve ses
 - [x] Bonus kelimeler + yıldız sayacı + bulunan bonus kelimeler listesi
-- [x] Jeton ekonomisi: seviye +10, bonus 10'luk +25, ipucu −25, ödüllü video +40
+- [x] Jeton ekonomisi (profil jetonu): seviye 10 + yıldız×5, bonus 10'luk +25, ipucu −25, mağazada video/paket
 - [x] Karıştır, ipucu (en kısa kelimenin ilk gizli harfi; harflerle tamamlanan kelime bulunmuş sayılır)
 - [x] 1–2. seviyelerde oyuncu duraksarsa el animasyonu en kısa kelimeyi çizer
 - [x] TR/EN kelime paketi seçimi, dile göre ayrı ilerleme; Türkçe büyük harf (İ/ı) doğru
 - [x] Her hamlede kayıt; kazanma ekranında kapatılsa bile ilerleme korunur
 - [x] Ses, titreşim, gizlilik bağlantısı, sürüm, sözlük atıfları (lisans gereği)
 - [x] Android geri tuşu, status bar, splash, dikey yön kilidi, safe-area
-- [x] Mağaza değerlendirme isteği (6. seviyeden sonra), geçiş reklamı 7. seviyeden sonra
+- [x] Mağaza değerlendirme isteği (6. seviyeden sonra), geçiş reklamı 5. seviyeden sonra (meta "Sonraki")
+- [x] Meta katmanı: ana menü, harita, görevler, günlük ödül, mağaza (6 tema), duraklat, kazanma ekranı
 
 ## Analytics olayları
 
 | Olay | Parametreler | Ne için |
 |---|---|---|
-| `level_start`, `level_complete` | `level, lang, bonus, hints, duration_s` | seviye hunisi, zorluk |
+| `level_start`, `level_complete` | `level, lang, bonus, hints, stars, duration_s` | seviye hunisi, zorluk |
+| `level_restart` | `level, lang` | zor seviyeler |
+| `home`, `mission_claim`, `daily_claim`, `skin_buy`, `iap` | — | meta etkileşimi, monetizasyon |
 | `word_found`, `bonus_word` | `level, len` | etkileşim |
 | `hint` | `level` | takılınan seviyeler |
 | `language` | `lang` | dil tercihi |
@@ -83,7 +107,7 @@ Seviye paketleri dile göre ayrı yüklenir (gzip: TR 28 KB, EN 48 KB).
 
 ## Sonraki sürüm fikirleri (v1.1+)
 
-- Günlük bulmaca, seri sayacı ve tema arka planları
+- Günlük bulmaca ve seri sayacı
 - Kelime anlamı gösterme (TDK/Wiktionary tanımları, çevrimdışı paket)
 - Daha fazla dil (DE, ES) — aynı build scripti, yeni izin listesi gerekir
 
@@ -91,8 +115,9 @@ Seviye paketleri dile göre ayrı yüklenir (gzip: TR 28 KB, EN 48 KB).
 
 Kodla yapılabilen her madde tamam ve doğrulandı: 11 birim/veri testi (her iki dilde 400 seviyenin
 tamamı için: cevaplar izin listesinde, harflerden kurulabilir, tablo çakışmasız ve tek parça,
-bonus kelimeler cevapları tekrar etmiyor), typecheck, build ve `scripts/e2e.mjs` ile gerçek
-kaydırma hareketleriyle 15 kontrol, konsol hatasız.
+bonus kelimeler cevapları tekrar etmiyor), typecheck, build ve `scripts/e2e.mjs` ile 40 kontrol
+(ana menü → günlük → mağaza → görevler → harita → 1. seviyeyi gerçek kaydırmayla çöz → kazanma →
+sonraki → ipucu profil jetonu harcar → dil değişimi ayrı ilerleme → duraklat → yeniden yükleme), konsol hatasız.
 
 Yalnızca hesap sahibinin yapabileceği adımlar kaldı:
 
@@ -100,4 +125,6 @@ Yalnızca hesap sahibinin yapabileceği adımlar kaldı:
 - [ ] `PRIVACY.md`'yi herkese açık bir URL'de yayınla ve `src/main.ts` → `PRIVACY_URL`
 - [ ] Android: Actions → **Android build** ile APK'yı cihazda dene; release keystore ile AAB imzala
 - [ ] iOS: macOS + Xcode'da `ios/App` aç, Team seç, Archive → App Store Connect
+- [ ] Gerçek AdMob kimlikleri (`initAds({ units, testing: false })`, Manifest/Info.plist) ve IAP ürünleri
+      (`starter_pack`, `remove_ads`, `coins_small`, `coins_large`) mağaza konsollarında
 - [ ] Play Console / App Store Connect: `store/listing.md`, `store/screenshots`, yaş anketi, veri güvenliği formu
