@@ -34,7 +34,13 @@ export async function showRewarded(placement: string): Promise<boolean> {
 /** Frequency-capped: never more than once per `minGapSec`, never during the first sessions. */
 export async function interstitialMoment(placement: string, minGapSec = 120) {
   if (removed || !provider) return;
-  if (Number(localStorage.getItem('studio.sessions') ?? 0) < 2) return;
+  let sessions = 0;
+  try {
+    sessions = Number(localStorage.getItem('studio.sessions') ?? 0);
+  } catch {
+    /* storage blocked: treat as a new player, no interstitials */
+  }
+  if (sessions < 2) return;
   if (Date.now() - lastInterstitial < minGapSec * 1000) return;
   lastInterstitial = Date.now();
   track('ad_interstitial', { placement });

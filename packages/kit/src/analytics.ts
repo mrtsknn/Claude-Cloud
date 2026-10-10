@@ -39,16 +39,22 @@ export function track(event: string, props: EventProps = {}) {
 
 /** Counts sessions and days since install; call once at boot. */
 export function trackSession(game: string) {
-  let installAt = Number(localStorage.getItem(`${game}.installAt`));
-  if (!installAt) {
-    installAt = Date.now();
-    localStorage.setItem(`${game}.installAt`, String(installAt));
-    track('first_open');
+  let sessions = 1;
+  let day = 0;
+  try {
+    let installAt = Number(localStorage.getItem(`${game}.installAt`));
+    if (!installAt) {
+      installAt = Date.now();
+      localStorage.setItem(`${game}.installAt`, String(installAt));
+      track('first_open');
+    }
+    sessions = Number(localStorage.getItem(`${game}.sessions`) ?? 0) + 1;
+    localStorage.setItem(`${game}.sessions`, String(sessions));
+    localStorage.setItem('studio.sessions', String(sessions));
+    day = Math.floor((Date.now() - installAt) / 86_400_000);
+  } catch {
+    /* storage blocked (private mode): count this as a single fresh session */
   }
-  const sessions = Number(localStorage.getItem(`${game}.sessions`) ?? 0) + 1;
-  localStorage.setItem(`${game}.sessions`, String(sessions));
-  localStorage.setItem('studio.sessions', String(sessions));
-  const day = Math.floor((Date.now() - installAt) / 86_400_000);
   setCommonProps({ game, session: sessions, day });
   track('session_start');
 }
