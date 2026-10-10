@@ -1,5 +1,7 @@
 # Mobil Oyun Stüdyosu — Çalışma Kuralları
 
+> Yeni oturum: önce `docs/HANDOFF.md` (devir teslim/yol haritası) okunur.
+
 Bu repo, Claude Code (bulut oturumları) ile hızlıca geliştirilip App Store / Google Play'e
 çıkarılan basit, cilalı mobil oyunların evidir. Her yeni oturum bu dosyayı okuyarak başlar.
 
