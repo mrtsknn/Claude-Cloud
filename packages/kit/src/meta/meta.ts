@@ -426,7 +426,8 @@ export function createMeta(cfg: MetaConfig) {
     closeSheet();
     refresh();
     home.hidden = false;
-    if (P.dailyClaimable() && !P.data.firstRun) setTimeout(openDaily, 350);
+    // Only if the player is still on the home screen (they may already have tapped Play).
+    if (P.dailyClaimable() && !P.data.firstRun) setTimeout(() => !home.hidden && sheet.hidden && openDaily(), 350);
     track('home');
   }
   function hideHome() {
