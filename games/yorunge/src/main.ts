@@ -1,25 +1,32 @@
 import './style.css';
 import {
+  createMeta,
+  createProfile,
   createStore,
   haptic,
-  interstitialMoment,
+  initAds,
+  initStore,
   maybeRequestReview,
   pentatonic,
   setHapticsEnabled,
   setSoundEnabled,
   setupNative,
-  showRewarded,
   tone,
   track,
   trackSession,
   unlockAudio,
 } from '@studio/kit';
 import {
+  LEVEL_COUNT,
   STEP,
   WORLD_W,
   continueRun,
   hitAngles,
+  levelDone,
+  levelStars,
+  levelTarget,
   newGame,
+  newLevel,
   release,
   simulateRelease,
   start,
@@ -28,6 +35,7 @@ import {
   type GameState,
 } from './game';
 import { lang, t } from './i18n';
+import { SKINS, trailColor } from './skins';
 
 // TODO(mağaza): gizlilik politikasını yayınladığın adresle değiştir.
 const PRIVACY_URL = 'https://github.com/mrtsknn/Claude-Cloud/blob/main/games/yorunge/PRIVACY.md';
@@ -48,7 +56,7 @@ const store = createStore('yorunge');
 const settings = store.get('settings', { sound: true, haptics: true });
 setSoundEnabled(settings.sound);
 setHapticsEnabled(settings.haptics);
-let best = store.get('best', 0);
+const legacyBest = store.get('best', 0); // v1.0 kept the best score here; migrated into the profile below
 let gamesPlayed = store.get('gamesPlayed', 0);
 trackSession('yorunge');
 
@@ -59,12 +67,12 @@ const ctx = canvas.getContext('2d')!;
 const scoreEl = $('score');
 const bestEl = $('best');
 const hintEl = $('hint');
+const goalEl = $('goal');
 
 document.documentElement.lang = lang;
 document.querySelectorAll<HTMLElement>('[data-i18n]').forEach((el) => {
   el.textContent = t(el.dataset.i18n as Parameters<typeof t>[0]);
 });
-$('version').textContent = `v${__APP_VERSION__}`;
 
 // ───────────── layout ─────────────
 let W = 0;
@@ -72,6 +80,11 @@ let H = 0;
 let dpr = 1;
 let k = 1; // css px per world unit
 let game: GameState = newGame((Math.random() * 2 ** 31) | 0);
+type Mode = { kind: 'endless' } | { kind: 'level'; n: number; target: number };
+let mode: Mode = { kind: 'endless' };
+let skin = SKINS[0];
+/** Level reached its target: input is blocked until the win sheet is answered. */
+let ended = false;
 
 function layout() {
   dpr = Math.min(window.devicePixelRatio || 1, 3);
@@ -170,10 +183,29 @@ function drawPlanets(now: number) {
       ringR *= 1 + 0.08 * Math.sin(q * Math.PI);
       alpha += 0.4 * (1 - q);
     }
+    const goal = mode.kind === 'level' && i === mode.target;
+    if (goal) {
+      // the level's finish planet: golden ring with a little flag on top
+      alpha = Math.min(1, alpha + 0.35);
+      const fy = y - ringR - 6;
+      ctx.strokeStyle = '#ffd98a';
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x, fy);
+      ctx.lineTo(x, fy - 24);
+      ctx.stroke();
+      ctx.fillStyle = '#ffd98a';
+      ctx.beginPath();
+      ctx.moveTo(x, fy - 24);
+      ctx.lineTo(x + 15 + Math.sin(now / 250) * 2, fy - 19);
+      ctx.lineTo(x, fy - 13);
+      ctx.fill();
+    }
     ctx.setLineDash([0, 9 * Math.max(1, k * 0.9)]);
     ctx.lineCap = 'round';
-    ctx.lineWidth = 2.6;
-    ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+    ctx.lineWidth = goal ? 3.4 : 2.6;
+    ctx.strokeStyle = goal ? `rgba(255,217,138,${alpha})` : `rgba(255,255,255,${alpha})`;
     ctx.lineDashOffset = -(now / 1000) * p.omega * 10 * (active ? game.sat.dir : 1);
     ctx.beginPath();
     ctx.arc(x, y, ringR, 0, Math.PI * 2);
@@ -220,7 +252,7 @@ function drawSatellite(now: number) {
   ctx.lineCap = 'round';
   for (let i = 1; i < trail.length; i++) {
     const a = i / trail.length;
-    ctx.strokeStyle = `rgba(200,215,255,${a * 0.55})`;
+    ctx.strokeStyle = trailColor(skin, a, a * 0.6);
     ctx.lineWidth = 1 + a * 3.5;
     ctx.beginPath();
     ctx.moveTo(sx(trail[i - 1].x), sy(trail[i - 1].y));
@@ -233,13 +265,13 @@ function drawSatellite(now: number) {
   const combo = Math.min(game.combo, 5);
   const glowR = 16 + combo * 5 + (combo ? Math.sin(now / 120) * 2 : 0);
   const g = ctx.createRadialGradient(x, y, 0, x, y, glowR);
-  g.addColorStop(0, combo ? 'rgba(255,226,150,0.85)' : 'rgba(210,225,255,0.7)');
-  g.addColorStop(1, 'rgba(210,225,255,0)');
+  g.addColorStop(0, combo ? 'rgba(255,226,150,0.85)' : `rgba(${skin.glow},0.7)`);
+  g.addColorStop(1, `rgba(${skin.glow},0)`);
   ctx.fillStyle = g;
   ctx.beginPath();
   ctx.arc(x, y, glowR, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = '#fff';
+  ctx.fillStyle = skin.sat;
   ctx.beginPath();
   ctx.arc(x, y, 5.5, 0, Math.PI * 2);
   ctx.fill();
@@ -275,7 +307,9 @@ let frozen = false;
 function frame(now: number) {
   acc += Math.min(0.1, (now - last) / 1000);
   last = now;
-  while (!frozen && acc >= STEP) {
+  // Meta screens (home, pause, results) stop time; the scene keeps drawing behind them.
+  if (frozen || meta.covering) acc = 0;
+  while (acc >= STEP) {
     acc -= STEP;
     handle(step(game), now);
   }
@@ -289,8 +323,18 @@ function frame(now: number) {
   requestAnimationFrame(frame);
 }
 
+// ───────────── HUD ─────────────
+function hud() {
+  const level = mode.kind === 'level' ? mode : null;
+  scoreEl.textContent = level ? `${Math.min(game.reached, level.target)}/${level.target}` : String(game.score);
+  scoreEl.classList.toggle('small', !!level);
+  bestEl.textContent = level ? t('levelShort', { n: level.n }) : String(profile.data.best);
+  $('best-ico').toggleAttribute('hidden', !!level);
+  $('level-ico').toggleAttribute('hidden', !level);
+}
+
 function bump() {
-  scoreEl.textContent = String(game.score);
+  hud();
   scoreEl.classList.remove('bump');
   void scoreEl.offsetWidth;
   scoreEl.classList.add('bump');
@@ -303,7 +347,9 @@ function handle(events: GameEvent[], now: number) {
       pulses.push({ planet: e.planet, t0: now, perfect: e.perfect });
       if (!e.scored) continue;
       const p = game.planets[e.planet];
+      profile.progress('hops');
       if (e.perfect) {
+        profile.progress('perfects');
         haptic.success();
         [0, 2, 4].forEach((s, i) => tone({ freq: pentatonic(s + Math.min(game.combo, 6)), duration: 0.16, volume: 0.4, delay: i * 0.05 }));
         floaters.push({ text: game.combo > 1 ? `${t('perfect')} ×${game.combo}` : t('perfect'), x: p.x, y: p.y + p.ring, t0: now, color: '#ffe39a' });
@@ -312,8 +358,10 @@ function handle(events: GameEvent[], now: number) {
         tone({ freq: pentatonic(game.score % 10), duration: 0.18, volume: 0.45 });
       }
       bump();
+      if (mode.kind === 'level' && !ended && levelDone(game, mode.target)) winLevel(mode.n, mode.target);
     } else if (e.type === 'star') {
       const st = game.stars[e.index];
+      profile.progress('starsCollected');
       haptic.light();
       tone({ freq: 1320, to: 1760, duration: 0.12, type: 'triangle', volume: 0.3 });
       floaters.push({ text: '+1', x: st.x, y: st.y, t0: now, color: '#ffe39a' });
@@ -325,64 +373,110 @@ function handle(events: GameEvent[], now: number) {
     } else if (e.type === 'lost') {
       haptic.error();
       [392, 330, 247].forEach((f, i) => tone({ freq: f, duration: 0.22, type: 'triangle', volume: 0.35, delay: i * 0.12 }));
-      setTimeout(showGameOver, 650);
+      const run = game;
+      setTimeout(() => run === game && (mode.kind === 'level' ? failLevel() : showGameOver()), 650);
     }
   }
 }
 
 // ───────────── game flow ─────────────
-let isNewBest = false;
-function showGameOver() {
-  isNewBest = game.score > best;
-  if (isNewBest) {
-    best = game.score;
-    store.set('best', best);
-    bestEl.textContent = String(best);
-    track('new_best', { score: best });
-  }
-  $('go-title').textContent = isNewBest ? t('newBest') : t('lost');
-  $('go-score').textContent = String(game.score);
-  $('go-best').textContent = t('best', { n: best });
-  $('go-best').hidden = isNewBest;
-  $('continue-btn').hidden = game.continued;
-  $('gameover').hidden = false;
-  track('game_over', { score: game.score, duration: Math.round((Date.now() - startedAt) / 1000), continued: game.continued });
+/** Fresh run in the current mode, waiting for the first tap. */
+function reset() {
+  game = mode.kind === 'level' ? newLevel(mode.n, game.viewH) : newGame((Math.random() * 2 ** 31) | 0, game.viewH);
+  game.camY = game.planets[0].y - game.viewH * 0.25;
+  ended = false;
+  trail = [];
+  floaters = [];
+  sparks = [];
+  pulses = [];
+  hintEl.hidden = false;
+  goalEl.hidden = mode.kind !== 'level';
+  if (mode.kind === 'level') goalEl.textContent = t('goal', { n: mode.target });
+  hud();
 }
 
-$('continue-btn').addEventListener('click', async () => {
-  $('gameover').hidden = true;
-  if (!(await showRewarded('continue'))) {
-    $('gameover').hidden = false;
-    return;
-  }
-  continueRun(game);
+function playEndless() {
+  mode = { kind: 'endless' };
+  reset();
+}
+
+function playLevel(n: number) {
+  n = Math.max(1, Math.min(LEVEL_COUNT, n));
+  mode = { kind: 'level', n, target: levelTarget(n) };
+  reset();
+}
+
+function finishRun(isNewBest: boolean) {
+  gamesPlayed++;
+  store.set('gamesPlayed', gamesPlayed);
+  if (profile.data.firstRun) profile.finishFirstRun();
+  maybeRequestReview(gamesPlayed, isNewBest);
+}
+
+function showGameOver() {
+  const isNewBest = game.score > profile.data.best;
+  if (isNewBest) track('new_best', { score: game.score });
+  track('game_over', { score: game.score, duration: Math.round((Date.now() - startedAt) / 1000), continued: game.continued });
+  meta.showLose({
+    score: game.score,
+    label: t('lost'),
+    coins: game.score,
+    continuesUsed: game.continued ? 1 : 0,
+    canContinue: !game.continued,
+    onContinue: revive,
+    onRetry: () => {
+      finishRun(isNewBest);
+      reset();
+    },
+    onMenu: () => {
+      finishRun(isNewBest);
+      reset();
+    },
+  });
+  hud();
+}
+
+/** Continue (paid on the meta lose screen): back into orbit around the last planet. */
+function revive() {
+  if (!continueRun(game)) return;
   trail = [];
   haptic.success();
   [0, 2, 4].forEach((s, i) => tone({ freq: pentatonic(s), duration: 0.16, delay: i * 0.07 }));
   track('continue', { score: game.score });
-});
+}
 
-$('again-btn').addEventListener('click', async () => {
-  $('gameover').hidden = true;
-  gamesPlayed++;
-  store.set('gamesPlayed', gamesPlayed);
-  maybeRequestReview(gamesPlayed, isNewBest);
-  game = newGame((Math.random() * 2 ** 31) | 0, game.viewH);
-  trail = [];
-  floaters = [];
-  scoreEl.textContent = '0';
-  hintEl.hidden = false;
-  haptic.medium();
-  await interstitialMoment('play_again');
-});
+function winLevel(n: number, target: number) {
+  ended = true;
+  const stars = levelStars(game, target);
+  track('level_win', { level: n, stars, perfects: game.perfects, duration: Math.round((Date.now() - startedAt) / 1000) });
+  setTimeout(() => {
+    if (profile.data.firstRun) profile.finishFirstRun();
+    meta.showWin({
+      level: n,
+      stars,
+      coins: 10 + stars * 5,
+      onNext: () => playLevel(n < LEVEL_COUNT ? n + 1 : n),
+      onMenu: () => playLevel(n),
+    });
+  }, 700);
+}
+
+/** Missed in a level: no lose sheet, the level simply restarts (one-tap games live on instant retries). */
+function failLevel() {
+  if (mode.kind !== 'level') return;
+  track('level_fail', { level: mode.n, reached: game.reached });
+  meta.toast(t('tryAgain'));
+  reset();
+}
 
 canvas.addEventListener('pointerdown', () => {
   unlockAudio();
+  if (meta.covering || ended) return;
   if (game.phase === 'ready') {
     start(game);
     hintEl.hidden = true;
     startedAt = Date.now();
-    track('game_start');
+    track('game_start', mode.kind === 'level' ? { mode: 'level', level: mode.n } : { mode: 'endless' });
     haptic.light();
     tone({ freq: 440, to: 660, duration: 0.1, type: 'triangle', volume: 0.3 });
     return;
@@ -393,53 +487,105 @@ canvas.addEventListener('pointerdown', () => {
   }
 });
 
-// settings
-const soundOpt = $<HTMLInputElement>('opt-sound');
-const hapticsOpt = $<HTMLInputElement>('opt-haptics');
-soundOpt.checked = settings.sound;
-hapticsOpt.checked = settings.haptics;
-soundOpt.addEventListener('change', () => {
-  settings.sound = soundOpt.checked;
-  setSoundEnabled(settings.sound);
-  store.set('settings', settings);
+// ───────────── meta (home, levels, missions, daily, shop) ─────────────
+const profile = createProfile({
+  game: 'yorunge',
+  levelCount: LEVEL_COUNT,
+  defaultSkin: SKINS[0].id,
+  skinIds: SKINS.map((s) => s.id),
+  missions: [
+    { id: 'games', targets: [2, 3, 5], reward: (n) => 15 + n * 8 },
+    { id: 'levels', targets: [2, 3, 5], reward: (n) => 20 + n * 10 },
+    { id: 'stars', targets: [4, 6, 9], reward: (n) => 20 + n * 5 },
+    { id: 'perfect', targets: [1, 2, 3], reward: (n) => 30 + n * 10 },
+    { id: 'hops', targets: [20, 40, 80], reward: (n) => 20 + Math.round(n / 2) },
+    { id: 'perfects', targets: [5, 10, 20], reward: (n) => 20 + n * 2 },
+    { id: 'starsCollected', targets: [5, 10, 20], reward: (n) => 20 + n * 2 },
+  ],
 });
-hapticsOpt.addEventListener('change', () => {
-  settings.haptics = hapticsOpt.checked;
-  setHapticsEnabled(settings.haptics);
-  store.set('settings', settings);
-  haptic.medium();
+// Players from v1.0 keep their best score.
+if (profile.data.best < legacyBest) {
+  profile.data.best = legacyBest;
+  profile.save();
+}
+
+function applySkin(id: string) {
+  skin = SKINS.find((s) => s.id === id) ?? SKINS[0];
+}
+applySkin(profile.data.skin);
+
+/** Home artwork: a pastel planet with the equipped satellite looping its dotted orbit. */
+function heroArt() {
+  const el = document.createElement('div');
+  el.className = 'hero';
+  el.setAttribute('aria-hidden', 'true');
+  el.innerHTML = `<span class="hero-glow"></span><span class="hero-ring"></span><span class="hero-planet"></span>
+    <span class="hero-moon"></span><span class="hero-orbit"><i class="hero-trail"></i><b class="hero-sat"></b></span>
+    ${[0, 1, 2, 3, 4].map((i) => `<em class="hero-star" style="--i:${i}"></em>`).join('')}`;
+  const paint = () => {
+    const trailEl = el.querySelector<HTMLElement>('.hero-trail')!;
+    const sat = el.querySelector<HTMLElement>('.hero-sat')!;
+    const stops = [0, 0.25, 0.5, 0.75, 1].map((a) => `${trailColor(skin, a, a * 0.9)} ${70 + a * 30}%`);
+    trailEl.style.background = `conic-gradient(transparent 0 70%, ${stops.join(', ')})`;
+    sat.style.background = skin.sat;
+    sat.style.boxShadow = `0 0 10px 4px rgba(${skin.glow},0.75), 0 0 26px 10px rgba(${skin.glow},0.3)`;
+  };
+  paint();
+  profile.onChange(paint);
+  return el;
+}
+
+const meta = createMeta({
+  title: 'Yörünge',
+  hero: heroArt(),
+  tagline: t('tagline'),
+  version: __APP_VERSION__,
+  privacyUrl: PRIVACY_URL,
+  profile,
+  levels: { count: LEVEL_COUNT, play: playLevel },
+  endless: { play: playEndless },
+  missionText: (id, n) => t(`mission_${id}` as 'mission_games', { n }),
+  skins: SKINS.map((s) => ({ id: s.id, name: t(`skin_${s.id}` as 'skin_moon'), price: s.price, swatch: s.swatch })),
+  onSkin: applySkin,
+  settings,
+  onSettings: (s) => {
+    setSoundEnabled(s.sound);
+    setHapticsEnabled(s.haptics);
+    store.set('settings', s);
+  },
 });
-// Opening settings pauses the physics.
-$('settings-btn').addEventListener('click', () => {
+
+function pause() {
   unlockAudio();
-  frozen = true;
-  $('settings').hidden = false;
-});
-const closeSettings = () => {
-  $('settings').hidden = true;
-  frozen = false;
-};
-$('close-settings').addEventListener('click', closeSettings);
-$('settings').addEventListener('click', (e) => e.target === e.currentTarget && closeSettings());
-$('privacy-link').addEventListener('click', (e) => {
-  e.preventDefault();
-  window.open(PRIVACY_URL, '_blank');
-});
+  if (meta.covering || game.phase === 'over' || ended) return;
+  meta.showPause({
+    onResume: () => {},
+    onRestart: () => {
+      if (game.phase === 'play') track('game_abandon', { score: game.score });
+      reset();
+    },
+    onMenu: () => {
+      if (game.phase === 'play') track('game_abandon', { score: game.score });
+      reset();
+    },
+  });
+}
+$('pause-btn').addEventListener('click', pause);
 
 // ───────────── test hook (e2e + store screenshots) ─────────────
 let aim: { planet: number; best: number | null } = { planet: -1, best: null };
 function bestAngle() {
-  if (aim.planet !== game.sat.planet) aim = { planet: game.sat.planet, best: hitAngles(game).best };
+  if (aim.planet !== game.sat.planet || aim.best === null) aim = { planet: game.sat.planet, best: hitAngles(game).best };
   return aim.best;
 }
-const ahead = (target: number) => {
-  const d = ((target - game.sat.angle) * game.sat.dir + Math.PI * 4) % (Math.PI * 2);
-  return d;
-};
+const ahead = (target: number) => ((target - game.sat.angle) * game.sat.dir + Math.PI * 4) % (Math.PI * 2);
 Object.assign(window, {
   __orbit: {
     get state() {
       return game;
+    },
+    get mode() {
+      return mode;
     },
     /** True just before the satellite reaches the best release angle. */
     aligned: () => {
@@ -448,38 +594,48 @@ Object.assign(window, {
     },
     /** True when releasing now would miss everything. */
     missing: () => game.phase === 'play' && !game.sat.flying && simulateRelease(game, game.sat.angle).planet < 0,
-    /** Instantly make n perfect captures (store screenshots). */
+    /** Instantly make n perfect captures (store screenshots, e2e level clear). */
     warp(n: number) {
-      start(game);
+      if (game.phase === 'ready') {
+        start(game);
+        startedAt = Date.now();
+      }
       hintEl.hidden = true;
-      for (let i = 0; i < n; i++) {
+      for (let i = 0; i < n && !ended; i++) {
+        aim.best = null;
         const b = bestAngle();
         if (b === null) return;
         game.sat.angle = b - game.sat.dir * game.planets[game.sat.planet].omega * STEP;
-        step(game);
+        handle(step(game), performance.now());
         release(game);
-        while (game.sat.flying && game.phase === 'play') step(game);
+        while (game.sat.flying && game.phase === 'play') handle(step(game), performance.now());
       }
       game.camY = game.planets[game.sat.planet].y - game.viewH * 0.25;
       trail = [];
-      scoreEl.textContent = String(game.score);
+      floaters = [];
+      sparks = [];
+      hud();
     },
     freeze: (on: boolean) => (frozen = on),
   },
 });
 
 // ───────────── boot ─────────────
-bestEl.textContent = String(best);
+hud();
+void initAds();
+void initStore();
 void setupNative({
   onPause: () => {
-    if (game.phase === 'play' && !frozen) $('settings-btn').click();
+    if (game.phase === 'play') pause();
   },
   onBack: () => {
-    if (!$('settings').hidden) {
-      closeSettings();
+    if (meta.back()) return true;
+    if (!meta.covering) {
+      pause();
       return true;
     }
     return false;
   },
 });
+meta.showHome();
 requestAnimationFrame(frame);

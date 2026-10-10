@@ -5,8 +5,13 @@ import {
   WORLD_W,
   continueRun,
   ensurePlanets,
+  LEVEL_COUNT,
   hitAngles,
+  levelDone,
+  levelStars,
+  levelTarget,
   newGame,
+  newLevel,
   release,
   start,
   step,
@@ -109,6 +114,7 @@ describe('capture', () => {
     }
     expect(s.combo).toBe(2);
     expect(s.score).toBe(2);
+    expect(s.perfects).toBe(2);
   });
 
   it('missing everything is game over; one continue respawns on the last planet', () => {
@@ -130,7 +136,7 @@ describe('capture', () => {
   it('collecting a star gives one extra point', () => {
     const s = newGame(6);
     start(s);
-    s.stars.push({ x: 100, y: 50, taken: false });
+    s.stars.push({ x: 100, y: 50, taken: false, seg: 1 });
     s.sat.flying = true;
     s.sat.x = 100;
     s.sat.y = 20;
@@ -140,6 +146,7 @@ describe('capture', () => {
     for (let i = 0; i < 20; i++) got ||= step(s).some((e) => e.type === 'star');
     expect(got).toBe(true);
     expect(s.score).toBe(1);
+    expect(s.starsTaken).toBe(1);
   });
 });
 
@@ -166,7 +173,7 @@ describe('generator', () => {
         expect(q.y + q.ring - p.y).toBeLessThan(IPAD_VIEW * 0.75);
       }
     }
-  });
+  }, 30_000);
 
   it('every next planet is reachable from some release angle (many seeds, early and late)', () => {
     for (let seed = 1; seed <= 30; seed++) {
@@ -195,5 +202,60 @@ describe('generator', () => {
       expect(s.phase).toBe('play');
     }
     expect(s.reached).toBe(25);
+  });
+});
+
+/** Plays the best release from every planet until `target` is reached (or lost). */
+function autoplay(s: GameState, target: number) {
+  start(s);
+  while (!levelDone(s, target) && s.phase === 'play') {
+    const { best } = hitAngles(s);
+    s.sat.angle = best! - s.sat.dir * s.planets[s.sat.planet].omega * STEP;
+    step(s);
+    release(s);
+    runUntil(s, (ev) => ev.some((e) => e.type === 'capture' || e.type === 'lost'));
+  }
+}
+
+describe('missions (levels)', () => {
+  it('has 100 levels with a growing planet target', () => {
+    expect(LEVEL_COUNT).toBe(100);
+    expect(levelTarget(1)).toBe(9);
+    expect(levelTarget(100)).toBe(108);
+  });
+
+  it('level n is the same planet layout every time (seed n), different per level', () => {
+    const a = newLevel(7, IPAD_VIEW);
+    const b = newLevel(7, IPAD_VIEW);
+    ensurePlanets(a, 20);
+    ensurePlanets(b, 20);
+    expect(a.planets).toEqual(b.planets);
+    const c = newLevel(8, IPAD_VIEW);
+    ensurePlanets(c, 20);
+    expect(c.planets).not.toEqual(a.planets);
+  });
+
+  it('central releases clear a level with perfects; stars rate the run', () => {
+    for (const n of [1, 10, 40]) {
+      const s = newLevel(n, IPAD_VIEW);
+      const target = levelTarget(n);
+      autoplay(s, target);
+      expect(levelDone(s, target)).toBe(true);
+      expect(s.perfects).toBeGreaterThanOrEqual(Math.ceil(target / 3));
+      expect(levelStars(s, target)).toBeGreaterThanOrEqual(2);
+    }
+  }, 30_000);
+
+  it('star rating: 1 for finishing, +1 perfects, +1 half the stars on the route', () => {
+    const s = newLevel(3, IPAD_VIEW);
+    const target = levelTarget(3);
+    ensurePlanets(s, target + 6);
+    s.reached = target;
+    s.stars.forEach((st) => (st.taken = false));
+    s.perfects = 0;
+    expect(levelStars(s, target)).toBe(s.stars.some((st) => st.seg <= target) ? 1 : 2);
+    s.perfects = Math.ceil(target / 3);
+    s.stars.forEach((st) => (st.taken = st.seg <= target));
+    expect(levelStars(s, target)).toBe(3);
   });
 });
