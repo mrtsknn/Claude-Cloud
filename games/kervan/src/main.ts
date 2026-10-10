@@ -1,7 +1,11 @@
 import './style.css';
 import {
+  createMeta,
+  createProfile,
   createStore,
   haptic,
+  initAds,
+  initStore,
   maybeRequestReview,
   pentatonic,
   setHapticsEnabled,
@@ -16,6 +20,7 @@ import {
 import * as G from './game';
 import { fmt, fmtDuration } from './format';
 import { lang, t, type Key } from './i18n';
+import { SKINS, swatchOf, type MapTheme } from './skins';
 
 // TODO(mağaza): gizlilik politikasını yayınladığın adresle değiştir.
 const PRIVACY_URL = 'https://github.com/mrtsknn/Claude-Cloud/blob/main/games/kervan/PRIVACY.md';
@@ -53,7 +58,6 @@ trackSession('kervan');
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 document.documentElement.lang = lang;
 document.querySelectorAll<HTMLElement>('[data-i18n]').forEach((el) => (el.textContent = t(el.dataset.i18n as Key)));
-$('version').textContent = `v${__APP_VERSION__}`;
 
 const mapCanvas = $<HTMLCanvasElement>('map');
 const mctx = mapCanvas.getContext('2d')!;
@@ -83,6 +87,7 @@ function fanfare() {
 let W = 0, H = 0, dpr = 1, gap = 100, top = 60, worldH = 0, R = 30;
 let camY = 0, camTarget = 0, follow = true;
 let bg: HTMLCanvasElement | null = null;
+let TH: MapTheme = SKINS[0];
 
 function cityPos(i: number) {
   return { x: W * CITY_X[i], y: top + i * gap };
@@ -123,8 +128,36 @@ function rng(seed: number) {
   };
 }
 
+function drawTree(c: CanvasRenderingContext2D, x: number, y: number, s: number, lean: number) {
+  if (TH.tree === 'pine') return drawPine(c, x, y, s);
+  drawPalm(c, x, y, s, lean);
+}
+function drawPine(c: CanvasRenderingContext2D, x: number, y: number, s: number) {
+  c.fillStyle = TH.trunk;
+  c.fillRect(x - s * 0.06, y - s * 0.25, s * 0.12, s * 0.25);
+  for (let k = 0; k < 3; k++) {
+    const by = y - s * 0.2 - k * s * 0.26;
+    const w = s * (0.42 - k * 0.09);
+    c.fillStyle = TH.leaf;
+    c.beginPath();
+    c.moveTo(x - w, by);
+    c.lineTo(x, by - s * 0.42);
+    c.lineTo(x + w, by);
+    c.closePath();
+    c.fill();
+    if (TH.snowCap) {
+      c.fillStyle = 'rgba(255,255,255,0.92)';
+      c.beginPath();
+      c.moveTo(x - w * 0.42, by - s * 0.24);
+      c.lineTo(x, by - s * 0.42);
+      c.lineTo(x + w * 0.42, by - s * 0.24);
+      c.quadraticCurveTo(x, by - s * 0.2, x - w * 0.42, by - s * 0.24);
+      c.fill();
+    }
+  }
+}
 function drawPalm(c: CanvasRenderingContext2D, x: number, y: number, s: number, lean: number) {
-  c.strokeStyle = '#8a5a32';
+  c.strokeStyle = TH.trunk;
   c.lineWidth = s * 0.13;
   c.lineCap = 'round';
   c.beginPath();
@@ -132,7 +165,7 @@ function drawPalm(c: CanvasRenderingContext2D, x: number, y: number, s: number, 
   c.quadraticCurveTo(x + lean * s * 0.3, y - s * 0.5, x + lean * s * 0.2, y - s);
   c.stroke();
   const tx = x + lean * s * 0.2, ty = y - s;
-  c.fillStyle = '#3f8f5a';
+  c.fillStyle = TH.leaf;
   for (let k = 0; k < 6; k++) {
     const a = -Math.PI / 2 + (k - 2.5) * 0.62;
     c.beginPath();
@@ -151,8 +184,8 @@ function renderBackground() {
   const c = cv.getContext('2d')!;
   c.scale(dpr, dpr);
   const g = c.createLinearGradient(0, 0, 0, h);
-  g.addColorStop(0, '#f7e6c2');
-  g.addColorStop(1, '#efd19a');
+  g.addColorStop(0, TH.sky[0]);
+  g.addColorStop(1, TH.sky[1]);
   c.fillStyle = g;
   c.fillRect(0, 0, W, h);
   const rand = rng(7);
@@ -165,17 +198,17 @@ function renderBackground() {
     for (let x = 0; x <= W + 10; x += 10) c.lineTo(x, y + Math.sin((x + off) / (70 + rand() * 4)) * amp);
     c.lineTo(W, y + 40);
     c.closePath();
-    c.fillStyle = 'rgba(214, 160, 92, 0.13)';
+    c.fillStyle = TH.ridge;
     c.fill();
     c.beginPath();
     for (let x = 0; x <= W + 10; x += 10) c.lineTo(x, y + Math.sin((x + off) / 72) * amp - 2);
-    c.strokeStyle = 'rgba(255, 246, 225, 0.55)';
+    c.strokeStyle = TH.crest;
     c.lineWidth = 2;
     c.stroke();
   }
   // pebbles
   for (let k = 0; k < (W * h) / 2600; k++) {
-    c.fillStyle = `rgba(150, 100, 55, ${0.1 + rand() * 0.12})`;
+    c.fillStyle = `rgba(${TH.pebble}, ${0.1 + rand() * 0.12})`;
     c.beginPath();
     c.ellipse(rand() * W, rand() * h, 1 + rand() * 2.2, 0.8 + rand() * 1.4, 0, 0, Math.PI * 2);
     c.fill();
@@ -186,11 +219,11 @@ function renderBackground() {
     const side = CITY_X[i] < 0.5 ? 1 : -1;
     if (i % 2 === 0) {
       const ox = p.x + side * W * 0.3, oy = p.y + R * 0.5;
-      c.fillStyle = '#e2c189';
+      c.fillStyle = TH.rim;
       c.beginPath();
       c.ellipse(ox, oy, R * 1.25, R * 0.55, 0, 0, Math.PI * 2);
       c.fill();
-      c.fillStyle = '#4fb3a9';
+      c.fillStyle = TH.water;
       c.beginPath();
       c.ellipse(ox, oy, R * 1.05, R * 0.42, 0, 0, Math.PI * 2);
       c.fill();
@@ -198,10 +231,10 @@ function renderBackground() {
       c.beginPath();
       c.ellipse(ox - R * 0.3, oy - R * 0.12, R * 0.4, R * 0.08, 0, 0, Math.PI * 2);
       c.fill();
-      drawPalm(c, ox - R * 0.9, oy - R * 0.1, R * 1.2, -0.6);
-      drawPalm(c, ox + R * 0.8, oy - R * 0.2, R * 1.0, 0.7);
+      drawTree(c, ox - R * 0.9, oy - R * 0.1, R * 1.2, -0.6);
+      drawTree(c, ox + R * 0.8, oy - R * 0.2, R * 1.0, 0.7);
     } else {
-      drawPalm(c, p.x + side * W * 0.33, p.y + R * 0.4, R * 0.95, side * 0.4);
+      drawTree(c, p.x + side * W * 0.33, p.y + R * 0.4, R * 0.95, side * 0.4);
     }
   }
   return cv;
@@ -318,15 +351,24 @@ function drawCity(i: number, x: number, y: number, now: number) {
   const r = R;
   c.save();
   c.translate(x, y);
+  if (TH.glow && unlocked) {
+    const g = c.createRadialGradient(0, 0, r * 0.2, 0, 0, r * 2.1);
+    g.addColorStop(0, 'rgba(255, 196, 110, 0.42)');
+    g.addColorStop(1, 'rgba(255, 196, 110, 0)');
+    c.fillStyle = g;
+    c.fillRect(-r * 2.1, -r * 2.1, r * 4.2, r * 4.2);
+  }
   // ground
   c.fillStyle = 'rgba(120,72,24,0.16)';
   c.beginPath();
   c.ellipse(0, r * 0.5, r * 1.45, r * 0.5, 0, 0, Math.PI * 2);
   c.fill();
-  c.fillStyle = unlocked ? '#fbecc9' : 'rgba(251,236,201,0.5)';
+  c.fillStyle = TH.plate;
+  if (!unlocked) c.globalAlpha *= 0.5;
   c.beginPath();
   c.ellipse(0, r * 0.4, r * 1.32, r * 0.46, 0, 0, Math.PI * 2);
   c.fill();
+  if (!unlocked) c.globalAlpha *= 2;
   c.scale(1 + squash, 1 - squash);
   const ghost = !unlocked;
   const wall = ghost ? 'rgba(170,135,90,0.35)' : '#f2d7a6';
@@ -394,7 +436,17 @@ function drawCity(i: number, x: number, y: number, now: number) {
     c.fill();
   }
   c.restore();
+}
 
+/**
+ * Name pill + stash sack, drawn after the caravans so camels never cover the text. A pill that would
+ * fall below the map's bottom edge sticks to the edge instead of being cut off.
+ */
+function drawCityLabel(i: number, x: number, y: number, now: number) {
+  const c = mctx;
+  const unlocked = i < S.cities.length;
+  const info = CITY_INFO[i];
+  const r = R;
   // label pill
   c.font = `800 ${Math.round(Math.max(11, r * 0.4))}px ui-rounded, system-ui, sans-serif`;
   c.textAlign = 'center';
@@ -410,11 +462,12 @@ function drawCity(i: number, x: number, y: number, now: number) {
     textColor = ready ? '#fff' : '#8a6b4c';
     label = `${t(info.name)} · ${fmt(cost)}`;
   } else return;
-  const lw = c.measureText(label).width + 18;
-  const ly = y + r * 1.15;
+  const lw = Math.min(c.measureText(label).width + 18, W - 8);
+  const ly = Math.min(y + r * 1.15, camY + H - 15);
+  const lx = Math.max(lw / 2 + 4, Math.min(W - lw / 2 - 4, x));
   c.fillStyle = pillColor;
   c.beginPath();
-  c.roundRect(x - lw / 2, ly - 11, lw, 22, 11);
+  c.roundRect(lx - lw / 2, ly - 11, lw, 22, 11);
   c.fill();
   if (!unlocked && i === S.cities.length) {
     c.strokeStyle = 'rgba(196,88,60,0.5)';
@@ -422,7 +475,7 @@ function drawCity(i: number, x: number, y: number, now: number) {
     c.stroke();
   }
   c.fillStyle = textColor;
-  c.fillText(label, x, ly + 0.5);
+  c.fillText(label, lx, ly + 0.5, lw - 14);
 
   // stash sack above cities without a merchant
   if (unlocked && !S.cities[i].merchant) {
@@ -463,8 +516,7 @@ function drawCoin(c: CanvasRenderingContext2D, x: number, y: number, r: number) 
   c.fill();
 }
 
-function drawCamel(x: number, y: number, s: number, dir: number, phase: number, cargo: string) {
-  const c = mctx;
+function drawCamel(c: CanvasRenderingContext2D, x: number, y: number, s: number, dir: number, phase: number, cargo: string) {
   c.save();
   c.translate(x, y);
   c.fillStyle = 'rgba(120,72,24,0.18)';
@@ -473,7 +525,7 @@ function drawCamel(x: number, y: number, s: number, dir: number, phase: number, 
   c.fill();
   c.scale(dir, 1);
   const bob = Math.sin(phase * 2) * s * 0.05;
-  c.strokeStyle = '#a8763f';
+  c.strokeStyle = TH.camelLeg;
   c.lineWidth = s * 0.11;
   c.lineCap = 'round';
   const legs = [-0.32, -0.18, 0.2, 0.34];
@@ -485,7 +537,7 @@ function drawCamel(x: number, y: number, s: number, dir: number, phase: number, 
     c.stroke();
   });
   c.translate(0, bob);
-  c.fillStyle = '#c9965a';
+  c.fillStyle = TH.camel;
   c.beginPath();
   c.ellipse(0, -s * 0.55, s * 0.5, s * 0.22, 0, 0, Math.PI * 2);
   c.fill();
@@ -493,7 +545,7 @@ function drawCamel(x: number, y: number, s: number, dir: number, phase: number, 
   c.ellipse(-s * 0.06, -s * 0.74, s * 0.26, s * 0.2, 0, 0, Math.PI * 2);
   c.fill();
   // neck + head
-  c.strokeStyle = '#c9965a';
+  c.strokeStyle = TH.camel;
   c.lineWidth = s * 0.16;
   c.beginPath();
   c.moveTo(s * 0.38, -s * 0.6);
@@ -580,6 +632,10 @@ function frame(now: number) {
   const dt = Math.min(1, Math.max(0, (now - lastFrame) / 1000));
   lastFrame = now;
   G.tick(S, dt);
+  if (heroVisible()) {
+    drawHero(now);
+    return;
+  }
 
   // camera
   if (follow) camY += (camTarget - camY) * Math.min(1, dt * 6);
@@ -606,12 +662,12 @@ function drawMap(now: number) {
     c.beginPath();
     c.moveTo(pts[0].x, pts[0].y);
     c.bezierCurveTo(pts[1].x, pts[1].y, pts[2].x, pts[2].y, pts[3].x, pts[3].y);
-    c.strokeStyle = active ? 'rgba(176, 120, 62, 0.22)' : 'rgba(176, 120, 62, 0.1)';
+    c.strokeStyle = `rgba(${TH.road}, ${active ? 0.22 : 0.1})`;
     c.lineWidth = R * 0.5;
     c.lineCap = 'round';
     c.stroke();
     c.setLineDash([7, 9]);
-    c.strokeStyle = active ? 'rgba(130, 80, 36, 0.55)' : 'rgba(130, 80, 36, 0.2)';
+    c.strokeStyle = `rgba(${TH.dash}, ${active ? 0.55 : 0.2})`;
     c.lineWidth = 2.5;
     c.stroke();
     c.setLineDash([]);
@@ -620,7 +676,7 @@ function drawMap(now: number) {
   dust = dust.filter((d) => now - d.t0 < 700);
   for (const d of dust) {
     const k = (now - d.t0) / 700;
-    c.fillStyle = `rgba(214, 170, 110, ${0.45 * (1 - k)})`;
+    c.fillStyle = `rgba(${TH.dust}, ${0.45 * (1 - k)})`;
     c.beginPath();
     c.arc(d.x, d.y - k * 6, 2 + k * 6, 0, Math.PI * 2);
     c.fill();
@@ -659,6 +715,7 @@ function drawMap(now: number) {
       if (prev !== undefined && ((prev < 0.5 && u >= 0.5) || prev > u)) {
         const dest = fwd ? pts[0] : pts[3];
         const destP = prev < 0.5 && u >= 0.5 ? pts[3] : dest;
+        mission('deliveries');
         const sy = destP.y - camY;
         if (sy > 0 && sy < H) {
           const per = (G.cityRate(S, i) * trip * 2) / city.camels / 2;
@@ -670,7 +727,12 @@ function drawMap(now: number) {
     }
   });
   if (now - lastDust > 90) lastDust = now;
-  camels.sort((a, b) => a.y - b.y).forEach((m) => drawCamel(m.x, m.y + R * 0.15, R * 0.62, m.dir, m.ph, m.col));
+  camels.sort((a, b) => a.y - b.y).forEach((m) => drawCamel(mctx, m.x, m.y + R * 0.15, R * 0.62, m.dir, m.ph, m.col));
+  for (let i = 0; i <= Math.min(n, G.CITY_COUNT - 1); i++) {
+    const p = cityPos(i);
+    if (p.y - R - camY > H || p.y + R * 1.6 - camY < 0) continue;
+    drawCityLabel(i, p.x, p.y, now);
+  }
   if (dust.length > 120) dust = dust.slice(-120);
   c.setTransform(1, 0, 0, 1, 0, 0);
 }
@@ -759,7 +821,7 @@ function drawFx(now: number, dt: number) {
   c.globalAlpha = 1;
 
   // tutorial hand
-  if (tut < 3 && $('welcome').hidden && $('settings').hidden) {
+  if (tut < 3 && $('welcome').hidden && $('bazaar').hidden && !meta.covering) {
     let pt: Pt | null = null;
     if (tut === 0) {
       const p = cityPos(0);
@@ -828,6 +890,11 @@ function buildCards() {
 function refreshUi() {
   if (builtFor !== S.cities.length) return buildCards();
   setText($('rate'), t('perSec', { n: fmt(G.totalRate(S)) }));
+  const boostChip = $('boost-chip');
+  boostChip.hidden = S.boost <= 0;
+  if (S.boost > 0) setText(boostChip, `x2 · ${clock(S.boost)}`);
+  setText($('tokens'), String(profile.data.coins));
+  if (!$('bazaar').hidden) refreshBazaar();
   pane.querySelectorAll<HTMLElement>('.card[data-city]').forEach((card) => {
     const i = Number(card.dataset.city);
     const city = S.cities[i];
@@ -893,6 +960,7 @@ function tapCity(i: number) {
   coinBurst(pg.x, pg.y, Math.min(8, 2 + Math.floor(Math.log10(gain + 1) * 1.5)));
   clink(0.24);
   haptic.light();
+  mission('taps');
   if (tut === 0 && ++tutTaps >= 3) advanceTutorial(0);
 }
 
@@ -900,6 +968,8 @@ function unlock() {
   if (!G.unlockNext(S)) return;
   const i = S.cities.length - 1;
   track('city_unlock', { city: i + 1, run_time_s: Math.round(S.runTime), prestiges: S.prestiges });
+  mission('cityUnlock');
+  profile.recordBest(S.cities.length);
   save();
   buildCards();
   pane.scrollTop = 0;
@@ -923,6 +993,7 @@ function buyUpgrade(i: number, kind: G.UpgradeKind, btn: HTMLElement) {
   const r = btn.getBoundingClientRect();
   buySound(kind === 'prod' ? city.level : city.camels + city.speed + 3);
   haptic.light();
+  mission('upgrades');
   if (kind === 'prod' && G.milestoneMult(city.level) > G.milestoneMult(before)) {
     pop(r.left + r.width / 2, r.top, 'x2!');
     confettiBurst(r.left + r.width / 2, r.top, 30, 360, 380);
@@ -1021,8 +1092,10 @@ $('confirm-yes').addEventListener('click', () => {
   haptic.success();
 });
 
-// offline earnings
+
+// offline earnings — detected on launch/resume, shown once the player is on the map
 let pendingAway = 0;
+let inGame = false;
 function checkAway() {
   const last = store.get<number>('lastSeen', 0);
   store.set('lastSeen', Date.now());
@@ -1030,12 +1103,17 @@ function checkAway() {
   if (!last) return;
   const sec = (Date.now() - last) / 1000;
   if (sec < 60) return;
-  const { coins, seconds } = G.offlineEarnings(S, sec);
+  const { coins } = G.offlineEarnings(S, sec);
   if (coins < 1) {
     G.applyOffline(S, sec);
     return;
   }
-  pendingAway = sec;
+  pendingAway += sec;
+  showAway();
+}
+function showAway() {
+  if (!pendingAway || !inGame) return;
+  const { coins, seconds } = G.offlineEarnings(S, pendingAway);
   setText($('away-for'), t('awayFor', { t: fmtDuration(seconds, t('units')) }));
   setText($('away-coins'), fmt(coins));
   $('welcome').hidden = false;
@@ -1064,33 +1142,239 @@ $('claim2-btn').addEventListener('click', () => {
 });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') checkAway();
+  else {
+    flushMissions();
+    save();
+  }
+});
+$('confirm').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) $('confirm').hidden = true;
 });
 
-// settings
-for (const [id, k] of [['opt-sound', 'sound'], ['opt-haptics', 'haptics']] as const) {
-  const el = $<HTMLInputElement>(id);
-  el.checked = settings[k];
-  el.addEventListener('change', () => {
-    settings[k] = el.checked;
-    setSoundEnabled(settings.sound);
-    setHapticsEnabled(settings.haptics);
-    store.set('settings', settings);
-    if (k === 'haptics') haptic.medium();
-  });
+// ───────────────────────── meta (home, missions, daily, shop, bazaar) ─────────────────────────
+function applySkin(id: string) {
+  TH = SKINS.find((s) => s.id === id) ?? SKINS[0];
+  if (W > 0) bg = renderBackground();
+  drawHero(performance.now());
 }
-$('settings-btn').addEventListener('click', () => {
-  unlockAudio();
-  $('settings').hidden = false;
+
+const profile = createProfile({
+  game: 'kervan',
+  levelCount: 0,
+  defaultSkin: SKINS[0].id,
+  skinIds: SKINS.map((s) => s.id),
+  missions: [
+    { id: 'upgrades', targets: [10, 20, 40], reward: (n) => 20 + n },
+    { id: 'taps', targets: [30, 60, 120], reward: (n) => 15 + Math.round(n / 3) },
+    { id: 'cityUnlock', targets: [1, 2], reward: (n) => 30 + n * 20 },
+    { id: 'deliveries', targets: [25, 50, 100], reward: (n) => 20 + Math.round(n / 2) },
+  ],
 });
-$('close-settings').addEventListener('click', () => ($('settings').hidden = true));
-for (const id of ['settings', 'confirm']) {
-  $(id).addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) $(id).hidden = true;
+TH = SKINS.find((s) => s.id === profile.data.skin) ?? SKINS[0];
+// Home "best" = the furthest city ever opened (eras included).
+profile.recordBest(S.cities.length);
+
+// Mission events arrive in bursts (every tap, every camel arrival): batch them into one save.
+const pendingMissions = new Map<string, number>();
+function mission(id: string, n = 1) {
+  pendingMissions.set(id, (pendingMissions.get(id) ?? 0) + n);
+}
+function flushMissions() {
+  if (!pendingMissions.size) return;
+  let done = false;
+  for (const [id, n] of pendingMissions) if (profile.progress(id, n)) done = true;
+  pendingMissions.clear();
+  if (done) {
+    meta.toast(t('missionDone'));
+    haptic.success();
+    fanfare();
+  }
+}
+
+/** Boost countdown: 29:59, 1:05:00. */
+function clock(sec: number) {
+  sec = Math.ceil(sec);
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const ss = String(sec % 60).padStart(2, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+}
+
+// home artwork: a camel walking along a dune crest, painted in the current map theme
+const hero = document.createElement('canvas');
+hero.className = 'hero';
+const HERO_W = 280, HERO_H = 176;
+function heroVisible() {
+  return hero.isConnected && hero.getClientRects().length > 0;
+}
+function duneY(x: number, off: number, base: number, amp: number, len: number) {
+  return base + Math.sin((x + off) / len) * amp + Math.sin((x + off) / (len * 0.47)) * amp * 0.35;
+}
+function drawHero(now: number) {
+  const hd = Math.min(window.devicePixelRatio || 1, 3);
+  if (hero.width !== Math.round(HERO_W * hd)) {
+    hero.width = Math.round(HERO_W * hd);
+    hero.height = Math.round(HERO_H * hd);
+  }
+  const c = hero.getContext('2d')!;
+  c.setTransform(hd, 0, 0, hd, 0, 0);
+  const sky = c.createLinearGradient(0, 0, 0, HERO_H);
+  sky.addColorStop(0, TH.heroSky[0]);
+  sky.addColorStop(1, TH.heroSky[1]);
+  c.fillStyle = sky;
+  c.fillRect(0, 0, HERO_W, HERO_H);
+  // sun / moon
+  c.fillStyle = TH.sun;
+  c.globalAlpha = 0.9;
+  c.beginPath();
+  c.arc(HERO_W * 0.76, HERO_H * 0.3, 22, 0, Math.PI * 2);
+  c.fill();
+  c.globalAlpha = 1;
+  const off = now * 0.03;
+  // far dunes, slow parallax
+  c.fillStyle = TH.sky[1];
+  c.globalAlpha = 0.65;
+  c.beginPath();
+  c.moveTo(0, HERO_H);
+  for (let x = 0; x <= HERO_W; x += 6) c.lineTo(x, duneY(x, off * 0.35, HERO_H * 0.58, 9, 46));
+  c.lineTo(HERO_W, HERO_H);
+  c.fill();
+  c.globalAlpha = 1;
+  // trees drifting by on the far dune
+  for (let k = 0; k < 2; k++) {
+    const span = HERO_W + 120;
+    const tx = (((k * 190 - off * 0.35) % span) + span) % span - 60;
+    drawTree(c, tx, duneY(tx, off * 0.35, HERO_H * 0.58, 9, 46) + 4, 30, 0.3);
+  }
+  // near dune with the camel on its crest
+  const g = c.createLinearGradient(0, HERO_H * 0.6, 0, HERO_H);
+  g.addColorStop(0, TH.sky[0]);
+  g.addColorStop(1, TH.sky[1]);
+  c.fillStyle = g;
+  c.beginPath();
+  c.moveTo(0, HERO_H);
+  for (let x = 0; x <= HERO_W; x += 4) c.lineTo(x, duneY(x, off, HERO_H * 0.78, 7, 60));
+  c.lineTo(HERO_W, HERO_H);
+  c.fill();
+  c.strokeStyle = TH.crest;
+  c.lineWidth = 2;
+  c.beginPath();
+  for (let x = 0; x <= HERO_W; x += 4) c.lineTo(x, duneY(x, off, HERO_H * 0.78, 7, 60) + 1);
+  c.stroke();
+  // a smaller camel trails the leader: it is a caravan
+  const fx = HERO_W * 0.2;
+  drawCamel(c, fx, duneY(fx, off, HERO_H * 0.78, 7, 60) + 2, 46, 1, now / 140 + 1.4, CITY_INFO[1].color);
+  const cx = HERO_W * 0.52;
+  const cy = duneY(cx, off, HERO_H * 0.78, 7, 60) + 2;
+  // dust kicked up behind
+  for (let k = 0; k < 3; k++) {
+    const ph = (now / 600 + k / 3) % 1;
+    c.fillStyle = `rgba(${TH.dust}, ${0.5 * (1 - ph)})`;
+    c.beginPath();
+    c.arc(cx - 28 - ph * 20, cy - 3 - ph * 6, 3 + ph * 5, 0, Math.PI * 2);
+    c.fill();
+  }
+  drawCamel(c, cx, cy, 64, 1, now / 140, CITY_INFO[2].color);
+}
+
+const meta = createMeta({
+  title: 'Kervan',
+  hero,
+  tagline: t('tagline'),
+  version: __APP_VERSION__,
+  privacyUrl: PRIVACY_URL,
+  profile,
+  endless: { title: t('mode'), play: enterGame },
+  missionText: (id, n) => (id === 'cityUnlock' && n === 1 ? t('mission_cityUnlock1') : t(`mission_${id}` as Key, { n })),
+  skins: SKINS.map((s) => ({ id: s.id, name: t(`skin_${s.id}` as Key), price: s.price, swatch: swatchOf(s) })),
+  onSkin: applySkin,
+  settings,
+  onSettings: (s) => {
+    setSoundEnabled(s.sound);
+    setHapticsEnabled(s.haptics);
+    store.set('settings', s);
+  },
+});
+profile.onChange(() => setText($('tokens'), String(profile.data.coins)));
+
+function enterGame() {
+  inGame = true;
+  unlockAudio();
+  lastInput = performance.now();
+  if (profile.data.firstRun) profile.finishFirstRun();
+  layout();
+  showAway();
+}
+
+// HUD pause → kit pause sheet. An idle map has nothing to restart, so that row is hidden (style.css).
+function openPause() {
+  unlockAudio();
+  if (meta.covering) return;
+  meta.showPause({
+    onResume: () => (lastInput = performance.now()),
+    onRestart: () => {},
+    onMenu: () => {
+      inGame = false;
+      flushMissions();
+      save();
+    },
   });
 }
-$('privacy-link').addEventListener('click', (e) => {
-  e.preventDefault();
-  window.open(PRIVACY_URL, '_blank');
+$('settings-btn').addEventListener('click', openPause);
+
+// Bazaar: meta coins (missions, daily, shop) → trade boosts. Gold is never converted back.
+const INSTANT_COST = 50, INSTANT_SEC = 3600;
+const BOOST_COST = 80, BOOST_SEC = 1800;
+function refreshBazaar() {
+  setText($('bazaar-tokens'), String(profile.data.coins));
+  setText($('instant-sub'), t('instantSub', { n: fmt(Math.max(1, G.baseRate(S) * INSTANT_SEC)) }));
+  setText($('boost-sub'), S.boost > 0 ? t('boostActive', { t: clock(S.boost) }) : t('boostSub'));
+  $('buy-instant').classList.toggle('poor', profile.data.coins < INSTANT_COST);
+  $('buy-boost').classList.toggle('poor', profile.data.coins < BOOST_COST || S.boost >= G.BOOST_CAP_SEC);
+}
+function openBazaar() {
+  unlockAudio();
+  if (meta.covering) return;
+  refreshBazaar();
+  $('bazaar').hidden = false;
+  track('bazaar_open');
+}
+function bazaarBuy(kind: 'instant' | 'boost', btn: HTMLElement) {
+  unlockAudio();
+  const cost = kind === 'instant' ? INSTANT_COST : BOOST_COST;
+  if (kind === 'boost' && S.boost >= G.BOOST_CAP_SEC) return haptic.error();
+  if (!profile.spend(cost)) {
+    meta.toast(t('notEnough'));
+    haptic.error();
+    return;
+  }
+  const r = btn.getBoundingClientRect();
+  if (kind === 'instant') {
+    const got = G.instantIncome(S, INSTANT_SEC);
+    pop(r.left + r.width / 2, r.top - 6, '+' + fmt(got));
+    coinBurst(r.left + r.width / 2, r.top, 10);
+  } else {
+    G.addBoost(S, BOOST_SEC);
+    banner(t('bazaar'), t('boostOn'));
+  }
+  confettiBurst(r.left + r.width / 2, r.top, 30, 360, 380);
+  fanfare();
+  haptic.success();
+  track('bazaar_boost', { kind, cost });
+  save();
+  refreshBazaar();
+  refreshUi();
+}
+$('bazaar-btn').addEventListener('click', openBazaar);
+$('bazaar-close').addEventListener('click', () => ($('bazaar').hidden = true));
+$('bazaar').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) $('bazaar').hidden = true;
+});
+$('buy-instant').addEventListener('click', (e) => bazaarBuy('instant', e.currentTarget as HTMLElement));
+$('buy-boost').addEventListener('click', (e) => bazaarBuy('boost', e.currentTarget as HTMLElement));
+$('bazaar-more').addEventListener('click', () => {
+  $('bazaar').hidden = true;
+  meta.openShop('coins');
 });
 
 // ───────────────────────── boot ─────────────────────────
@@ -1098,30 +1382,46 @@ window.addEventListener('resize', layout);
 layout();
 buildCards();
 checkAway();
-setInterval(save, 5000);
+setInterval(() => {
+  flushMissions();
+  save();
+}, 5000);
+setInterval(flushMissions, 1500);
+void initAds();
+void initStore();
 void setupNative({
   darkBackground: false,
-  onPause: save,
+  onPause: () => {
+    flushMissions();
+    save();
+  },
   onBack: () => {
-    for (const id of ['settings', 'confirm']) {
+    if (meta.back()) return true;
+    for (const id of ['bazaar', 'confirm']) {
       if (!$(id).hidden) {
         $(id).hidden = true;
         return true;
       }
     }
+    if (meta.covering) return false;
     if (!$('pane-rep').hidden) {
       (document.querySelector('.tab[data-tab="cities"]') as HTMLButtonElement).click();
       return true;
     }
-    return false;
+    openPause();
+    return true;
   },
 });
+meta.showHome();
 requestAnimationFrame(frame);
 
 // Exposed for e2e/screenshot scripts.
 (window as unknown as { __kervan: unknown }).__kervan = {
   get state() {
     return S;
+  },
+  get profile() {
+    return profile.data;
   },
   grant(n: number) {
     S.coins += n;
@@ -1134,6 +1434,7 @@ requestAnimationFrame(frame);
     shownCoins = S.coins;
     tut = tutorial;
     store.set('tut', tut);
+    profile.recordBest(S.cities.length);
     save();
     buildCards();
     focusCity(Math.min(S.cities.length, G.CITY_COUNT - 1), true);
@@ -1145,5 +1446,11 @@ requestAnimationFrame(frame);
   focus: (i: number) => focusCity(i, true),
   cityScreen: (i: number) => ({ x: cityPos(i).x, y: cityPos(i).y - camY }),
   idleRate: () => G.idleRate(S),
+  awayCoins: (sec: number) => G.offlineEarnings(S, sec).coins,
+  baseRate: () => G.baseRate(S),
+  get theme() {
+    return TH.id;
+  },
+  flush: flushMissions,
   save,
 };

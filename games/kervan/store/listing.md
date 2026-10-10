@@ -9,15 +9,18 @@
 - **Description:**
 
   Open a trade route across the desert. Camel caravans walk between six cities carrying dates,
-  tea, spices, ceramics, carpets and silk — and every trip brings coins home.
+  tea, spices, ceramics, carpets and silk — and every trip brings gold home.
 
-  ▸ Tap a city to collect its coins
+  ▸ Tap a city to collect its gold
   ▸ Upgrade production, hire camels, speed up caravans
   ▸ Hire merchants so cities run on their own — even while you're away
   ▸ Open all six cities, then start a New Era for permanent Reputation stars
+  ▸ Daily missions and a 7-day reward calendar earn coins for the Bazaar: an instant hour of
+    trade or x2 income
+  ▸ Six map themes: golden sands, desert dusk, oasis green, snowy pass, night bazaar, red canyon
 
   Calm and fair
-  • No forced ads: the only ad is an optional "x2" on offline earnings
+  • No forced ads: videos are always optional (x2 offline earnings, free coins)
   • Up to 8 hours of offline earnings
   • Hand-drawn desert map, gentle sounds and haptics, fully offline
 
@@ -36,9 +39,12 @@
   ▸ Üretimi yükselt, deve al, kervanları hızlandır
   ▸ Tüccar tut, şehirler sen yokken bile kendi işlesin
   ▸ Altı şehri aç, sonra kalıcı İtibar yıldızları için Yeni Çağ başlat
+  ▸ Günlük görevler ve 7 günlük ödül takvimiyle jeton kazan, Pazar'da harca: anında 1 saatlik
+    ticaret ya da x2 gelir
+  ▸ Altı harita teması: altın kumlar, çölde akşam, yeşil vaha, karlı geçit, gece pazarı, kızıl kanyon
 
   Sakin ve adil
-  • Zorla reklam yok: tek reklam çevrimdışı kazançta isteğe bağlı "x2"
+  • Zorla reklam yok: videolar her zaman isteğe bağlı (çevrimdışı x2, ücretsiz jeton)
   • 8 saate kadar çevrimdışı kazanç
   • Elle çizilmiş çöl haritası, yumuşak sesler ve titreşim, tamamen internetsiz
 
@@ -46,9 +52,12 @@
 
 - **Kategori:** Games → Simulation (ikincil: Casual)
 - **Yaş derecesi:** 4+ / PEGI 3 / Everyone
-- **Veri güvenliği / gizlilik etiketi:** "Veri toplanmıyor" — reklam/analiz sağlayıcısı eklenirse güncelle.
+- **Uygulama içi satın alma:** Başlangıç paketi, Reklamları kaldır, jeton paketleri (kit ürün kimlikleri).
+- **Veri güvenliği / gizlilik etiketi:** AdMob (reklam kimliği, iOS'ta ATT izni) ve uygulama içi satın alma
+  bildirilmeli; gerçek kimliklerle yayına çıkmadan önce `PRIVACY.md` ile birlikte güncelle.
 
 ## Ekran görüntüleri
 
 `store/screenshots/<dil>/<boyut>/` — `ios-6.9` (1290×2796), `ios-6.5` (1242×2688), `android` (1080×1920).
+Sahneler: `1-route`, `2-upgrade`, `3-offline`, `4-home` (ana menü).
 Yeniden üretmek: `scripts/screenshots.mjs`.

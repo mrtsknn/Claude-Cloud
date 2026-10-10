@@ -15,6 +15,14 @@
   --shadow: 0 2px 0 rgba(61, 40, 23, 0.08), 0 8px 22px rgba(120, 72, 24, 0.12);
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* kit meta theme (home, sheets) */
+  --m-bg: linear-gradient(170deg, #f6c76a, #e39a52 52%, #c4583c);
+  --m-ink: #3d2817;
+  --m-card: #fffaf0;
+  --m-muted: #8a6b4c;
+  --m-accent: #c4583c;
+  --m-accent-ink: #ffffff;
+  --m-alt: #1f8a86;
   font-family: ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: var(--ink);
   color-scheme: light;
@@ -56,6 +64,12 @@ html, body {
 .wallet { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
 .wallet-text { display: flex; flex-direction: column; line-height: 1.05; min-width: 0; }
 #coins { font-size: 28px; font-weight: 850; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.rate-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.boost-chip {
+  font-style: normal; font-size: 11.5px; font-weight: 850; color: #fff; background: var(--terracotta);
+  border-radius: 8px; padding: 2px 6px; font-variant-numeric: tabular-nums; white-space: nowrap;
+  animation: pulse 1.6s ease-in-out infinite;
+}
 #rate { font-size: 13px; font-weight: 700; color: var(--teal-dark); font-variant-numeric: tabular-nums; }
 .wallet.bump .big-coin { animation: bump 0.25s ease-out; }
 @keyframes bump { 40% { transform: scale(1.18); } }
@@ -261,14 +275,6 @@ html, body {
 .sheet .btn:only-of-type { width: 100%; margin-top: 14px; }
 .big { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 40px; font-weight: 900; margin: 8px 0 0; font-variant-numeric: tabular-nums; }
 .lead { font-size: 18px; font-weight: 750; margin: 12px 0 0; }
-.row { display: flex; align-items: center; justify-content: space-between; padding: 12px 2px; border-bottom: 1px solid var(--line); font-weight: 700; font-size: 17px; }
-.foot { text-align: center; color: var(--muted); font-size: 13px; margin: 14px 0 0; }
-.foot a { color: var(--teal-dark); }
-
-.switch { appearance: none; width: 50px; height: 30px; border-radius: 15px; background: #dcc9a8; position: relative; cursor: pointer; transition: background 0.2s; margin: 0; }
-.switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2); }
-.switch:checked { background: var(--teal); }
-.switch:checked::after { transform: translateX(20px); }
 
 .banner {
   position: fixed;
@@ -302,3 +308,43 @@ html, body {
   .card { padding: 10px; }
   .up { padding: 6px 8px; }
 }
+
+/* ───── meta coins = premium "jeton": a teal token, never confused with gold ───── */
+.token {
+  display: inline-block; width: 16px; height: 16px; flex: none; border-radius: 50%; vertical-align: -3px;
+  background: radial-gradient(circle at 35% 30%, #e6fffb 0 16%, #7fe0d6 30%, #2fb2a8 68%, #146663 100%);
+  box-shadow: inset 0 0 0 1.5px rgba(10, 80, 76, 0.55);
+}
+.meta-root svg circle[fill="#ffc83d"] { fill: #39b8b0; stroke: #146663; }
+.meta-root svg circle[stroke="#e0a21c"] { stroke: #9be6df; }
+.meta-root svg path[stroke="#fff3c4"] { stroke: #e6fffb; }
+/* the kit fills card icons; the endless (infinity) glyph is a stroke path */
+.meta-root [data-act="play-endless"] .m-card-ico svg { fill: none; stroke: currentColor; stroke-width: 2.4; }
+/* the idle map has nothing to restart: hide that row of the kit pause sheet */
+.meta-root [data-restart] { display: none !important; }
+/* home artwork */
+.hero { width: 280px; height: 176px; border-radius: 26px; box-shadow: 0 6px 0 rgba(90, 40, 10, 0.25); display: block; }
+@media (max-height: 700px) { .hero { width: 224px; height: 141px; } }
+
+.bazaar-btn {
+  flex: none; border: 0; font: inherit; cursor: pointer; color: var(--ink);
+  background: var(--card); border-radius: 14px; box-shadow: var(--shadow);
+  height: 44px; padding: 3px 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
+}
+.bazaar-top { display: flex; align-items: center; gap: 5px; font-weight: 850; font-size: 15px; font-variant-numeric: tabular-nums; }
+.bazaar-btn small { font-size: 10.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--teal-dark); }
+.bazaar-btn:active { transform: scale(0.94); }
+
+.bazaar-head { display: flex; align-items: center; justify-content: space-between; }
+.bazaar-head h2 { margin: 0; }
+.token-pill { display: flex; align-items: center; gap: 6px; background: var(--card); border-radius: 12px; padding: 6px 10px; font-weight: 850; box-shadow: var(--shadow); }
+.offer { display: flex; align-items: center; gap: 12px; background: var(--card); border-radius: 18px; padding: 12px; margin-top: 10px; box-shadow: var(--shadow); }
+.offer-ico { width: 44px; height: 44px; border-radius: 14px; background: #f6ecd9; display: grid; place-items: center; flex: none; }
+.offer-ico.x2 { background: var(--terracotta); color: #fff; font-weight: 900; font-size: 18px; }
+.offer-ico .big-coin { width: 28px; height: 28px; }
+.offer-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.offer-body b { font-size: 16px; font-weight: 850; }
+.offer-body small { font-size: 13px; color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
+.sheet .offer .btn.small { width: auto; margin: 0; padding: 10px 14px; font-size: 16px; display: flex; align-items: center; gap: 6px; background: var(--teal); box-shadow: 0 4px 0 var(--teal-dark); }
+.sheet .offer .btn.small.poor { opacity: 0.55; }
+#bazaar .btn-row .btn { font-size: 16px; }

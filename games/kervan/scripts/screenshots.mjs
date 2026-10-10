@@ -1,6 +1,6 @@
 // Usage: npm run preview -w games/kervan -- --port 4184, then
 //   node games/kervan/scripts/screenshots.mjs http://localhost:4184/ games/kervan/store/screenshots
-// Captures mid-game scenes at phone size and composes captioned images at store resolutions.
+// Captures the home menu and mid-game scenes at phone size and composes captioned images at store resolutions.
 import { chromium } from 'playwright';
 import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 const [url, outDir] = process.argv.slice(2);
@@ -25,10 +25,16 @@ const scenes = [
     focus: 2,
     away: 3 * 3600,
   },
+  {
+    name: '4-home',
+    home: true,
+    state: { coins: 4.2e6, runEarned: 9e6, cities: [city(52, 5, 3, true), city(40, 4, 2, true), city(24, 3, 1, true), city(9, 1, 0, false)] },
+    focus: 3,
+  },
 ];
 const captions = {
-  en: ['Grow a desert trade route', 'Upgrade cities, hire camels', 'Merchants earn while you rest'],
-  tr: ['Çölde ticaret yolunu büyüt', 'Şehirleri geliştir, deve al', 'Sen dinlenirken tüccarlar kazanır'],
+  en: ['Grow a desert trade route', 'Upgrade cities, hire camels', 'Merchants earn while you rest', 'Daily missions, rewards and map themes'],
+  tr: ['Çölde ticaret yolunu büyüt', 'Şehirleri geliştir, deve al', 'Sen dinlenirken tüccarlar kazanır', 'Günlük görevler, ödüller ve harita temaları'],
 };
 
 const browser = await chromium.launch();
@@ -36,10 +42,20 @@ const raw = {};
 for (const lang of ['en', 'tr']) {
   for (const sc of scenes) {
     const ctx = await browser.newContext({ viewport: { width: 430, height: 932 }, deviceScaleFactor: 3, hasTouch: true, locale: lang === 'tr' ? 'tr-TR' : 'en-US' });
-    await ctx.addInitScript(() => localStorage.setItem('kervan.settings', JSON.stringify({ sound: false, haptics: false })));
+    await ctx.addInitScript(() => {
+      localStorage.setItem('kervan.settings', JSON.stringify({ sound: false, haptics: false }));
+      const d = new Date();
+      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      // a returning player: daily already claimed, a few coins, best = city 4
+      localStorage.setItem('kervan.profile', JSON.stringify({ coins: 640, best: 4, dailyLast: k, dailyStreak: 3, firstRun: false }));
+    });
     const page = await ctx.newPage();
     await page.goto(url);
     await page.waitForTimeout(300);
+    if (!sc.home) {
+      await page.click('[data-act="play-endless"]');
+      await page.waitForTimeout(300);
+    }
     await page.evaluate(([s, f]) => {
       window.__kervan.load(s);
       window.__kervan.focus(f);

@@ -9,10 +9,14 @@ import {
   STASH_SECONDS,
   STAR_UNIT,
   UNLOCK_COST,
+  BOOST_CAP_SEC,
+  addBoost,
   applyOffline,
+  baseRate,
   buy,
   canPrestige,
   cityRate,
+  instantIncome,
   migrate,
   milestoneMult,
   newCity,
@@ -149,6 +153,54 @@ describe('tick, tap and offline', () => {
     expect(offlineEarnings(s, NaN).coins).toBe(0);
     expect(applyOffline(s, 3600, 2)).toBeCloseTo(7200 * r);
     expect(s.coins).toBeCloseTo(7200 * r);
+  });
+});
+
+describe('bazaar boosts', () => {
+  it('x2 boost doubles income, counts down and stacks up to a cap', () => {
+    const s = newState();
+    s.cities[0].merchant = true;
+    const r = cityRate(s, 0);
+    addBoost(s, 1800);
+    expect(cityRate(s, 0)).toBeCloseTo(2 * r);
+    expect(baseRate(s)).toBeCloseTo(r);
+    tick(s, 10);
+    expect(s.coins).toBeCloseTo(20 * r);
+    expect(s.boost).toBeCloseTo(1790);
+    addBoost(s, 99 * 3600);
+    expect(s.boost).toBe(BOOST_CAP_SEC);
+    s.boost = 0.5;
+    tick(s, 1);
+    expect(s.boost).toBe(0);
+    expect(cityRate(s, 0)).toBeCloseTo(r);
+  });
+  it('offline: only the boosted part of the absence is doubled', () => {
+    const s = newState();
+    s.cities[0].merchant = true;
+    const r = cityRate(s, 0);
+    addBoost(s, 1800);
+    expect(offlineEarnings(s, 3600).coins).toBeCloseTo(r * 5400);
+    applyOffline(s, 3600);
+    expect(s.boost).toBe(0);
+    expect(s.coins).toBeCloseTo(r * 5400);
+  });
+  it('instant income pays an hour of every city, unboosted', () => {
+    const s = newState();
+    s.cities.push(newCity());
+    addBoost(s, 600);
+    const got = instantIncome(s, 3600);
+    expect(got).toBeCloseTo((totalRate(s) / 2) * 3600);
+    expect(s.coins).toBeCloseTo(got);
+    expect(s.runEarned).toBeCloseTo(got);
+  });
+  it('boost survives a New Era and corrupt values are clamped', () => {
+    const s = allCities();
+    s.runEarned = STAR_UNIT * 4;
+    addBoost(s, 900);
+    prestige(s);
+    expect(s.boost).toBe(900);
+    expect(migrate({ boost: -5 }).boost).toBe(0);
+    expect(migrate({ boost: 1e9 }).boost).toBe(BOOST_CAP_SEC);
   });
 });
 
