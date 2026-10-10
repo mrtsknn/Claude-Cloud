@@ -7,3 +7,6 @@ dist/
 *.jks
 *.p12
 *.mobileprovision
+
+# Parallel agent worktrees (local only)
+.claude/worktrees/
