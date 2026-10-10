@@ -1,0 +1,123 @@
+:root {
+  --bg-top: #f4fbff;
+  --bg-bottom: #cfeaf8;
+  --ink: #17324d;
+  --muted: #5f7c96;
+  --accent: #1e88e5;
+  --sheet: #ffffff;
+  --line: rgba(23, 50, 77, 0.1);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* meta layer theme */
+  --m-bg: radial-gradient(120% 80% at 50% 0%, #8fdcfa, #2a86c9 55%, #154f86);
+  --m-ink: #17324d;
+  --m-card: #ffffff;
+  --m-muted: #5f7c96;
+  --m-accent: #ffb347;
+  --m-accent-ink: #3a2200;
+  --m-alt: #2bb3a3;
+  --m-font: ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--m-font);
+  color: var(--ink);
+  color-scheme: light;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: radial-gradient(130% 90% at 50% 0%, var(--bg-top), var(--bg-bottom));
+  background-color: var(--bg-bottom);
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+}
+
+.hud {
+  display: grid;
+  grid-template-columns: 64px 1fr 64px;
+  align-items: center;
+  padding: 12px 16px 0;
+  height: 72px;
+  flex: none;
+}
+.level { display: flex; flex-direction: column; align-items: center; line-height: 1; gap: 4px; }
+.level b { font-size: 32px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.eyebrow { margin: 0; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.16em; color: var(--muted); }
+.swipes {
+  justify-self: end;
+  background: var(--sheet);
+  border-radius: 14px;
+  padding: 8px 10px;
+  font-weight: 800;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 3px 0 var(--line);
+}
+.swipes.over { color: #d9534f; }
+
+.fishbar { display: flex; justify-content: center; gap: 14px; height: 26px; padding-top: 6px; flex: none; }
+.fishbar i {
+  width: 22px; height: 14px; border-radius: 50% 40% 40% 50%;
+  background: rgba(23, 50, 77, 0.15);
+  position: relative; transition: background 0.2s, transform 0.2s;
+}
+.fishbar i::after {
+  content: ''; position: absolute; right: -7px; top: 2px;
+  border-left: 8px solid rgba(23, 50, 77, 0.15); border-top: 5px solid transparent; border-bottom: 5px solid transparent;
+}
+.fishbar i.on { background: #ff8a3d; transform: scale(1.12); }
+.fishbar i.on::after { border-left-color: #ff8a3d; }
+
+.icon-btn {
+  width: 46px; height: 46px; border: 0; border-radius: 15px;
+  background: var(--sheet);
+  box-shadow: 0 3px 0 var(--line), 0 6px 18px rgba(23, 50, 77, 0.08);
+  display: grid; place-items: center; cursor: pointer;
+}
+.icon-btn svg, .tool svg {
+  width: 22px; height: 22px; fill: none; stroke: var(--ink);
+  stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round;
+}
+.icon-btn:active, .tool:active { transform: scale(0.94); }
+
+#stage { flex: 1; width: 100%; min-height: 0; touch-action: none; display: block; }
+
+.tools { flex: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 8px 20px 18px; }
+.tool {
+  position: relative; border: 0; border-radius: 18px; background: var(--sheet);
+  box-shadow: 0 3px 0 var(--line), 0 8px 22px rgba(23, 50, 77, 0.08);
+  padding: 12px 6px 10px; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  font: inherit; font-size: 13px; font-weight: 700; color: var(--ink); cursor: pointer;
+}
+.badge {
+  position: absolute; top: -6px; right: 10px; min-width: 22px; height: 22px; padding: 0 6px;
+  border-radius: 11px; background: #2bb3a3; color: #fff; font-style: normal;
+  font-size: 10px; font-weight: 800; letter-spacing: 0.04em; display: grid; place-items: center;
+}
+.badge[hidden] { display: none; }
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(110px + var(--safe-bottom)); transform: translateX(-50%);
+  background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 14px;
+  font-weight: 700; font-size: 15px; white-space: nowrap; animation: rise 0.25s ease; z-index: 5;
+}
+.toast[hidden] { display: none; }
+
+/* The kit's lose sheet is built for endless scores; Buz levels have none, so hide score/best. */
+.m-result .m-score, .m-result .m-score + .m-note { display: none; }
+
+@keyframes rise { from { transform: translate(-50%, 10px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; } }

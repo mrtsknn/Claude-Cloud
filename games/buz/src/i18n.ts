@@ -1,0 +1,56 @@
+import { createI18n } from '@studio/kit';
+
+const en = {
+  title: 'Ice Slide',
+  tagline: 'Swipe, slide, grab every fish.',
+  level: 'Level',
+  undo: 'Undo',
+  hint: 'Hint',
+  restart: 'Restart',
+  par: 'Par {n}',
+  fell: 'Splash! You fell in',
+  noUndo: 'Nothing to undo',
+  noHint: 'No way out from here — undo or restart',
+  needFish: 'Grab all the fish first',
+  allDone: 'You finished every level!',
+  mission_levels: 'Clear {n} levels',
+  mission_stars: 'Earn {n} stars',
+  mission_perfect: 'Get 3 stars on {n} levels',
+  mission_fish: 'Catch {n} fish',
+  skin_classic: 'Classic',
+  skin_frost: 'Frost',
+  skin_ember: 'Ember',
+  skin_moss: 'Moss',
+  skin_plum: 'Plum',
+  skin_gold: 'Gold',
+  skin_night: 'Night',
+};
+
+const tr: typeof en = {
+  title: 'Buz',
+  tagline: 'Kaydır, kay, tüm balıkları topla.',
+  level: 'Seviye',
+  undo: 'Geri al',
+  hint: 'İpucu',
+  restart: 'Baştan',
+  par: 'Hedef {n}',
+  fell: 'Şap! Suya düştün',
+  noUndo: 'Geri alınacak hamle yok',
+  noHint: 'Buradan çıkış yok — geri al ya da baştan başla',
+  needFish: 'Önce tüm balıkları topla',
+  allDone: 'Tüm seviyeleri bitirdin!',
+  mission_levels: '{n} seviye bitir',
+  mission_stars: '{n} yıldız kazan',
+  mission_perfect: '{n} seviyede 3 yıldız al',
+  mission_fish: '{n} balık yakala',
+  skin_classic: 'Klasik',
+  skin_frost: 'Ayaz',
+  skin_ember: 'Kor',
+  skin_moss: 'Yosun',
+  skin_plum: 'Erik',
+  skin_gold: 'Altın',
+  skin_night: 'Gece',
+};
+
+export const lang: 'en' | 'tr' = navigator.language.slice(0, 2).toLowerCase() === 'tr' ? 'tr' : 'en';
+export const t = createI18n({ en, tr });
