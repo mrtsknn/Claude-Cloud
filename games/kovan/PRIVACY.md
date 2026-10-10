@@ -18,3 +18,7 @@ AdMob reklamları göstermek ve ölçmek için cihazının reklam kimliğini ve 
 Uygulama içi satın alımlar (jeton paketleri, reklamsız, başlangıç paketi) Apple App Store / Google Play
 tarafından işlenir; ödeme bilgilerini hiçbir zaman görmeyiz. Oyunu iyileştirmek için anonim oyun
 olayları (ör. "9. seviye arı yapıldı") kaydedilebilir. İletişim: mrtbnymntskn@gmail.com
+
+**Reminders / Hatırlatmalar.** If you allow notifications, reminders (hive full, daily nudge) are scheduled
+locally on your device; nothing is sent to a server. / İzin verirsen hatırlatmalar (kovan doldu, günlük dürtme)
+yalnızca cihazında yerel olarak planlanır; hiçbir sunucuya veri gönderilmez.

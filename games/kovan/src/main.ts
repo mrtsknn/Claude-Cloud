@@ -14,15 +14,21 @@ import {
   unlockAudio,
   track,
   showRewarded,
+  scheduleReminders,
+  cancelReminders,
+  shareResult,
   type MetaSkin,
 } from '@studio/kit';
 import * as G from './game';
 import { fmt, fmtTime } from './format';
-import { t, lang } from './i18n';
+import { t, lang, type Key } from './i18n';
+import { drawBee, drawGift, drawWorld, drawFlower, hexPath, FLOWER_COLORS } from './draw';
+import { ICON, WORLD_ICON } from './icons';
 
 declare const __APP_VERSION__: string;
 document.documentElement.lang = lang;
 document.title = t('title');
+const STORE_URL = 'https://indiestudio.app/kovan';
 
 // ───────── themes (shop skins) ─────────
 interface Theme {
@@ -47,7 +53,7 @@ const THEMES: Theme[] = [
 ];
 const SKINS: MetaSkin[] = THEMES.map((th) => ({
   id: th.id,
-  name: t(`skin_${th.id}` as 'skin_amber'),
+  name: t(`skin_${th.id}` as Key),
   price: th.price,
   swatch: `radial-gradient(circle at 50% 40%, ${th.cell} 0 34%, ${th.edge} 35% 40%, ${th.bg} 41%)`,
 }));
@@ -95,7 +101,7 @@ const meta = createMeta({
   skins: SKINS,
   onSkin: applySkin,
   endless: { title: t('myHive'), play: enterHive },
-  missionText: (id, n) => t(`mission_${id}` as 'mission_merges', { n }),
+  missionText: (id, n) => t(`mission_${id}` as Key, { n }),
   settings,
   onSettings: (s) => {
     setSoundEnabled(s.sound);
@@ -114,6 +120,7 @@ function loadState(): G.State {
   }
 }
 let state = loadState();
+const cells = () => G.hive(state).cells;
 function save() {
   state.lastSeen = Date.now();
   try {
@@ -122,6 +129,7 @@ function save() {
     /* storage blocked */
   }
 }
+const worldName = (w: number) => t(`world_${G.WORLDS[w].id}` as Key);
 
 // ───────── DOM ─────────
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -136,15 +144,30 @@ const goldBtn = $<HTMLButtonElement>('gold-btn');
 const sheet = $('sheet');
 const sheetBody = $('sheet-body');
 const toastEl = $('toast');
+const worldsEl = $('worlds');
+const questEl = $<HTMLButtonElement>('quest');
+const festBtn = $<HTMLButtonElement>('fest-btn');
+const upFill = $('up-fill');
 $('gold-price').textContent = String(G.GOLDEN_PRICE);
-document.querySelectorAll<HTMLElement>('[data-i18n]').forEach((e) => (e.textContent = t(e.dataset.i18n as 'egg')));
+document.querySelectorAll<HTMLElement>('[data-i18n]').forEach((e) => (e.textContent = t(e.dataset.i18n as Key)));
+
+/** Sets text only when it changed (the HUD refreshes every frame). */
+const setText = (el: HTMLElement, s: string) => {
+  if (el.textContent !== s) el.textContent = s;
+};
+const setHtml = (el: HTMLElement, s: string) => {
+  if (el.dataset.html !== s) {
+    el.dataset.html = s;
+    el.innerHTML = s;
+  }
+};
 
 let toastTimer = 0;
 function toast(msg: string) {
   toastEl.textContent = msg;
   toastEl.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(() => (toastEl.hidden = true), 1600);
+  toastTimer = window.setTimeout(() => (toastEl.hidden = true), 1800);
 }
 
 let onSheetClose: (() => void) | null = null;
@@ -152,6 +175,7 @@ function openSheet(html: string, onClose?: () => void) {
   sheetBody.innerHTML = html;
   sheet.hidden = false;
   onSheetClose = onClose ?? null;
+  sheetBody.querySelector('[data-close]')?.addEventListener('click', closeSheet);
 }
 function closeSheet() {
   if (sheet.hidden) return false;
@@ -165,131 +189,25 @@ sheet.addEventListener('click', (e) => {
   if (e.target === sheet) closeSheet();
 });
 
-// ───────── bee drawing ─────────
-const SQ3 = Math.sqrt(3);
-const beeHue = (l: number) => (42 + (l - 1) * 47) % 360;
-
-function hexPath(c: CanvasRenderingContext2D, x: number, y: number, r: number) {
-  c.beginPath();
-  for (let k = 0; k < 6; k++) {
-    const a = Math.PI / 6 + (k * Math.PI) / 3;
-    c.lineTo(x + r * Math.cos(a), y + r * Math.sin(a));
-  }
-  c.closePath();
-}
-
-function drawBee(c: CanvasRenderingContext2D, x: number, y: number, R: number, level: number, time: number) {
-  const s = R * (0.5 + level * 0.012);
-  const hue = beeHue(level);
-  const flap = Math.sin(time * 18 + level) * 0.25;
-  c.save();
-  c.translate(x, y);
-  // wings
-  c.fillStyle = 'rgba(255,255,255,.75)';
-  c.strokeStyle = 'rgba(40,40,60,.35)';
-  c.lineWidth = Math.max(1, s * 0.04);
-  for (const side of [-1, 1]) {
-    c.save();
-    c.translate(side * s * 0.2, -s * 0.45);
-    c.rotate(side * (0.5 + flap));
-    c.beginPath();
-    c.ellipse(0, -s * 0.22, s * 0.22, s * 0.36, 0, 0, Math.PI * 2);
-    c.fill();
-    c.stroke();
-    c.restore();
-  }
-  // halo for elders
-  if (level >= 15) {
-    c.strokeStyle = `hsla(${hue},100%,75%,.8)`;
-    c.lineWidth = s * 0.08;
-    c.beginPath();
-    c.arc(0, 0, s * 0.85, 0, Math.PI * 2);
-    c.stroke();
-  }
-  // body
-  c.beginPath();
-  c.ellipse(0, 0, s * 0.62, s * 0.5, 0, 0, Math.PI * 2);
-  c.fillStyle = `hsl(${hue},85%,${level === 20 ? 62 : 58}%)`;
-  c.fill();
-  c.save();
-  c.clip();
-  c.fillStyle = `hsl(${hue},60%,18%)`;
-  const stripes = 1 + (level % 3);
-  for (let k = 0; k < stripes; k++) c.fillRect(-s * 0.05 + (k - (stripes - 1) / 2) * s * 0.3, -s, s * 0.13, s * 2);
-  if (level > 10) {
-    c.fillStyle = 'rgba(255,255,255,.55)';
-    for (let k = 0; k < 4; k++) {
-      c.beginPath();
-      c.arc(-s * 0.35 + k * s * 0.24, s * 0.28 * (k % 2 ? 1 : -1), s * 0.06, 0, Math.PI * 2);
-      c.fill();
-    }
-  }
-  c.restore();
-  c.lineWidth = Math.max(1.5, s * 0.07);
-  c.strokeStyle = `hsl(${hue},60%,18%)`;
-  c.beginPath();
-  c.ellipse(0, 0, s * 0.62, s * 0.5, 0, 0, Math.PI * 2);
-  c.stroke();
-  // eyes
-  c.fillStyle = '#1b1426';
-  for (const ex of [-0.2, 0.2]) {
-    c.beginPath();
-    c.arc(s * ex - s * 0.28 * 0, -s * 0.08, s * 0.07, 0, Math.PI * 2);
-    c.fill();
-  }
-  // crown for the queen
-  if (level === 20) {
-    c.fillStyle = '#ffd23f';
-    c.beginPath();
-    c.moveTo(-s * 0.3, -s * 0.45);
-    c.lineTo(-s * 0.3, -s * 0.75);
-    c.lineTo(-s * 0.15, -s * 0.58);
-    c.lineTo(0, -s * 0.8);
-    c.lineTo(s * 0.15, -s * 0.58);
-    c.lineTo(s * 0.3, -s * 0.75);
-    c.lineTo(s * 0.3, -s * 0.45);
-    c.fill();
-  }
-  // level badge
-  c.fillStyle = 'rgba(0,0,0,.55)';
-  c.beginPath();
-  c.arc(s * 0.55, s * 0.42, s * 0.24, 0, Math.PI * 2);
-  c.fill();
-  c.fillStyle = '#fff';
-  c.font = `800 ${s * 0.3}px ui-rounded, system-ui, sans-serif`;
-  c.textAlign = 'center';
-  c.textBaseline = 'middle';
-  c.fillText(String(level), s * 0.55, s * 0.43);
-  c.restore();
-}
-
-function drawGift(c: CanvasRenderingContext2D, x: number, y: number, R: number, time: number) {
-  const s = R * 0.55;
-  c.save();
-  c.translate(x, y);
-  c.rotate(Math.sin(time * 6) * 0.08);
-  c.fillStyle = '#ff6b8b';
-  c.beginPath();
-  c.roundRect(-s * 0.6, -s * 0.35, s * 1.2, s * 0.95, s * 0.12);
-  c.fill();
-  c.fillStyle = '#ff8fa6';
-  c.beginPath();
-  c.roundRect(-s * 0.7, -s * 0.55, s * 1.4, s * 0.3, s * 0.1);
-  c.fill();
-  c.fillStyle = '#fff2b0';
-  c.fillRect(-s * 0.1, -s * 0.55, s * 0.2, s * 1.15);
-  c.beginPath();
-  c.ellipse(-s * 0.2, -s * 0.66, s * 0.2, s * 0.12, -0.4, 0, Math.PI * 2);
-  c.ellipse(s * 0.2, -s * 0.66, s * 0.2, s * 0.12, 0.4, 0, Math.PI * 2);
-  c.fill();
-  c.restore();
+/** Animates a canvas inside the open sheet until the sheet closes. */
+function animateIn(cv: HTMLCanvasElement, paint: (c: CanvasRenderingContext2D, time: number) => void) {
+  const c2 = cv.getContext('2d')!;
+  const loop = () => {
+    if (sheet.hidden || !cv.isConnected) return;
+    c2.clearRect(0, 0, cv.width, cv.height);
+    paint(c2, performance.now() / 1000);
+    requestAnimationFrame(loop);
+  };
+  loop();
 }
 
 // ───────── layout & render ─────────
+const SQ3 = Math.sqrt(3);
 let W = 0;
 let H = 0;
 let R = 20;
 let centers: { x: number; y: number }[] = [];
+const backdrop = document.createElement('canvas');
 function layout() {
   const dpr = Math.min(3, window.devicePixelRatio || 1);
   W = canvas.clientWidth;
@@ -297,11 +215,17 @@ function layout() {
   canvas.width = Math.round(W * dpr);
   canvas.height = Math.round(H * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const [cols, rows] = G.gridOf(state);
-  R = Math.min(W / ((cols + 0.5) * SQ3), H / ((rows - 1) * 1.5 + 2)) * 0.97;
+  backdrop.width = canvas.width;
+  backdrop.height = canvas.height;
+  const bc = backdrop.getContext('2d')!;
+  bc.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (W > 0 && H > 0) drawWorld(bc, G.WORLDS[state.world].id, W, H);
+  const [cols, rows] = G.gridOf(G.hive(state));
+  // a hair of padding around the comb; hexes nearly touch so small phones keep big cells
+  R = Math.min((W - 6) / ((cols + 0.5) * SQ3), (H - 8) / ((rows - 1) * 1.5 + 2));
   const ox = (W - (cols + 0.5) * SQ3 * R) / 2 + (SQ3 * R) / 2;
   const oy = (H - ((rows - 1) * 1.5 + 2) * R) / 2 + R;
-  centers = state.cells.map((_, i) => {
+  centers = cells().map((_, i) => {
     const r = Math.floor(i / cols);
     const c = i % cols;
     return { x: ox + c * SQ3 * R + (r % 2 ? (SQ3 * R) / 2 : 0), y: oy + r * 1.5 * R };
@@ -336,23 +260,34 @@ function cellAt(x: number, y: number) {
 
 function render() {
   ctx.clearRect(0, 0, W, H);
+  ctx.drawImage(backdrop, 0, 0, W, H);
+  const cs = cells();
   const target = drag ? cellAt(drag.x, drag.y) : -1;
-  const dragLvl = drag ? state.cells[drag.from] : 0;
-  state.cells.forEach((v, i) => {
+  const dragLvl = drag ? cs[drag.from] : 0;
+  const festLvl = state.festival.level;
+  const festCol = state.festival.key ? FLOWER_COLORS[G.flowerOf(state.festival.key)].petal : '#fff';
+  cs.forEach((v, i) => {
     const p = centers[i];
     if (!p) return;
-    hexPath(ctx, p.x, p.y, R * 0.94);
+    hexPath(ctx, p.x, p.y, R * 0.95);
     ctx.fillStyle = v === 0 ? theme.empty : theme.cell;
-    ctx.globalAlpha = v === 0 ? 1 : 0.5;
+    ctx.globalAlpha = v === 0 ? 0.92 : 0.55;
     ctx.fill();
     ctx.globalAlpha = 1;
     ctx.lineWidth = Math.max(2, R * 0.07);
-    const hot = drag && i === target && i !== drag.from && state.cells[i] === dragLvl;
-    ctx.strokeStyle = hot ? '#ffffff' : theme.edge;
-    if (hot) ctx.lineWidth *= 2;
+    const hot = drag && i === target && i !== drag.from && cs[i] === dragLvl;
+    const fest = v > 0 && v === festLvl;
+    ctx.strokeStyle = hot ? '#ffffff' : fest ? festCol : theme.edge;
+    if (hot || fest) ctx.lineWidth *= hot ? 2 : 1.4;
     ctx.stroke();
+    if (fest) {
+      ctx.globalAlpha = 0.18 + 0.12 * Math.sin(now * 3 + i);
+      ctx.fillStyle = festCol;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
   });
-  state.cells.forEach((v, i) => {
+  cs.forEach((v, i) => {
     const p = centers[i];
     if (!p || v === 0 || (drag && drag.from === i)) return;
     const age = now - (pops.get(i) ?? -9);
@@ -377,28 +312,225 @@ function render() {
       ctx.stroke();
     }
     if (f.text) {
-      ctx.fillStyle = '#fff';
-      ctx.font = `800 ${Math.max(12, R * 0.32)}px ui-rounded, system-ui, sans-serif`;
+      const size = Math.max(13, R * 0.36);
+      ctx.font = `800 ${size}px ui-rounded, system-ui, sans-serif`;
       ctx.textAlign = 'center';
-      ctx.fillText(f.text, f.x, f.y - R * 0.5 - a * R * 0.7);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(40,20,0,.55)';
+      const y = f.y - R * 0.5 - a * R * 0.7;
+      ctx.strokeText(f.text, f.x, y);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(f.text, f.x, y);
     }
     ctx.globalAlpha = 1;
   }
 }
 
-// ───────── HUD ─────────
+// ───────── HUD: honey, eggs, worlds, quest card, festival chip ─────────
 function hud() {
-  honeyEl.textContent = fmt(state.honey);
-  rateEl.textContent = t('perSec', { n: fmt(G.rate(state)) });
-  coinsEl.textContent = String(profile.data.coins);
+  setText(honeyEl, fmt(state.honey));
+  setText(rateEl, t('perSec', { n: fmt(G.rate(state)) }));
+  setText(coinsEl, String(profile.data.coins));
   const cost = G.spawnCost(state);
-  eggCost.textContent = fmt(cost);
-  eggBtn.classList.toggle('poor', state.honey < cost || G.freeCells(state).length === 0);
+  setText(eggCost, fmt(cost));
+  eggBtn.classList.toggle('poor', state.honey < cost || G.freeCells(G.hive(state)).length === 0);
   goldBtn.classList.toggle('poor', profile.data.coins < G.GOLDEN_PRICE);
-  const canUp = G.expandCost(state) <= state.honey || G.spawnUpCost(state) <= state.honey;
-  $('up-badge').hidden = !canUp;
+  const next = Math.min(G.expandCost(state), G.spawnUpCost(state));
+  $('up-badge').hidden = next > state.honey;
+  // progress toward the cheapest upgrade, so players learn to save up
+  upFill.style.width = next < Infinity ? `${Math.min(100, (state.honey / next) * 100).toFixed(1)}%` : '0';
+  worldsUI();
+  questUI();
+  festUI();
 }
 profile.onChange(hud);
+
+let worldsSig = '';
+function worldsUI() {
+  const nw = G.nextWorld(state);
+  const ready = G.canUnlockWorld(state);
+  const sig = `${state.hives.length}|${state.world}|${nw >= 0 && state.best >= G.WORLDS[nw].unlock}|${ready}`;
+  if (sig === worldsSig) return;
+  worldsSig = sig;
+  worldsEl.innerHTML = G.WORLDS.map((w, i) => {
+    const owned = i < state.hives.length;
+    const cls = ['wbtn', owned ? '' : 'locked', i === state.world ? 'on' : '', i === nw && state.best >= w.unlock ? 'open' : ''].join(' ');
+    const label = owned ? `×${w.mult}` : `${ICON.lock}${w.unlock}`;
+    return `<button class="${cls}" data-w="${i}" aria-label="${worldName(i)}">${WORLD_ICON[w.id]}<small>${label}</small>${i === nw && ready ? '<i class="dot"></i>' : ''}</button>`;
+  }).join('');
+}
+worldsEl.addEventListener('click', (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLElement>('[data-w]');
+  if (!b) return;
+  unlockAudio();
+  const w = Number(b.dataset.w);
+  if (w < state.hives.length) {
+    if (G.switchWorld(state, w)) {
+      drag = null;
+      layout();
+      haptic.light();
+      tone({ freq: pentatonic(w * 2 + 4), duration: 0.12, volume: 0.3 });
+      toast(t('worldHere', { w: worldName(w), n: G.WORLDS[w].mult }));
+      save();
+      hud();
+    }
+  } else if (w === G.nextWorld(state)) openWorldSheet(w);
+  else toast(t('worldLocked', { n: G.WORLDS[w].unlock }));
+});
+
+function openWorldSheet(w: number) {
+  const def = G.WORLDS[w];
+  const beeOk = state.best >= def.unlock;
+  const can = G.canUnlockWorld(state);
+  openSheet(`<div class="celebrate"><canvas class="scene" width="560" height="240"></canvas>
+    <h2>${worldName(w)}</h2><p class="pill">${t('worldMult', { n: def.mult })}</p>
+    <p class="muted">${t('worldSub', { n: def.mult })}</p>
+    <p class="req ${beeOk ? 'ok' : ''}">${beeOk ? ICON.check : ICON.lock} ${t('worldNeedBee', { n: def.unlock })}</p>
+    <button class="btn" data-build ${can ? '' : 'disabled'}>${t('worldBuild')} <span class="cost">${ICON.honey}${fmt(def.cost)}</span></button>
+    <button class="btn ghost" data-close>${t('close')}</button></div>`);
+  const cv = sheetBody.querySelector<HTMLCanvasElement>('canvas.scene')!;
+  animateIn(cv, (c, time) => {
+    c.save();
+    c.scale(2, 2);
+    drawWorld(c, def.id, 280, 120);
+    [0, 1, 2].forEach((k) => drawBee(c, 80 + k * 60, 62 + Math.sin(time * 2 + k) * 4, 26, Math.max(1, state.spawnLevel + k), time + k, { badge: false }));
+    c.restore();
+  });
+  sheetBody.querySelector('[data-build]')!.addEventListener('click', () => {
+    if (!G.unlockWorld(state)) return toast(t('noHoney'));
+    track('world_unlock', { world: def.id });
+    [0, 4, 7, 12].forEach((s, k) => tone({ freq: pentatonic(s + w), duration: 0.18, volume: 0.35, delay: k * 0.08 }));
+    haptic.success();
+    closeSheet();
+    layout();
+    G.hive(state).cells.forEach((v, i) => v && popAt(i));
+    toast(t('worldHere', { w: worldName(w), n: def.mult }));
+    save();
+    hud();
+  });
+}
+
+let questSig = '';
+function questUI() {
+  const q = G.questAt(state.quest);
+  const val = G.questValue(state, q.kind);
+  const done = val >= q.n;
+  const sig = `${state.quest}|${done}|${q.kind === 'earned' ? fmt(val) : val}|${q.reward.honeySec ? fmt(G.rate(state) * q.reward.honeySec) : ''}`;
+  if (sig === questSig) return;
+  questSig = sig;
+  questEl.classList.toggle('done', done);
+  setText($('q-num'), t('quest', { n: state.quest + 1 }));
+  const text =
+    q.kind === 'worlds' ? t('q_worlds', { w: worldName(q.n - 1) }) : t(`q_${q.kind}` as Key, { n: q.kind === 'earned' ? fmt(q.n) : q.n });
+  setText($('q-text'), text);
+  const frac = q.kind === 'earned' ? Math.log10(1 + val) / Math.log10(1 + q.n) : val / q.n;
+  $('q-fill').style.width = `${Math.round(Math.min(1, frac) * 100)}%`;
+  const r = q.reward;
+  const amount = r.coins
+    ? `${ICON.coin}<b>${r.coins}</b>`
+    : r.gifts
+      ? `${ICON.gift}<b>×${r.gifts}</b>`
+      : `${ICON.honey}<b>${fmt(Math.max(50, G.rate(state) * (r.honeySec ?? 0)))}</b>`;
+  setHtml($('q-reward'), done ? `${amount}<em>${t('questClaim')}</em>` : amount);
+  setHtml($('q-ic'), done ? ICON.check : ICON.flag);
+}
+questEl.addEventListener('click', () => {
+  unlockAudio();
+  const before = state.quest;
+  const p = G.claimQuest(state);
+  if (!p) {
+    questEl.classList.remove('nudge');
+    void questEl.offsetWidth;
+    questEl.classList.add('nudge');
+    return;
+  }
+  if (p.coins) profile.addCoins(p.coins);
+  for (const i of p.giftCells) {
+    popAt(i);
+    fx.push({ ...centers[i], t0: now, ring: true });
+  }
+  const parts = [p.coins ? t('rewardCoins', { n: p.coins }) : '', p.giftCells.length ? t('rewardGifts', { n: p.giftCells.length }) : '', p.honey ? t('rewardHoney', { n: fmt(p.honey) }) : ''];
+  toast(parts.filter(Boolean).join(' · '));
+  [0, 2, 4].forEach((s, k) => tone({ freq: pentatonic(s + 5), duration: 0.12, volume: 0.35, delay: k * 0.06 }));
+  haptic.success();
+  track('quest_claim', { quest: before + 1 });
+  questEl.classList.remove('pop');
+  void questEl.offsetWidth;
+  questEl.classList.add('pop');
+  save();
+  hud();
+});
+
+// festival
+let festSig = '';
+const festIcon = $<HTMLCanvasElement>('fest-icon');
+function fmtLeft(sec: number) {
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  return d ? t('leftD', { d, h }) : t('leftH', { h, m: Math.floor((sec % 3600) / 60) });
+}
+function festUI() {
+  const f = state.festival;
+  if (!f.key) return;
+  const flower = G.flowerOf(f.key);
+  const left = fmtLeft(G.festivalLeft(Date.now()));
+  const sig = `${f.key}|${f.level}|${left}|${G.festivalReady(state)}|${f.claimed}`;
+  if (sig === festSig) return;
+  if (!festSig.startsWith(`${f.key}|`)) {
+    const c = festIcon.getContext('2d')!;
+    c.clearRect(0, 0, 64, 64);
+    drawFlower(c, 32, 32, 26, flower);
+  }
+  festSig = sig;
+  setText($('fest-lv'), t('festChip', { lv: t('lv', { n: f.level }) }));
+  setText($('fest-left'), left);
+  $('fest-badge').hidden = !G.festivalReady(state);
+  festBtn.classList.toggle('claimed', f.claimed);
+}
+festBtn.addEventListener('click', openFestival);
+
+function openFestival() {
+  unlockAudio();
+  const f = state.festival;
+  const flower = G.flowerOf(f.key);
+  const bee = t(`flower_${flower}` as Key);
+  const owned = state.flowers.includes(flower);
+  const ready = G.festivalReady(state);
+  const pct = Math.min(100, Math.round((f.merges / G.FESTIVAL_GOAL) * 100));
+  openSheet(`<div class="celebrate fest-sheet"><p class="eyebrow">${t('festEnds', { t: fmtLeft(G.festivalLeft(Date.now())) })}</p>
+    <canvas class="hero" width="240" height="240"></canvas>
+    <h2>${t(`fest_${flower}` as Key)}</h2>
+    <p class="muted">${t('festBoost', { n: f.level })}</p>
+    <p class="note">${owned ? t('festOwned', { bee, n: G.FESTIVAL_REPEAT_COINS }) : t('festGoal', { n: G.FESTIVAL_GOAL, bee })}</p>
+    <div class="meter"><i style="width:${pct}%"></i><span>${t('festProgress', { a: Math.min(f.merges, G.FESTIVAL_GOAL), b: G.FESTIVAL_GOAL })}</span></div>
+    ${f.claimed ? `<p class="req ok">${ICON.check} ${t('festDone')}</p>` : `<button class="btn" data-claim ${ready ? '' : 'disabled'}>${t('questClaim')}</button>`}
+    <p class="label">${t('festCollection')}</p><div class="collection">${G.FLOWERS.map((fl) => `<canvas width="96" height="96" data-fl="${fl}" class="${state.flowers.includes(fl) ? 'got' : ''}" title="${t(`flower_${fl}` as Key)}"></canvas>`).join('')}</div>
+    <button class="btn ghost" data-close>${t('close')}</button></div>`);
+  animateIn(sheetBody.querySelector<HTMLCanvasElement>('canvas.hero')!, (c, time) => drawBee(c, 120, 146, 150, f.level, time, { badge: false, flower }));
+  sheetBody.querySelectorAll<HTMLCanvasElement>('.collection canvas').forEach((cv) => {
+    const c = cv.getContext('2d')!;
+    drawBee(c, 48, 52, 64, 5, 0.3, { badge: false, flower: cv.dataset.fl as G.Flower });
+  });
+  sheetBody.querySelector('[data-claim]')?.addEventListener('click', () => {
+    const r = G.claimFestival(state);
+    if (!r) return;
+    profile.addCoins(r.coins);
+    track('festival_claim', { flower: r.flower, new: r.isNew });
+    [0, 2, 4, 7, 9, 12].forEach((s, k) => tone({ freq: pentatonic(s + 3), duration: 0.16, volume: 0.35, delay: k * 0.07 }));
+    haptic.success();
+    save();
+    openFestival();
+    toast(r.isNew ? t('festGot', { bee: t(`flower_${r.flower}` as Key) }) : t('rewardCoins', { n: r.coins }));
+  });
+}
+
+function syncFestival() {
+  const had = state.festival.key;
+  if (G.syncFestival(state, Date.now())) {
+    save();
+    if (had && inHive) toast(t('festStart', { f: t(`fest_${G.flowerOf(state.festival.key)}` as Key) }));
+  }
+}
 
 // ───────── actions ─────────
 let inHive = false;
@@ -416,22 +548,22 @@ function onSpawned(i: number, level: number) {
 
 eggBtn.addEventListener('click', () => {
   unlockAudio();
-  if (!G.freeCells(state).length) return toast(t('full'));
+  if (!G.freeCells(G.hive(state)).length) return toast(t('full'));
   if (state.honey < G.spawnCost(state)) return toast(t('noHoney'));
   const i = G.spawn(state);
   if (i < 0) return;
-  onSpawned(i, state.cells[i]);
+  onSpawned(i, cells()[i]);
   profile.progress('spawns');
   hud();
 });
 
 goldBtn.addEventListener('click', () => {
   unlockAudio();
-  if (!G.freeCells(state).length) return toast(t('full'));
+  if (!G.freeCells(G.hive(state)).length) return toast(t('full'));
   if (!profile.spend(G.GOLDEN_PRICE)) return meta.openShop('coins');
   const i = G.goldenEgg(state);
-  onSpawned(i, state.cells[i]);
-  track('golden_egg', { level: state.cells[i] });
+  onSpawned(i, cells()[i]);
+  track('golden_egg', { level: cells()[i] });
   save();
 });
 
@@ -441,27 +573,29 @@ $('up-btn').addEventListener('click', openUpgrades);
 
 function openPause() {
   save();
-  meta.showPause({ onResume: () => {}, onRestart: () => {}, onMenu: leaveHive });
+  meta.showPause({ onResume: () => {}, onMenu: leaveHive });
 }
 
 function openUpgrades() {
-  const [c0, r0] = G.gridOf(state);
-  const next = G.GRIDS[state.expansion + 1];
+  const h = G.hive(state);
+  const [c0, r0] = G.gridOf(h);
+  const next = G.GRIDS[h.expansion + 1];
   const ec = G.expandCost(state);
   const sc = G.spawnUpCost(state);
-  const lockedAt = state.spawnLevel + 3;
+  const eggsMax = state.spawnLevel >= G.MAX_LEVEL - 4;
+  const price = (n: number) => `<span class="cost">${ICON.honey}${fmt(n)}</span>`;
   openSheet(`<h2>${t('upgrades')}</h2>
-    <div class="up-row"><span><b>${t('expand')}</b><small>${next ? t('expandSub', { a: c0 * r0, b: next[0] * next[1] }) : t('expandMax')}</small></span>
-      <button class="btn small" data-up="expand" ${next && ec <= state.honey ? '' : 'disabled'}>${next ? `🍯 ${fmt(ec)}` : '✓'}</button></div>
-    <div class="up-row"><span><b>${t('eggs')}</b><small>${sc < Infinity ? t('eggsSub', { n: state.spawnLevel + 1 }) : t('eggsLocked', { n: lockedAt })}</small></span>
-      <button class="btn small" data-up="eggs" ${sc <= state.honey ? '' : 'disabled'}>${sc < Infinity ? `🍯 ${fmt(sc)}` : '🔒'}</button></div>
+    <div class="up-row"><span><b>${t('expand')} · ${worldName(state.world)}</b><small>${next ? t('expandSub', { a: c0 * r0, b: next[0] * next[1] }) : t('expandMax')}</small></span>
+      <button class="btn small" data-up="expand" ${next && ec <= state.honey ? '' : 'disabled'}>${next ? price(ec) : ICON.check}</button></div>
+    <div class="up-row"><span><b>${t('eggs')}</b><small>${eggsMax ? t('eggsMax') : sc < Infinity ? t('eggsSub', { n: state.spawnLevel + 1 }) : t('eggsLocked', { n: state.spawnLevel + 3 })}</small></span>
+      <button class="btn small" data-up="eggs" ${sc <= state.honey ? '' : 'disabled'}>${eggsMax ? ICON.check : sc < Infinity ? price(sc) : ICON.lock}</button></div>
     <button class="btn ghost" data-close>${t('close')}</button>`);
   sheetBody.querySelector('[data-up="expand"]')?.addEventListener('click', () => {
     if (G.expand(state)) {
       layout();
       tone({ freq: 392, to: 784, duration: 0.3, volume: 0.4 });
       haptic.success();
-      track('expand', { expansion: state.expansion });
+      track('expand', { world: state.world, expansion: G.hive(state).expansion });
       save();
     }
     openUpgrades();
@@ -474,7 +608,44 @@ function openUpgrades() {
     }
     openUpgrades();
   });
-  sheetBody.querySelector('[data-close]')!.addEventListener('click', closeSheet);
+}
+
+// ───────── retention: reminders after the first new bee, sharing ─────────
+type NotifPref = 'unasked' | 'on' | 'off';
+let notif = store.get<NotifPref>('notif', 'unasked');
+const FULL_ID = 4101;
+const DAILY_ID = 4102;
+function reminders() {
+  return [
+    { id: FULL_ID, title: t('remindFullTitle'), body: t('remindFullBody'), at: new Date(G.offlineFullAt(state)) },
+    { id: DAILY_ID, title: t('remindDailyTitle'), body: t('remindDailyBody'), dailyHour: 19 },
+  ];
+}
+function askReminders() {
+  openSheet(`<div class="celebrate"><div class="bell">${ICON.bell}</div><h2>${t('notifAsk')}</h2><p class="muted">${t('notifAskSub')}</p>
+    <button class="btn" data-yes>${t('notifYes')}</button><button class="btn ghost" data-no>${t('notifNo')}</button></div>`);
+  const answer = (on: boolean) => {
+    notif = on ? 'on' : 'off';
+    store.set('notif', notif);
+    track('reminder_opt', { on });
+    if (on) void scheduleReminders(reminders());
+  };
+  sheetBody.querySelector('[data-yes]')!.addEventListener('click', () => {
+    onSheetClose = null;
+    closeSheet();
+    answer(true);
+  });
+  sheetBody.querySelector('[data-no]')!.addEventListener('click', () => {
+    onSheetClose = null;
+    closeSheet();
+    answer(false);
+  });
+  onSheetClose = () => answer(false);
+}
+/** Leaving the app: remind when the offline storage is full + a daily nudge. */
+function onLeave() {
+  save();
+  if (notif === 'on') void scheduleReminders(reminders());
 }
 
 function celebrate(level: number) {
@@ -483,32 +654,35 @@ function celebrate(level: number) {
   profile.recordBest(level);
   profile.addCoins(level * 2);
   track('new_best', { level });
-  [0, 2, 4, 7, 9].forEach((s, k) => tone({ freq: pentatonic(s + level % 5), duration: 0.16, volume: 0.35, delay: k * 0.07 }));
+  [0, 2, 4, 7, 9].forEach((s, k) => tone({ freq: pentatonic(s + (level % 5)), duration: 0.16, volume: 0.35, delay: k * 0.07 }));
   haptic.success();
-  openSheet(`<div class="celebrate"><p class="eyebrow">${t('newBee')}</p><canvas width="240" height="240"></canvas>
-    <h2>${name}</h2><p class="muted">${t('level', { n: level })} · ${t('perSec', { n: fmt(G.prodOf(level)) })}</p>
-    <p class="note">${t('giftNote')}</p><button class="btn" data-close>${t('great')}</button></div>`);
-  const cv = sheetBody.querySelector('canvas')!;
-  const c2 = cv.getContext('2d')!;
-  const spin = () => {
-    if (sheet.hidden || !cv.isConnected) return;
-    c2.clearRect(0, 0, 240, 240);
-    drawBee(c2, 120, 130, 120, level, performance.now() / 1000);
-    requestAnimationFrame(spin);
-  };
-  spin();
-  sheetBody.querySelector('[data-close]')!.addEventListener('click', closeSheet);
+  const nw = G.nextWorld(state);
+  const worldNote = nw >= 0 && level === G.WORLDS[nw].unlock ? `<p class="note hot">${t('worldNew', { w: worldName(nw) })}</p>` : '';
+  openSheet(
+    `<div class="celebrate"><p class="eyebrow">${t('newBee')}</p><canvas class="hero" width="240" height="240"></canvas>
+    <h2>${name}</h2><p class="muted">${t('level', { n: level })} · ${t('perSec', { n: fmt(G.prodOf(level) * G.beeMult(state, state.world, level)) })}</p>
+    <p class="note">${t('giftNote')}</p>${worldNote}
+    <div class="row"><button class="btn alt" data-share>${ICON.share}${t('share')}</button><button class="btn" data-close>${t('great')}</button></div></div>`,
+    () => {
+      if (notif === 'unasked') setTimeout(() => sheet.hidden && inHive && askReminders(), 250);
+    },
+  );
+  animateIn(sheetBody.querySelector<HTMLCanvasElement>('canvas.hero')!, (c, time) => drawBee(c, 120, 140, 140, level, time));
+  sheetBody.querySelector('[data-share]')!.addEventListener('click', () => {
+    void shareResult({ title: t('title'), text: t('shareText', { n: level, name }), url: STORE_URL });
+  });
 }
 
 function showOffline(o: G.Offline) {
-  openSheet(`<div class="celebrate"><p class="eyebrow">${t('awayTitle')}</p><div class="big">🍯 ${fmt(o.honey)}</div>
+  openSheet(`<div class="celebrate"><p class="eyebrow">${t('awayTitle')}</p><div class="big">${ICON.honey}${fmt(o.honey)}</div>
     <p class="muted">${t('awaySub', { t: fmtTime(o.seconds) })}</p>
-    <button class="btn" data-collect>${t('collect')}</button><button class="btn alt" data-double>▶ ${t('double')}</button></div>`);
+    <button class="btn" data-collect>${t('collect')}</button><button class="btn alt" data-double>${ICON.play}${t('double')}</button></div>`);
   let done = false;
   const give = (mult: number) => {
     if (done) return;
     done = true;
     state.honey += o.honey * mult;
+    state.earned += o.honey * mult;
     tone({ freq: 523, to: 1046, duration: 0.25, volume: 0.4 });
     haptic.success();
     save();
@@ -532,6 +706,7 @@ function checkOffline() {
 function enterHive() {
   inHive = true;
   document.body.classList.add('in-hive');
+  syncFestival();
   layout();
   hud();
   track('game_start');
@@ -561,11 +736,11 @@ canvas.addEventListener('pointerdown', (e) => {
   const p = pt(e);
   const i = cellAt(p.x, p.y);
   if (i < 0) return;
-  const v = state.cells[i];
+  const v = cells()[i];
   if (v < 0) {
     const lvl = G.openGift(state, i);
     popAt(i);
-    fx.push({ ...centers[i], t0: now, ring: true, text: '🎁' });
+    fx.push({ ...centers[i], t0: now, ring: true, text: t('lv', { n: lvl }) });
     tone({ freq: pentatonic(lvl + 3), duration: 0.15, volume: 0.4 });
     haptic.medium();
     save();
@@ -613,6 +788,7 @@ let last = performance.now();
 let saveAcc = 0;
 let floatAcc = 0;
 let floatIdx = 0;
+let festAcc = 0;
 function frame(ms: number) {
   const dt = Math.min(1, Math.max(0, (ms - last) / 1000));
   last = ms;
@@ -623,15 +799,21 @@ function frame(ms: number) {
     saveAcc = 0;
     save();
   }
+  festAcc += dt;
+  if (festAcc > 30) {
+    festAcc = 0;
+    syncFestival();
+  }
   if (inHive) {
     floatAcc += dt;
     if (floatAcc > 0.6) {
       floatAcc = 0;
-      const bees = state.cells.map((v, i) => (v > 0 ? i : -1)).filter((i) => i >= 0);
+      const cs = cells();
+      const bees = cs.map((v, i) => (v > 0 ? i : -1)).filter((i) => i >= 0);
       if (bees.length) {
         const i = bees[floatIdx++ % bees.length];
         if (centers[i] && drag?.from !== i)
-          fx.push({ ...centers[i], t0: now, text: `+${fmt(G.prodOf(state.cells[i]) * G.hiveBonus(state))}` });
+          fx.push({ ...centers[i], t0: now, text: `+${fmt(G.prodOf(cs[i]) * G.beeMult(state, state.world, cs[i]))}` });
       }
     }
     render();
@@ -642,15 +824,18 @@ function frame(ms: number) {
 
 // ───────── boot ─────────
 let pendingOffline: G.Offline | null = null;
+syncFestival();
 {
   const o = G.offlineEarnings(state, Date.now());
   state.lastSeen = Date.now();
   if (o.seconds >= 60 && o.honey >= 1) pendingOffline = o;
 }
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') save();
+  if (document.visibilityState === 'hidden') onLeave();
   else {
     last = performance.now();
+    if (notif === 'on') void cancelReminders([FULL_ID]);
+    syncFestival();
     if (inHive) checkOffline();
     else {
       const o = G.offlineEarnings(state, Date.now());
@@ -670,7 +855,7 @@ void setupNative({
     }
     return false;
   },
-  onPause: save,
+  onPause: onLeave,
 });
 void initAds();
 void initStore();
@@ -685,11 +870,25 @@ requestAnimationFrame(frame);
   },
   set state(s: G.State) {
     state = G.sanitize(s, Date.now());
+    syncFestival();
     layout();
   },
+  /** Cell centre (page coordinates) in the active hive. */
   center: (i: number) => {
     const b = canvas.getBoundingClientRect();
     return { x: b.left + centers[i].x, y: b.top + centers[i].y };
+  },
+  /** Fast-forwards production by `sec` seconds of live play. */
+  advance: (sec: number) => {
+    G.tick(state, sec);
+    hud();
+  },
+  get R() {
+    return R;
+  },
+  costs: () => ({ expand: G.expandCost(state), eggs: G.spawnUpCost(state), rate: G.rate(state), egg: G.spawnCost(state) }),
+  get notif() {
+    return notif;
   },
   save,
   profile,

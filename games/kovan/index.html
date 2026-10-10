@@ -25,11 +25,20 @@
           <b id="coins">0</b>
         </button>
       </header>
+      <div class="strip">
+        <div class="worlds" id="worlds"></div>
+        <button class="fest" id="fest-btn"><canvas id="fest-icon" width="64" height="64"></canvas><span><b id="fest-lv"></b><small id="fest-left"></small></span><i class="dot" id="fest-badge" hidden></i></button>
+      </div>
       <canvas id="stage"></canvas>
+      <button class="quest" id="quest">
+        <span class="q-ic" id="q-ic"></span>
+        <span class="q-txt"><small id="q-num"></small><b id="q-text"></b><i class="q-bar"><i id="q-fill"></i></i></span>
+        <span class="q-reward" id="q-reward"></span>
+      </button>
       <nav class="bar">
         <button class="tool" id="up-btn">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" /></svg>
-          <span data-i18n="upgrades"></span><i class="dot" id="up-badge" hidden></i>
+          <span data-i18n="upgrades"></span><i class="dot" id="up-badge" hidden></i><i class="up-bar"><i id="up-fill"></i></i>
         </button>
         <button class="egg" id="egg-btn">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c-3.6 0-6.5 6-6.5 10.3a6.5 6.5 0 0 0 13 0C18.5 9 15.6 3 12 3z" /></svg>
