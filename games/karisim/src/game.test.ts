@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ALMOST,
   LEVEL_COUNT,
+  MIN_CHROMA,
+  chroma,
   MATCH_DE,
   PIGMENTS,
   closeness,
@@ -65,6 +68,26 @@ describe('mixing', () => {
     expect(closeness(null, t)).toBe(0);
   });
 
+  it('meter is monotone and only says "almost" when genuinely close', () => {
+    const t = hexToOklab('#3a7bd5');
+    for (const tol of [MATCH_DE, 0.0055]) {
+      const at = (d: number) => closeness([t[0] + d, t[1], t[2]], t, tol);
+      let prev = 1;
+      for (let d = tol * 1.01; d < 0.6; d *= 1.07) {
+        const c = at(d);
+        expect(c).toBeLessThanOrEqual(prev);
+        expect(c).toBeLessThan(1);
+        prev = c;
+      }
+      // just outside the tolerance reads as almost there; twice the tolerance does not
+      expect(at(tol * 1.1)).toBeGreaterThanOrEqual(ALMOST);
+      expect(at(tol * 2)).toBeLessThan(ALMOST);
+      // far but not hopeless still shows meaningful progress
+      expect(at(0.1)).toBeGreaterThan(0.3);
+      expect(at(0.6)).toBe(0);
+    }
+  });
+
   it('scores stars against par', () => {
     expect(stars(4, 4)).toBe(3);
     expect(stars(6, 4)).toBe(2);
@@ -83,6 +106,8 @@ describe('levels', () => {
       // no mix with fewer drops can land inside the tolerance
       expect(cheaperGap(labs, l.target, l.par)).toBeGreaterThan(l.tol * 1.9);
       expect(l.tol).toBeLessThanOrEqual(MATCH_DE);
+      // never a near-grey target
+      expect(chroma(l.target)).toBeGreaterThanOrEqual(MIN_CHROMA);
       // following hints from an empty bowl reaches the target in exactly par drops
       const seq = solution(l.recipe);
       expect(seq.length).toBe(l.par);

@@ -1,10 +1,14 @@
 import './style.css';
 import {
+  createMeta,
+  createProfile,
   createStore,
   haptic,
-  interstitialMoment,
+  initAds,
+  initStore,
   maybeRequestReview,
   pentatonic,
+  rewardedAvailable,
   setHapticsEnabled,
   setSoundEnabled,
   setupNative,
@@ -15,6 +19,8 @@ import {
   unlockAudio,
 } from '@studio/kit';
 import {
+  ALMOST,
+  LEVEL_COUNT,
   MAX_DROPS,
   PIGMENTS,
   closeness,
@@ -31,11 +37,16 @@ import {
   type Level,
 } from './game';
 import { t, type Key } from './i18n';
+import { SKINS, skinById, type Skin } from './skins';
 
 // TODO(mağaza): gizlilik politikasını yayınladığın adresle değiştir.
 const PRIVACY_URL = 'https://github.com/mrtsknn/Claude-Cloud/blob/main/games/karisim/PRIVACY.md';
 declare const __APP_VERSION__: string;
 type RGB = [number, number, number];
+/** Coins for a hint after the free one in each level. */
+const HINT_PRICE = 40;
+const COIN_SVG =
+  '<svg class="coin" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#ffc83d" stroke="#b57d10" stroke-width="2"/><circle cx="12" cy="12" r="5" fill="none" stroke="#e0a21c" stroke-width="1.6"/></svg>';
 
 // ───────────────────────── persistence ─────────────────────────
 interface Save {
@@ -53,16 +64,17 @@ const settings = store.get('settings', { sound: true, haptics: true });
 setSoundEnabled(settings.sound);
 setHapticsEnabled(settings.haptics);
 
-const fresh = (level: number): Save => ({ level, seq: [], used: 0, hints: 0, startedAt: Date.now() });
+const fresh = (level: number, hints = 0): Save => ({ level, seq: [], used: 0, hints, startedAt: Date.now() });
 let S: Save = store.get<Save | null>('save', null) ?? fresh(1);
+if (!(S.level >= 1 && S.level <= LEVEL_COUNT) || !Array.isArray(S.seq)) S = fresh(1);
 let L: Level = generateLevel(S.level);
 let labs: Lab[] = L.tubes.map((p) => hexToOklab(PIGMENTS[p].hex));
-let nextSave: Save | null = null;
-// After a win the next level is already saved; never overwrite it with the finished board.
-const save = () => store.set('save', nextSave ?? S);
+if (S.seq.some((i) => !(i >= 0 && i < L.tubes.length))) S = fresh(S.level);
+let winPending = false;
+// Never persist a finished board: after a win the next level is already saved.
+const save = () => !winPending && store.set('save', S);
 
 trackSession('karisim');
-track('level_start', { level: S.level, par: L.par, tubes: L.tubes.length, resumed: S.used > 0 });
 
 const counts = () => {
   const c = L.tubes.map(() => 0);
@@ -73,6 +85,8 @@ const mixLab = () => mix(counts(), labs);
 const solved = () => isMatch(mixLab(), L.target, L.tol);
 const toRgb = (lab: Lab | null): RGB | null => (lab ? oklabToRgb(lab) : null);
 const css = ([r, g, b]: RGB, a = 1) => `rgba(${r | 0},${g | 0},${b | 0},${a})`;
+// A bowl that already matches (app killed mid-win) restarts that level cleanly.
+if (S.seq.length && solved()) S = fresh(S.level);
 
 // ───────────────────────── DOM ─────────────────────────
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -83,7 +97,6 @@ document.documentElement.lang = navigator.language.slice(0, 2) === 'tr' ? 'tr' :
 document.querySelectorAll<HTMLElement>('[data-i18n]').forEach((el) => {
   el.textContent = t(el.dataset.i18n as Key);
 });
-$('version').textContent = `v${__APP_VERSION__}`;
 
 let toastTimer = 0;
 function toast(text: string, ms = 2400) {
@@ -122,26 +135,36 @@ function buildTubes() {
   });
 }
 
+let wasAlmost = false;
 function refreshHud() {
   $('level').textContent = String(S.level);
   $('target').style.background = css(toRgb(L.target)!);
   const c = closeness(mixLab(), L.target, L.tol);
-  const pct = Math.round(c * 100);
+  const pct = Math.floor(c * 100);
+  const done = c === 1;
+  const almost = !done && c >= ALMOST;
   $('pct').textContent = `${pct}%`;
+  const label = $('bowl-pct');
+  label.classList.toggle('done', done);
+  label.classList.toggle('near', almost);
+  $('almost').hidden = !almost;
+  if (almost && !wasAlmost) haptic.light();
+  wasAlmost = almost;
   const fill = $('meter-fill');
   fill.style.width = `${pct}%`;
-  fill.classList.toggle('done', pct === 100);
+  fill.classList.toggle('done', done);
+  fill.classList.toggle('near', almost);
   $('drops').textContent = t('drops', { n: S.used });
   $('par').textContent = t('par', { n: L.par });
   const badge = $('hint-badge');
-  badge.textContent = S.hints === 0 ? t('free') : t('ad');
+  badge.innerHTML = S.hints === 0 ? t('free') : `${COIN_SVG}${HINT_PRICE}`;
   badge.classList.toggle('free', S.hints === 0);
   placeHand();
 }
 
 function placeHand() {
   const hand = $('hand');
-  const show = S.level === 1 && !winPending && !solved();
+  const show = S.level === 1 && !winPending && !solved() && !meta.covering;
   hand.hidden = !show;
   if (!show) return;
   const i = hintDrop(counts(), L.recipe);
@@ -150,6 +173,16 @@ function placeHand() {
   const r = el.getBoundingClientRect();
   hand.style.left = `${r.left + r.width / 2 - 14}px`;
   hand.style.top = `${r.top + r.height * 0.45}px`;
+}
+
+// ───────────────────────── skin (bowl + studio) ─────────────────────────
+let skin: Skin = SKINS[0];
+function applySkin(id: string) {
+  skin = skinById(id);
+  const root = document.documentElement.style;
+  root.setProperty('--bg-top', skin.bg[0]);
+  root.setProperty('--bg-bottom', skin.bg[1]);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', skin.bg[0]);
 }
 
 // ───────────────────────── canvas ─────────────────────────
@@ -162,6 +195,9 @@ function layout() {
   H = canvas.clientHeight;
   canvas.width = Math.round(W * dpr);
   canvas.height = Math.round(H * dpr);
+  const { cy, R } = geometry();
+  // The match % sits right under the bowl, where the eye already is.
+  $('bowl-pct').style.top = `${Math.min(H - 46, cy + R * 0.86)}px`;
   placeHand();
 }
 window.addEventListener('resize', layout);
@@ -174,7 +210,6 @@ interface Drop { tube: number; color: RGB; after: RGB | null; t0: number; x: num
 let drops: Drop[] = [];
 interface Splash { x: number; y: number; vx: number; vy: number; color: RGB; t0: number; r: number }
 let splashes: Splash[] = [];
-let winPending = false;
 let winShown = false;
 let frozenAt: number | null = null; // screenshot hook
 
@@ -184,9 +219,9 @@ const ease = (x: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
 const lerp = (a: RGB, b: RGB, k: number): RGB => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
 
 function geometry() {
-  const R = Math.min(W * 0.42, H * 0.55, 210);
+  const R = Math.min(W * 0.42, H * 0.47, 200);
   const cx = W / 2;
-  const cy = H * 0.48;
+  const cy = H * 0.43;
   return { R, cx, cy, rx: R * 0.86, ry: R * 0.26 };
 }
 
@@ -223,6 +258,71 @@ function drawDropShape(x: number, y: number, s: number, color: RGB) {
   ctx.restore();
 }
 
+function bowlPath(cx: number, cy: number, R: number) {
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, R, R * 0.3, 0, Math.PI, 0, true);
+  ctx.bezierCurveTo(cx + R, cy + R * 0.55, cx + R * 0.55, cy + R * 0.76, cx, cy + R * 0.76);
+  ctx.bezierCurveTo(cx - R * 0.55, cy + R * 0.76, cx - R, cy + R * 0.55, cx - R, cy);
+}
+
+/** Skin decoration on the bowl body (clipped to it). */
+function drawPattern(cx: number, cy: number, R: number) {
+  if (skin.pattern === 'none') return;
+  ctx.save();
+  bowlPath(cx, cy, R);
+  ctx.clip();
+  ctx.lineCap = 'round';
+  if (skin.pattern === 'band') {
+    ctx.strokeStyle = skin.ink;
+    ctx.lineWidth = R * 0.08;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + R * 0.2, R * 0.98, R * 0.3, 0, 0.05, Math.PI - 0.05);
+    ctx.stroke();
+    ctx.lineWidth = R * 0.025;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + R * 0.33, R * 0.92, R * 0.3, 0, 0.1, Math.PI - 0.1);
+    ctx.stroke();
+  } else if (skin.pattern === 'grain') {
+    ctx.strokeStyle = skin.ink;
+    for (let i = 0; i < 7; i++) {
+      ctx.globalAlpha = 0.18 + (i % 3) * 0.06;
+      ctx.lineWidth = R * (0.012 + (i % 2) * 0.01);
+      const y = cy + R * (0.1 + i * 0.09);
+      ctx.beginPath();
+      ctx.moveTo(cx - R, y);
+      ctx.bezierCurveTo(cx - R * 0.4, y + R * 0.06 * Math.sin(i), cx + R * 0.3, y - R * 0.05, cx + R, y + R * 0.03 * Math.cos(i * 2));
+      ctx.stroke();
+    }
+  } else if (skin.pattern === 'veins') {
+    ctx.strokeStyle = skin.ink;
+    const veins = [
+      [-0.9, 0.1, -0.3, 0.35, 0.2, 0.3, 0.7, 0.62],
+      [-0.6, 0.55, -0.2, 0.45, 0.1, 0.7, 0.4, 0.66],
+      [0.2, 0.08, 0.45, 0.3, 0.55, 0.2, 0.95, 0.4],
+    ];
+    veins.forEach((v, i) => {
+      ctx.globalAlpha = 0.35 - i * 0.07;
+      ctx.lineWidth = R * (0.014 - i * 0.003);
+      ctx.beginPath();
+      ctx.moveTo(cx + v[0] * R, cy + v[1] * R);
+      ctx.bezierCurveTo(cx + v[2] * R, cy + v[3] * R, cx + v[4] * R, cy + v[5] * R, cx + v[6] * R, cy + v[7] * R);
+      ctx.stroke();
+    });
+  } else if (skin.pattern === 'glass' || skin.pattern === 'metal') {
+    const g = ctx.createLinearGradient(cx - R, 0, cx + R, 0);
+    g.addColorStop(0.15, 'rgba(255,255,255,0)');
+    g.addColorStop(0.28, skin.pattern === 'metal' ? 'rgba(255,241,226,0.75)' : 'rgba(255,255,255,0.8)');
+    g.addColorStop(0.36, 'rgba(255,255,255,0)');
+    g.addColorStop(0.78, 'rgba(255,255,255,0)');
+    g.addColorStop(0.84, 'rgba(255,255,255,0.35)');
+    g.addColorStop(0.88, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(cx - R, cy - R * 0.3, R * 2, R * 1.1);
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
 function frame(now: number) {
   if (frozenAt !== null) now = frozenAt;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -235,18 +335,16 @@ function frame(now: number) {
   ctx.ellipse(cx, cy + R * 0.8, R * 0.62, R * 0.09, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // bowl body: lower half-ellipse in glazed white
-  ctx.beginPath();
-  ctx.ellipse(cx, cy, R, R * 0.3, 0, Math.PI, 0, true);
-  ctx.bezierCurveTo(cx + R, cy + R * 0.55, cx + R * 0.55, cy + R * 0.76, cx, cy + R * 0.76);
-  ctx.bezierCurveTo(cx - R * 0.55, cy + R * 0.76, cx - R, cy + R * 0.55, cx - R, cy);
+  // bowl body in the equipped material
+  bowlPath(cx, cy, R);
   const body = ctx.createLinearGradient(cx - R, 0, cx + R, 0);
-  body.addColorStop(0, '#ffffff');
-  body.addColorStop(0.55, '#f3f5f8');
-  body.addColorStop(1, '#d6dbe2');
+  body.addColorStop(0, skin.body[0]);
+  body.addColorStop(0.55, skin.body[1]);
+  body.addColorStop(1, skin.body[2]);
   ctx.fillStyle = body;
   ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  drawPattern(cx, cy, R);
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
   ctx.beginPath();
   ctx.ellipse(cx - R * 0.62, cy + R * 0.28, R * 0.06, R * 0.2, 0.5, 0, Math.PI * 2);
   ctx.fill();
@@ -254,10 +352,10 @@ function frame(now: number) {
   // rim + inner wall
   ctx.beginPath();
   ctx.ellipse(cx, cy, R, R * 0.3, 0, 0, Math.PI * 2);
-  ctx.fillStyle = '#e6e9ee';
+  ctx.fillStyle = skin.rim;
   ctx.fill();
   ctx.lineWidth = 2;
-  ctx.strokeStyle = '#ffffff';
+  ctx.strokeStyle = skin.rimLine;
   ctx.stroke();
 
   // paint surface
@@ -355,7 +453,7 @@ function land(d: Drop, now: number, sy: number) {
 
 // ───────────────────────── actions ─────────────────────────
 function addDrop(i: number) {
-  if (winPending || !$('win').hidden) return;
+  if (winPending || meta.covering || !$('hint-sheet').hidden) return;
   if (S.seq.length >= MAX_DROPS) {
     haptic.error();
     return toast(t('full'));
@@ -363,6 +461,7 @@ function addDrop(i: number) {
   S.seq.push(i);
   S.used++;
   save();
+  profile.progress('drops');
   const el = document.querySelector<HTMLElement>(`.tube[data-i="${i}"]`);
   if (el) {
     el.classList.remove('squeeze');
@@ -388,57 +487,73 @@ function setBowl(seq: number[]) {
 
 function win() {
   const st = stars(S.used, L.par);
+  const completed = S.level;
   [0, 2, 4, 7, 9].forEach((s, i) => tone({ freq: pentatonic(s, 523.25), duration: 0.24, volume: 0.4, delay: i * 0.08 }));
-  haptic.success();
   track('level_complete', {
-    level: S.level,
+    level: completed,
     drops: S.used,
     par: L.par,
     stars: st,
     hints: S.hints,
     duration_s: Math.round((Date.now() - S.startedAt) / 1000),
   });
-  $('win-title').textContent = t('levelN', { n: S.level });
-  $('win-drops').textContent = t('winDrops', { n: S.used, p: L.par });
-  $('win-swatch').style.background = css(toRgb(L.target)!);
-  $('stars').querySelectorAll('i').forEach((el, k) => el.classList.toggle('on', k < st));
   // Persist progress right away so quitting on the win sheet never loses the level.
-  const completed = S.level;
-  nextSave = fresh(completed + 1);
-  store.set('save', nextSave);
-  store.set('completed', Math.max(completed, store.get('completed', 0)));
+  if (completed < LEVEL_COUNT) store.set('save', fresh(completed + 1));
+  if (S.hints === 0) profile.progress('matches');
+  // From now on the home screen offers the daily reward on its own.
+  if (profile.data.firstRun) profile.finishFirstRun();
   const streak = st === 3 ? store.get('streak', 0) + 1 : 0;
   store.set('streak', streak);
-  $('win').hidden = false;
+  meta.showWin({
+    level: completed,
+    stars: st,
+    coins: 10 + st * 5,
+    onNext: () => (completed < LEVEL_COUNT ? startLevel(fresh(completed + 1)) : meta.showHome()),
+  });
+  decorateWin(st);
   if (streak >= 3) maybeRequestReview(completed, true);
 }
 
+/** Adds the matched colour and the drop count to the kit's win sheet. */
+function decorateWin(st: number) {
+  const head = document.querySelector('.meta-root .m-result h2');
+  if (!head) return;
+  const sw = document.createElement('div');
+  sw.className = 'win-swatch';
+  sw.style.background = css(toRgb(L.target)!);
+  const p = document.createElement('p');
+  p.className = 'win-drops';
+  p.textContent = t('winDrops', { n: S.used, p: L.par });
+  if (st === 3) p.classList.add('par');
+  head.after(sw, p);
+}
+
 function startLevel(state: Save) {
+  meta.hideHome();
   S = state;
   L = generateLevel(S.level);
   labs = L.tubes.map((p) => hexToOklab(PIGMENTS[p].hex));
+  winPending = false;
+  winShown = false;
+  wasAlmost = false;
   save();
   drops = [];
   splashes = [];
   swirl = null;
   shown = toRgb(mixLab());
-  winPending = false;
-  winShown = false;
   buildTubes();
   refreshHud();
   $('toast').hidden = true;
   if (S.level === 1 && !S.used) toast(t('tutorial'), 3500);
-  track('level_start', { level: S.level, par: L.par, tubes: L.tubes.length, resumed: false });
+  track('level_start', { level: S.level, par: L.par, tubes: L.tubes.length, resumed: S.used > 0 });
 }
 
-$('next-btn').addEventListener('click', async () => {
-  $('win').hidden = true;
-  haptic.medium();
-  const completed = S.level;
-  startLevel(nextSave ?? fresh(S.level + 1));
-  nextSave = null;
-  if (completed >= 5) await interstitialMoment('next_level');
-});
+/** From the home screen or the map: resume the bowl in progress, else start clean. */
+function play(n: number) {
+  unlockAudio();
+  if (S.level === n && !winPending && !solved()) startLevel(S);
+  else startLevel(fresh(n));
+}
 
 $('restart-btn').addEventListener('click', () => {
   unlockAudio();
@@ -459,11 +574,8 @@ $('undo-btn').addEventListener('click', () => {
   track('undo', { level: S.level });
 });
 
-$('hint-btn').addEventListener('click', async () => {
-  unlockAudio();
-  if (winPending) return;
-  // First hint per level is free; more are behind a rewarded ad.
-  if (S.hints > 0 && !(await showRewarded('hint'))) return;
+// ───────────────────────── hints ─────────────────────────
+function giveHint() {
   let i = hintDrop(counts(), L.recipe);
   if (i < 0) {
     setBowl([]);
@@ -474,55 +586,200 @@ $('hint-btn').addEventListener('click', async () => {
   track('hint', { level: S.level, n: S.hints });
   addDrop(i);
   refreshHud();
+}
+
+/** First hint per level is free; after that the player pays coins or watches a video. */
+function openHintSheet() {
+  const sheet = $('hint-sheet');
+  const coins = $<HTMLButtonElement>('hint-coins');
+  const enough = profile.data.coins >= HINT_PRICE;
+  coins.disabled = !enough;
+  coins.innerHTML = enough ? `${COIN_SVG} ${t('hintCoins', { n: HINT_PRICE })}` : t('notEnough', { n: profile.data.coins });
+  const video = $<HTMLButtonElement>('hint-video');
+  video.hidden = !rewardedAvailable();
+  video.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9v6l5-3z" fill="currentColor"/></svg> ${t('hintVideo')}`;
+  sheet.hidden = false;
+}
+const closeHintSheet = () => ($('hint-sheet').hidden = true);
+
+$('hint-btn').addEventListener('click', () => {
+  unlockAudio();
+  if (winPending) return;
+  if (S.hints === 0) return giveHint();
+  openHintSheet();
+});
+$('hint-coins').addEventListener('click', () => {
+  if (!profile.spend(HINT_PRICE)) return;
+  closeHintSheet();
+  track('hint_coins', { level: S.level });
+  giveHint();
+});
+$('hint-video').addEventListener('click', async () => {
+  const b = $<HTMLButtonElement>('hint-video');
+  b.disabled = true;
+  const ok = await showRewarded('hint');
+  b.disabled = false;
+  if (!ok) return;
+  closeHintSheet();
+  giveHint();
+});
+$('hint-cancel').addEventListener('click', closeHintSheet);
+$('hint-sheet').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeHintSheet();
 });
 
-// settings
-for (const [id, k] of [['opt-sound', 'sound'], ['opt-haptics', 'haptics']] as const) {
-  const el = $<HTMLInputElement>(id);
-  el.checked = settings[k];
-  el.addEventListener('change', () => {
-    settings[k] = el.checked;
-    setSoundEnabled(settings.sound);
-    setHapticsEnabled(settings.haptics);
-    store.set('settings', settings);
-    if (k === 'haptics') haptic.medium();
+// ───────────────────────── meta (menu, map, missions, daily, shop) ─────────────────────────
+const profile = createProfile({
+  game: 'karisim',
+  levelCount: LEVEL_COUNT,
+  defaultSkin: SKINS[0].id,
+  skinIds: SKINS.map((s) => s.id),
+  missions: [
+    { id: 'levels', targets: [2, 3, 5], reward: (n) => 20 + n * 10 },
+    { id: 'stars', targets: [4, 6, 9], reward: (n) => 20 + n * 5 },
+    { id: 'perfect', targets: [1, 2, 3], reward: (n) => 30 + n * 10 },
+    { id: 'drops', targets: [20, 40, 60], reward: (n) => 20 + Math.round(n / 2) },
+    { id: 'matches', targets: [2, 3, 4], reward: (n) => 25 + n * 10 },
+  ],
+});
+
+// v1.0 saved only `completed` + the bowl; carry that progress into the profile once.
+if (!store.get('migrated', false)) {
+  const completed = Math.min(LEVEL_COUNT, store.get('completed', 0));
+  if (completed > 0 && profile.data.unlocked <= completed) {
+    for (let i = 0; i < completed; i++) profile.data.stars[i] = Math.max(profile.data.stars[i], 3);
+    profile.data.unlocked = Math.min(LEVEL_COUNT, Math.max(completed + 1, S.level));
+    profile.data.firstRun = false;
+    profile.save();
+    track('progress_migrated', { completed });
+  }
+  store.set('migrated', true);
+}
+applySkin(profile.data.skin);
+
+/** Home artwork: three paint drops falling into a bowl of the equipped material. */
+function heroArt() {
+  const el = document.createElement('div');
+  el.className = 'hero';
+  const paint = () => {
+    const s = skin;
+    el.innerHTML = `<svg viewBox="0 -30 240 240" aria-hidden="true">
+      <defs>
+        <linearGradient id="hb" x1="0" x2="1"><stop offset="0" stop-color="${s.body[0]}"/><stop offset=".55" stop-color="${s.body[1]}"/><stop offset="1" stop-color="${s.body[2]}"/></linearGradient>
+        <clipPath id="hc"><path d="M30 120 A90 27 0 0 0 210 120 C210 170 170 190 120 190 C70 190 30 170 30 120Z"/></clipPath>
+      </defs>
+      <ellipse cx="120" cy="197" rx="62" ry="8" fill="rgba(0,0,0,.28)"/>
+      <path d="M30 120 A90 27 0 0 0 210 120 C210 170 170 190 120 190 C70 190 30 170 30 120Z" fill="url(#hb)"/>
+      <g clip-path="url(#hc)" fill="none" stroke="${s.ink}" stroke-linecap="round">${heroPattern(s)}</g>
+      <ellipse cx="120" cy="120" rx="90" ry="27" fill="${s.rim}" stroke="${s.rimLine}" stroke-width="2"/>
+      <ellipse class="hero-paint" cx="120" cy="124" rx="77" ry="21" fill="#8d6fc7"/>
+      <ellipse class="hero-ripple" cx="120" cy="124" rx="30" ry="8" fill="none" stroke="#fff" stroke-width="2"/>
+      <ellipse cx="92" cy="116" rx="24" ry="4" fill="rgba(255,255,255,.3)"/>
+      ${['#00a6d6', '#d6247a', '#ffd21f']
+        .map(
+          (c, i) =>
+            `<g class="hero-drop" style="animation-delay:${i * 0.8}s"><path d="M120 0 C127 11 134 18 134 26 A14 14 0 0 1 106 26 C106 18 113 11 120 0Z" fill="${c}"/><ellipse cx="114" cy="24" rx="2.6" ry="5" fill="rgba(255,255,255,.7)" transform="rotate(-20 114 24)"/></g>`,
+        )
+        .join('')}
+    </svg>`;
+  };
+  paint();
+  return { el, paint };
+}
+function heroPattern(s: Skin) {
+  switch (s.pattern) {
+    case 'band':
+      return `<path d="M30 140 A90 27 0 0 0 210 140" stroke-width="7"/><path d="M34 154 A86 26 0 0 0 206 154" stroke-width="2"/>`;
+    case 'grain':
+      return [132, 145, 158, 171].map((y, i) => `<path d="M28 ${y} C80 ${y + 6} 150 ${y - 5} 212 ${y + 2}" stroke-width="${1.4 + (i % 2)}" opacity=".3"/>`).join('');
+    case 'veins':
+      return `<path d="M36 128 C70 150 110 140 170 182" stroke-width="1.6" opacity=".4"/><path d="M140 125 C160 140 175 132 208 150" stroke-width="1.2" opacity=".3"/>`;
+    case 'glass':
+    case 'metal':
+      return `<path d="M62 130 L58 172" stroke="#fff" stroke-width="9" opacity=".55"/><path d="M186 132 L182 160" stroke="#fff" stroke-width="4" opacity=".3"/>`;
+    default:
+      return '';
+  }
+}
+
+const hero = heroArt();
+const meta = createMeta({
+  title: t('title'),
+  hero: hero.el,
+  tagline: t('tagline'),
+  version: __APP_VERSION__,
+  privacyUrl: PRIVACY_URL,
+  profile,
+  levels: { count: LEVEL_COUNT, play },
+  missionText: (id, n) => t(`mission_${id}` as Key, { n }),
+  skins: SKINS.map((s) => ({ id: s.id, name: t(`skin_${s.id}` as Key), price: s.price, swatch: s.swatch })),
+  onSkin: (id) => {
+    applySkin(id);
+    hero.paint();
+  },
+  settings,
+  onSettings: (s) => {
+    setSoundEnabled(s.sound);
+    setHapticsEnabled(s.haptics);
+    store.set('settings', s);
+  },
+});
+
+function pause() {
+  unlockAudio();
+  closeHintSheet();
+  meta.showPause({
+    onResume: placeHand,
+    onRestart: () => {
+      track('restart', { level: S.level, drops: S.used, full: true });
+      // Keep the hint count so restarting never re-arms the free hint.
+      startLevel(fresh(S.level, S.hints));
+    },
+    onMenu: save,
   });
+  placeHand();
 }
 $('settings-btn').addEventListener('click', () => {
-  unlockAudio();
-  $('settings').hidden = false;
-});
-$('close-settings').addEventListener('click', () => ($('settings').hidden = true));
-$('settings').addEventListener('click', (e) => {
-  if (e.target === e.currentTarget) $('settings').hidden = true;
-});
-$('privacy-link').addEventListener('click', (e) => {
-  e.preventDefault();
-  window.open(PRIVACY_URL, '_blank');
+  if (winPending) return;
+  pause();
 });
 
 // ───────────────────────── boot ─────────────────────────
 buildTubes();
 layout();
 refreshHud();
-if (S.level === 1 && !S.used) toast(t('tutorial'), 3500);
+void initAds();
+void initStore();
 void setupNative({
   darkBackground: false,
   onPause: save,
   onBack: () => {
-    if (!$('settings').hidden) {
-      $('settings').hidden = true;
+    if (!$('hint-sheet').hidden) {
+      closeHintSheet();
+      return true;
+    }
+    if (meta.back()) return true;
+    if (!meta.covering && !winPending) {
+      pause();
       return true;
     }
     return false;
   },
 });
+meta.showHome();
+placeHand();
 requestAnimationFrame(frame);
 // Exposed for e2e/screenshot scripts.
 (window as unknown as { __karisim: unknown }).__karisim = {
   get state() { return S; },
   get level() { return L; },
   solution: () => solution(L.recipe),
+  /** Meter value (0..1) a hypothetical bowl would show on the current level. */
+  meter: (seq: number[]) => {
+    const c = L.tubes.map(() => 0);
+    seq.forEach((i) => c[i]++);
+    return closeness(mix(c, labs), L.target, L.tol);
+  },
   busy: () => drops.length > 0 || winPending,
   goto: (n: number) => startLevel(fresh(n)),
   load: (s: Save) => startLevel(s),
