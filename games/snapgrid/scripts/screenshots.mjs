@@ -33,6 +33,11 @@ const scenes = [
     drop: { slot: 0, row: 3, col: 4 },
   },
   {
+    name: '4-home',
+    home: true,
+    save: { board: new Array(64).fill(0), tray: [P(['#'], 1), P(['#'], 1), P(['#'], 1)], score: 0, streak: 0, moves: 0, lines: 0 },
+  },
+  {
     name: '3-calm',
     save: {
       board: B(['7.......', '77......', '........', '...44...', '...44...', '........', '......22', '1.....22']),
@@ -43,8 +48,8 @@ const scenes = [
 ];
 
 const captions = {
-  en: ['Drag. Drop. Clear.', 'Chain combos for huge scores', 'Relaxing, no timer, no rush'],
-  tr: ['Sürükle. Bırak. Temizle.', 'Komboları zincirle, puanı katla', 'Rahatlatıcı, süre yok, acele yok'],
+  en: ['Drag. Drop. Clear.', 'Chain combos for huge scores', 'Daily missions and rewards', 'Relaxing, no timer, no rush'],
+  tr: ['Sürükle. Bırak. Temizle.', 'Komboları zincirle, puanı katla', 'Günlük görevler ve ödüller', 'Rahatlatıcı, süre yok, acele yok'],
 };
 
 const browser = await chromium.launch();
@@ -56,10 +61,18 @@ for (const lang of ['en', 'tr']) {
       localStorage.setItem('snapgrid.save', JSON.stringify(save));
       localStorage.setItem('snapgrid.best', JSON.stringify(3120));
       localStorage.setItem('snapgrid.tutorialDone', 'true');
+      const d = new Date(); const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      localStorage.setItem('snapgrid.profile', JSON.stringify({ coins: 1240, best: 3120, dailyLast: k, dailyStreak: 3, firstRun: false }));
     }, sc.save);
     const page = await ctx.newPage();
     await page.goto(url);
-    await page.waitForTimeout(900);
+    await page.waitForTimeout(600);
+    if (sc.home) {
+      await page.waitForTimeout(1200);
+    } else {
+      await page.click('[data-act="play-endless"]');
+      await page.waitForTimeout(500);
+    }
     const box = await page.locator('#stage').boundingBox();
     const L = JSON.parse(await page.locator('#stage').getAttribute('data-layout'));
     const bs = L.bs, cell = L.cell, bx = L.bx + box.x, by = L.by + box.y, ty = L.ty + box.y + L.th / 2;

@@ -51,7 +51,11 @@ tahtayı tamamen boşaltma +300.
 - [x] TR / EN yerelleştirme (cihaz diline göre)
 - [x] Android geri tuşu, status bar, splash, dikey yön kilidi, safe-area
 - [x] Mağaza değerlendirme isteği (≥4 oyun + rekor anı, 30 günde bir)
-- [x] Reklam soyutlaması (sağlayıcı bağlanınca aktif olur)
+- [x] **Meta katmanı:** ana menü (oyuna özgü animasyonlu görsel), 3 günlük görev (oyun, satır, kombo, puan),
+      7 günlük ödül takvimi, mağaza (6 blok paleti: Klasik, Pastel, Okyanus, Gün batımı, Orman, Neon),
+      video ile ücretsiz jeton, uygulama içi satın alma (başlangıç paketi, reklamsız, jeton paketleri)
+- [x] Duraklat menüsü; oyun sonunda jetonla (100/200/400) ya da videoyla devam
+- [x] AdMob (geçiş + ödüllü) ve uygulama içi satın alma, test kimlikleriyle kurulu
 
 ## Analytics olayları
 
@@ -88,6 +92,8 @@ tarayıcıda tam akış: öğretici → oyun sonu → devam et → oyun sonu →
 
 Yalnızca hesap sahibinin yapabileceği adımlar kaldı:
 
+- [ ] AdMob: gerçek uygulama/reklam kimlikleri (AndroidManifest, Info.plist, `initAds({ units, testing: false })`)
+- [ ] Play Console / App Store Connect'te ürünler: `remove_ads`, `starter_pack`, `coins_small`, `coins_large`
 - [ ] `capacitor.config.ts` → `appId` kendi alan adınla (ör. `com.<adın>.snapgrid`), sonra `npx cap sync`
 - [ ] `PRIVACY.md`'yi herkese açık bir URL'de yayınla (GitHub Pages / public repo) ve `src/main.ts` → `PRIVACY_URL`
 - [ ] Android: Actions → **Android build** ile APK'yı cihazda dene; release keystore oluştur ve AAB'yi imzala
