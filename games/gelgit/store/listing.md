@@ -18,8 +18,10 @@
   How long can you keep your castles dry?
   • Turn-based and fair: nothing random happens after you press Wave
   • Endless rounds, best score, one rebuild per game
+  • Daily missions and a 7-day reward calendar
+  • Six beach themes to unlock: tropical, sunset, coral, arctic, moonlight
   • Calm beach visuals, soft surf sounds and haptics
-  • No timer, fully offline
+  • No timer, plays offline
 
 ## Türkçe
 
@@ -39,16 +41,20 @@
   Kalelerini ne kadar kuru tutabilirsin?
   • Sıra tabanlı ve adil: Dalga'ya bastıktan sonra hiçbir şey şansa kalmaz
   • Sonsuz tur, rekor, oyun başına bir yeniden kurma
+  • Günlük görevler ve 7 günlük ödül takvimi
+  • Açılacak altı sahil teması: tropik, gün batımı, mercan, kutup, ay ışığı
   • Sakin plaj görselleri, yumuşak dalga sesleri ve titreşim
-  • Süre yok, tamamen internetsiz
+  • Süre yok, internetsiz oynanır
 
 ## Kategori ve derecelendirme
 
 - **Kategori:** Games → Puzzle (ikincil: Strategy)
 - **Yaş derecesi:** 4+ / PEGI 3 / Everyone
-- **Veri güvenliği / gizlilik etiketi:** "Veri toplanmıyor" — reklam/analiz sağlayıcısı eklenirse güncelle.
+- **Veri güvenliği / gizlilik etiketi:** AdMob (reklam kimliği, kaba konum, cihaz bilgisi — reklam
+  amaçlı) ve uygulama içi satın alma beyan edilmeli; iOS'ta ATT izni istenir. "Contains ads" + "In-app purchases" işaretle.
+- **Uygulama içi ürünler:** `starter_pack` (500 jeton + reklamsız), `remove_ads`, `coins_small` (300), `coins_large` (2000).
 
 ## Ekran görüntüleri
 
-`store/screenshots/<dil>/<boyut>/` — `ios-6.9` (1290×2796), `ios-6.5` (1242×2688), `android` (1080×1920).
+`store/screenshots/<dil>/<boyut>/` — 4 sahne (`0-home` ana menü, `1-wave`, `2-preview`, `3-later` gün batımı teması) — `ios-6.9` (1290×2796), `ios-6.5` (1242×2688), `android` (1080×1920).
 Yeniden üretmek: `scripts/screenshots.mjs`.
