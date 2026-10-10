@@ -315,6 +315,7 @@ export function createMeta(cfg: MetaConfig) {
               track('skin_buy', { skin: s.id });
             } else return toast(tt('notEnough'));
             cfg.onSkin?.(s.id);
+            P.save(); // notify listeners again now that the game has applied the skin
             haptic.light();
             render('skins');
           });
