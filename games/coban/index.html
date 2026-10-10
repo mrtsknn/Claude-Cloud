@@ -21,9 +21,20 @@
         <div class="pills">
           <span class="pill" id="sheep-pill"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="13" r="6" /><circle cx="18" cy="11" r="3" /></svg><b id="sheep-count">0/0</b></span>
           <span class="pill" id="time-pill"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8" /><path d="M12 9v4l3 2M10 2h4" /></svg><b id="time">0:00</b></span>
+          <span class="pill" id="miss-pill" hidden></span>
         </div>
       </header>
-      <div class="tip" id="tip" hidden></div>
+      <button class="bark-btn" id="bark-btn" aria-label="bark" hidden>
+        <svg viewBox="0 0 48 48" aria-hidden="true">
+          <path class="bark-head" d="M10 30c0-8 5-14 13-14 4 0 7 2 9 5l5 1c2 0 3 2 2 4l-2 3c-1 2-3 3-5 3h-4c-2 3-5 5-9 5-5 0-9-3-9-7z" />
+          <path class="bark-ear" d="M15 18l-3-8c4 0 8 3 9 7" />
+          <circle class="bark-eye" cx="26" cy="22" r="1.8" />
+          <path class="bark-wave" d="M40 14c2 2 3 5 3 8M43 9c4 4 5 9 4 14" />
+        </svg>
+        <i class="bark-ring"></i>
+      </button>
+      <div class="banner" id="banner" hidden></div>
+      <div class="tip" id="tip" hidden><canvas id="tip-art" width="300" height="128"></canvas><span id="tip-text"></span></div>
     </div>
     <script type="module" src="./src/main.ts"></script>
   </body>

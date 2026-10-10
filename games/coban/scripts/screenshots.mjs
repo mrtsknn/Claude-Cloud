@@ -9,36 +9,53 @@ mkdirSync(outDir, { recursive: true });
 
 const scenes = [
   { name: '1-home' },
-  { name: '2-herd', level: 14, sim: 7 },
-  { name: '3-wolf', level: 74, sim: 4 },
-  { name: '4-shop', shop: true },
+  { name: '2-bark', level: 23, sim: 1, bark: true },
+  { name: '3-animals', level: 44, sim: 0.5 },
+  { name: '4-rush', rush: true, sim: 48 },
+  { name: '5-wolf', level: 74, sim: 4 },
+  { name: '6-train', train: true },
 ];
 const captions = {
-  en: ['Be the shepherd', 'Drag — your dog herds the flock', 'Ponds, fences, wolves… 120 levels', 'Pick your sheepdog'],
-  tr: ['Çoban sensin', 'Sürükle — köpeğin sürüyü toplasın', 'Gölet, çit, kurt… 120 seviye', 'Çoban köpeğini seç'],
+  en: ['Be the shepherd', 'Bark! Scatter them toward the pen', 'Lambs, goats, geese, mud & gates', 'Endless Rush — beat your best', '120 levels: ponds, fences, wolves', 'Train your dog, pick your breed'],
+  tr: ['Çoban sensin', 'Havla! Sürüyü ağıla yönlendir', 'Kuzu, keçi, kaz, çamur ve kapı', 'Sonsuz koşu — rekorunu kır', '120 seviye: gölet, çit, kurt', 'Köpeğini eğit, cinsini seç'],
 };
-const profile = { coins: 940, unlocked: 15, stars: [3, 3, 2, 3, 3, 3, 2, 3, 3, 1, 3, 2, 3, 3], firstRun: false, dailyLast: new Date().toISOString().slice(0, 10), owned: ['collie', 'kangal'], skin: 'kangal' };
+const profile = { coins: 940, unlocked: 45, stars: [3, 3, 2, 3, 3, 3, 2, 3, 3, 1, 3, 2, 3, 3, 3, 2, 3, 3, 3, 3, 2, 3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 3], best: 37, firstRun: false, owned: ['collie', 'kangal'], skin: 'kangal' };
+const tips = ['hint', 'bark', 'lamb', 'black', 'mud', 'goat', 'wolf', 'gate', 'goose'];
 
 const browser = await chromium.launch();
 const raw = {};
 for (const lang of ['en', 'tr']) {
   for (const sc of scenes) {
     const ctx = await browser.newContext({ viewport: { width: 430, height: 932 }, deviceScaleFactor: 3, hasTouch: true, locale: lang === 'tr' ? 'tr-TR' : 'en-US' });
-    await ctx.addInitScript((p) => {
+    await ctx.addInitScript(([p, t]) => {
       const d = new Date();
       p.dailyLast = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       localStorage.setItem('coban.profile', JSON.stringify(p));
       localStorage.setItem('coban.settings', JSON.stringify({ sound: false, haptics: false }));
-    }, profile);
+      localStorage.setItem('coban.upgrades', JSON.stringify({ speed: 2, bark: 1, cd: 1 }));
+      localStorage.setItem('coban.tips', JSON.stringify(t));
+    }, [profile, tips]);
     const page = await ctx.newPage();
     await page.goto(url);
     await page.waitForTimeout(500);
-    if (sc.level) {
-      await page.evaluate(([l, s]) => { window.__coban.start(l); window.__coban.sim(s); }, [sc.level, sc.sim]);
+    if (sc.level || sc.rush) {
+      await page.evaluate(([l, s, rush]) => { rush ? window.__coban.rush() : window.__coban.start(l); window.__coban.sim(s); }, [sc.level, sc.sim, !!sc.rush]);
+      if (sc.bark) {
+        // wait until the herding bot lines up behind a group, then bark for real
+        await page.evaluate(() => {
+          const c = window.__coban;
+          const near = () => {
+            const s = c.state;
+            return s.sheep.filter((a) => !a.penned && Math.hypot(a.x - s.dog.x, a.y - s.dog.y) < s.stats.barkR * 0.8).length;
+          };
+          for (let i = 0; i < 200 && !(c.plan().why === 'behind' && near() >= 3); i++) c.sim(0.1);
+          c.bark();
+        });
+      }
       await page.evaluate(() => (document.getElementById('tip').hidden = true));
     }
-    if (sc.shop) await page.click('.m-nav [data-act="shop"]');
-    await page.waitForTimeout(300);
+    if (sc.train) await page.click('#train-btn');
+    await page.waitForTimeout(sc.bark ? 140 : 300);
     const file = `${outDir}/raw-${lang}-${sc.name}.png`;
     await page.screenshot({ path: file });
     raw[`${lang}-${sc.name}`] = file;

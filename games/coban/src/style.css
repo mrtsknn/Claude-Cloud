@@ -5,6 +5,7 @@
   --accent: #ffc94a;
   --wood: #8b5a2b;
   --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
   /* meta layer theme */
   --m-bg: radial-gradient(120% 80% at 50% 0%, #8fcf68, #3f7d3a 70%, #2d5e2c);
   --m-ink: #1f3324;
@@ -25,6 +26,7 @@
 html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--grass); }
 #app { position: fixed; inset: 0; }
 #stage { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; }
+[hidden] { display: none !important; }
 .hud {
   position: absolute; left: 0; right: 0; top: 0; z-index: 2;
   display: flex; align-items: center; gap: 10px;
@@ -36,11 +38,11 @@ html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: non
 .icon-btn {
   width: 44px; height: 44px; border-radius: 14px; border: 2px solid var(--ink);
   background: var(--card); color: var(--ink); display: grid; place-items: center;
-  box-shadow: 0 3px 0 var(--ink); cursor: pointer;
+  box-shadow: 0 3px 0 var(--ink); cursor: pointer; flex: none;
 }
 .icon-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
-#level-label { color: #fff; font-size: 18px; font-weight: 800; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.25); }
-.pills { margin-left: auto; display: flex; gap: 8px; }
+#level-label { color: #fff; font-size: 18px; font-weight: 800; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.25); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.pills { margin-left: auto; display: flex; gap: 8px; flex: none; }
 .pill {
   display: flex; align-items: center; gap: 5px; height: 36px; padding: 0 12px 0 9px;
   border-radius: 12px; background: var(--card); border: 2px solid var(--ink); box-shadow: 0 3px 0 var(--ink);
@@ -48,11 +50,81 @@ html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: non
 }
 .pill.low { background: #ff8a7a; animation: pulse 0.8s ease-in-out infinite alternate; }
 @keyframes pulse { to { transform: scale(1.07); } }
+#miss-pill { gap: 1px; padding: 0 8px; }
+#miss-pill svg { width: 20px; height: 20px; fill: #fffdf6; }
+#miss-pill svg.gone { fill: #ff8a7a; stroke: #b33b2c; }
+
+/* one-time tips: a small wordless pictogram low on the meadow (fades while the player drags) */
 .tip {
-  position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 28px); transform: translateX(-50%);
-  z-index: 2; max-width: 86%; padding: 12px 18px; border-radius: 16px; text-align: center;
+  position: absolute; left: 50%; bottom: calc(var(--safe-bottom) + 112px); transform: translateX(-50%);
+  z-index: 2; max-width: 86%; padding: 10px 16px 12px; border-radius: 18px; text-align: center;
   background: rgba(31, 51, 36, 0.86); color: #fff; font-weight: 700; font-size: 16px; pointer-events: none;
-  animation: tipIn 0.3s ease-out;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  animation: tipIn 0.3s ease-out; transition: opacity 0.3s;
 }
+.tip.faint { opacity: 0.35; }
+.tip canvas { width: 150px; height: 64px; display: block; }
 @keyframes tipIn { from { opacity: 0; transform: translate(-50%, 10px); } }
+
+/* bark: thumb-reachable, the cooldown fills a ring around it */
+.bark-btn {
+  --cd: 0;
+  position: absolute; z-index: 3; right: 14px; bottom: calc(var(--safe-bottom) + 18px);
+  width: 76px; height: 76px; border-radius: 50%; border: 3px solid var(--ink); padding: 0;
+  background: var(--accent); color: var(--ink); display: grid; place-items: center; cursor: pointer;
+  box-shadow: 0 5px 0 var(--ink); touch-action: none; transition: background 0.2s;
+}
+.bark-btn svg { width: 46px; height: 46px; fill: none; stroke: var(--ink); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.bark-btn .bark-head { fill: #fffdf6; }
+.bark-btn .bark-eye { fill: var(--ink); stroke: none; }
+.bark-btn:not(.ready) { background: #d9d2bd; }
+.bark-btn:not(.ready) .bark-wave { opacity: 0.2; }
+.bark-btn:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--ink); }
+.bark-ring {
+  position: absolute; inset: -9px; border-radius: 50%; pointer-events: none;
+  background: conic-gradient(rgba(31, 51, 36, 0.6) calc(var(--cd) * 360deg), transparent 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+}
+.bark-btn.ready .bark-ring { background: none; }
+.bark-btn.hint { animation: barkHint 0.9s ease-in-out infinite; }
+.bark-btn.nope { animation: nope 0.25s; }
+@keyframes barkHint { 50% { transform: scale(1.12); box-shadow: 0 5px 0 var(--ink), 0 0 0 10px rgba(255, 255, 255, 0.45); } }
+@keyframes nope { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+
+.banner {
+  position: absolute; left: 50%; top: 34%; z-index: 3; transform: translate(-50%, -50%);
+  color: #fff; font-size: 34px; font-weight: 900; text-shadow: 0 4px 0 rgba(31, 51, 36, 0.6); pointer-events: none;
+  animation: bannerIn 1.4s ease-out forwards; white-space: nowrap;
+}
+@keyframes bannerIn {
+  0% { opacity: 0; transform: translate(-50%, -30%) scale(0.7); }
+  15% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+  25% { transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* home: logo, animated herd, dog training */
 .m-logo { color: #fff; text-shadow: 0 4px 0 #2d5e2c; }
+.hero { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.meta-root .m-art .hero-art { width: min(300px, 76vw); height: auto; aspect-ratio: 5 / 2; display: block; }
+.train-btn {
+  position: relative; border: 0; font: inherit; font-weight: 800; font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 16px;
+  background: var(--card); color: var(--ink); box-shadow: 0 4px 0 rgba(0, 0, 0, 0.25);
+}
+.train-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); }
+.meta-root .m-art .train-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.train-dot { position: absolute; top: -5px; right: -5px; width: 14px; height: 14px; border-radius: 50%; background: #ff5a4a; border: 2px solid #fff; }
+.pips { display: flex; gap: 4px; }
+.pips i { width: 18px; height: 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.12); }
+.pips i.on { background: var(--m-alt); }
+.up-row .m-btn { min-width: 84px; }
+
+@media (max-height: 700px) {
+  .bark-btn { width: 64px; height: 64px; right: 10px; bottom: calc(var(--safe-bottom) + 12px); }
+  .bark-btn svg { width: 38px; height: 38px; }
+  .tip { bottom: calc(var(--safe-bottom) + 90px); }
+  .meta-root .m-art .hero-art { width: min(240px, 66vw); }
+}
