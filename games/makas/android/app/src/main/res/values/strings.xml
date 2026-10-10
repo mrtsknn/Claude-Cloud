@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Makas</string>
+    <string name="title_activity_main">Makas</string>
+    <string name="package_name">com.indiestudio.makas</string>
+    <string name="custom_url_scheme">com.indiestudio.makas</string>
+</resources>

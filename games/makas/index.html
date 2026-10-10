@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#1d3b2a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <title>Makas</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="hud">
+        <button class="icon-btn" id="pause-btn" aria-label="pause">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5v14M15 5v14" /></svg>
+        </button>
+        <div class="mid">
+          <b id="level"></b>
+          <div class="bar"><i id="bar"></i></div>
+          <span id="count">0/0</span>
+        </div>
+        <div class="hearts" id="hearts"></div>
+      </header>
+      <canvas id="stage"></canvas>
+      <div class="hint" id="hint" hidden></div>
+    </div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
