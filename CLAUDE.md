@@ -20,7 +20,10 @@ Bu repo, Claude Code (bulut oturumları) ile hızlıca geliştirilip App Store /
    tamamen işaretli, tüm değerlendirmeler (oynanış testi, ekran görüntüsü incelemesi,
    rakip karşılaştırması) yapılmış ve eksik özellikler eklenmiş. Sonra `docs/IDEAS.md`'deki
    sıradaki oyuna geçilir.
-7. **Tür havuzu:** hyper-casual / hybrid-casual (Voodoo, Rollic tarzı), idle/tycoon,
+7. **Meta katmanı zorunlu.** Oyun = oynanış + etrafındaki meta: ana menü, seviye haritası/modlar,
+   görevler, günlük ödül, mağaza (görünümler, jeton, reklamsız), duraklat/kazan/kaybet ekranları,
+   AdMob + uygulama içi satın alma. Ortak katman: `@studio/kit` meta, rehber: `docs/META.md`.
+8. **Tür havuzu:** hyper-casual / hybrid-casual (Voodoo, Rollic tarzı), idle/tycoon,
    kelime oyunları, şekil yerleştirme / blok puzzle, sıralama/eşleştirme puzzle'ları.
 
 ## Teknik yığın
