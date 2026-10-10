@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="0%" r="120%">
+      <stop offset="0" stop-color="#3f7a4f"/>
+      <stop offset="1" stop-color="#15291c"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="0" fill="url(#bg)"/>
+  <g fill="none" stroke-linecap="round">
+    <path d="M512 150 V420 C512 560 300 560 300 720 V880" stroke="#6b4f35" stroke-width="120" stroke-dasharray="30 44" stroke-linecap="butt" opacity="0.4"/>
+    <path d="M512 150 V420 C512 560 724 560 724 720 V880" stroke="#6b4f35" stroke-width="120" stroke-dasharray="30 44" stroke-linecap="butt"/>
+    <path d="M512 150 V420 C512 560 300 560 300 720 V880" stroke="#e6e0d2" stroke-width="72" opacity="0.4"/>
+    <path d="M512 420 C512 560 300 560 300 720 V880" stroke="#3b6f49" stroke-width="40" opacity="0.6"/>
+    <path d="M512 150 V420 C512 560 724 560 724 720 V880" stroke="#e6e0d2" stroke-width="72"/>
+    <path d="M512 150 V420 C512 560 724 560 724 720 V880" stroke="#3b6f49" stroke-width="40"/>
+    <circle cx="512" cy="420" r="110" fill="#ffffff" stroke="#ffcf3f" stroke-width="22"/>
+    <path d="M462 370 L572 470 M572 400 V470 H502" stroke="#1c2a20" stroke-width="40" stroke-linejoin="round"/>
+    <rect x="662" y="700" width="124" height="200" rx="40" fill="#ff4d4d"/>
+    <rect x="684" y="730" width="80" height="60" rx="14" fill="#7a1c1c" opacity="0.5"/>
+    <circle cx="724" cy="866" r="16" fill="#fff6c2"/>
+  </g>
+</svg>
