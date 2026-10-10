@@ -20,15 +20,47 @@
           <span class="eyebrow" id="level"></span>
           <b id="kind"></b>
         </div>
-        <div class="match"><span class="eyebrow" id="match-label"></span><b id="match">0%</b></div>
+        <div class="match" id="match-box"><span class="eyebrow" id="match-label"></span><b id="match">0%</b></div>
       </header>
+      <div class="meter" id="meter"><i id="meter-fill"></i><s style="left: 70%"></s><s style="left: 82%"></s><s style="left: 92%"></s></div>
+      <div class="order" id="order">
+        <i class="avatar" id="order-av"></i>
+        <p><b id="order-who"></b> <span id="order-req"></span></p>
+      </div>
       <canvas id="stage"></canvas>
       <p class="hint" id="hint"></p>
-      <div class="glazes" id="glazes" hidden></div>
+      <div class="deco" id="deco" hidden>
+        <div class="row"><span class="row-label" id="glaze-label"></span><div class="chips" id="glazes"></div></div>
+        <div class="row"><div class="chips" id="tools"></div></div>
+        <div class="row"><div class="chips" id="paints"></div></div>
+      </div>
       <footer class="bar">
+        <button class="icon-btn share-btn" id="share-btn" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" /></svg>
+        </button>
         <button class="btn" id="fire-btn"></button>
       </footer>
     </div>
+
+    <section class="shelf-screen" id="shelf" hidden>
+      <header class="shelf-top">
+        <button class="icon-btn" id="shelf-back" aria-label="back">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+        </button>
+        <div class="shelf-head"><b id="shelf-title"></b><span class="eyebrow" id="shelf-count"></span></div>
+        <span></span>
+      </header>
+      <div class="shelf-scroll" id="shelf-grid"></div>
+    </section>
+
+    <section class="viewer" id="viewer" hidden>
+      <div class="viewer-card">
+        <canvas id="viewer-canvas"></canvas>
+        <h2 id="viewer-title"></h2>
+        <p id="viewer-sub"></p>
+        <div class="viewer-actions" id="viewer-actions"></div>
+      </div>
+    </section>
     <script type="module" src="./src/main.ts"></script>
   </body>
 </html>
