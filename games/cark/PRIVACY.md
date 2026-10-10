@@ -2,15 +2,33 @@
 
 _Last updated / Son güncelleme: 2026-10-10_
 
-**English.** Çark does not collect, store or share any personal data. Your progress, stars,
-settings and current puzzle are saved only on your device. The app requires no account and no
-permissions. Anonymous gameplay events (for example "level 12 complete, 3 stars") may be recorded
-on the device to improve the game. If a future version shows ads or uses an analytics service,
-this policy will be updated before that version is released, listing the provider and the data
-it receives. Contact: mrtbnymntskn@gmail.com
+**English.** Çark does not ask for an account and does not collect personal data itself. Your
+progress, stars, coins, styles, settings and current puzzle are saved only on your device.
+Anonymous gameplay events (for example "level 12 complete, 3 stars") may be recorded on the device
+to improve the game.
 
-**Türkçe.** Çark hiçbir kişisel veri toplamaz, saklamaz veya paylaşmaz. İlerlemen, yıldızların,
-ayarların ve devam eden bulmacan yalnızca cihazında saklanır. Uygulama hesap veya izin gerektirmez.
-Oyunu iyileştirmek için anonim oyun olayları (ör. "seviye 12 tamamlandı, 3 yıldız") cihazda
-kaydedilebilir. İleride reklam veya analiz hizmeti eklenirse, o sürüm yayınlanmadan önce bu
-politika sağlayıcı ve paylaşılan veriler belirtilerek güncellenir. İletişim: mrtbnymntskn@gmail.com
+*Ads.* The app shows ads through Google AdMob (optional rewarded videos and occasional ads between
+levels). AdMob may collect device identifiers (such as the advertising ID), IP address and ad
+interaction data to show and measure ads; see Google's policy at https://policies.google.com/privacy.
+On iOS you are asked for permission before the advertising identifier is used. A one-time
+"Remove ads" purchase turns off the ads between levels.
+
+*Purchases.* In-app purchases are handled by the App Store / Google Play; the app receives only
+whether a product is owned, never your payment details.
+
+Contact: mrtbnymntskn@gmail.com
+
+**Türkçe.** Çark hesap istemez ve kendisi kişisel veri toplamaz. İlerlemen, yıldızların,
+jetonların, görünümlerin, ayarların ve devam eden bulmacan yalnızca cihazında saklanır. Oyunu
+iyileştirmek için anonim oyun olayları (ör. "seviye 12 tamamlandı, 3 yıldız") cihazda kaydedilebilir.
+
+*Reklamlar.* Uygulama Google AdMob üzerinden reklam gösterir (isteğe bağlı ödüllü videolar ve ara
+sıra seviye arası reklamlar). AdMob reklamları göstermek ve ölçmek için cihaz tanımlayıcıları (ör.
+reklam kimliği), IP adresi ve reklam etkileşim verilerini toplayabilir; bkz.
+https://policies.google.com/privacy. iOS'ta reklam kimliği kullanılmadan önce izin istenir. Tek
+seferlik "Reklamları kaldır" satın alımı seviye arası reklamları kapatır.
+
+*Satın alımlar.* Uygulama içi satın alımları App Store / Google Play yürütür; uygulama yalnızca
+ürünün sende olup olmadığını öğrenir, ödeme bilgilerini asla görmez.
+
+İletişim: mrtbnymntskn@gmail.com

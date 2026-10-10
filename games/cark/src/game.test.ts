@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LEVEL_COUNT, evaluate, generateLevel, isFreePeg, solve, starsFor } from './game';
+import { LEVEL_COUNT, beltCrosses, evaluate, generateLevel, isFreePeg, solve, starsFor } from './game';
 
 // 5 columns x 4 rows; cell = r * 5 + c
 const board = { cols: 5, rows: 4, motor: 0, clocks: [{ cell: 3, dir: -1 as const }], rocks: [], belts: [] as [number, number][] };
@@ -80,29 +80,53 @@ describe('win check', () => {
   });
 });
 
+describe('belts and rocks', () => {
+  it('detects pegs under a straight or diagonal belt', () => {
+    const lv = { cols: 5 };
+    expect(beltCrosses(lv, [0, 3], 1)).toBe(true); // straight along row 0
+    expect(beltCrosses(lv, [0, 3], 6)).toBe(false); // the row below
+    expect(beltCrosses(lv, [0, 12], 6)).toBe(true); // diagonal through (1,1)
+    expect(beltCrosses(lv, [0, 12], 3)).toBe(false);
+    expect(beltCrosses(lv, [0, 3], 0)).toBe(false); // the pulley itself
+  });
+});
+
+// Generating all 150 levels takes ~1.5 s; do it once and allow headroom when the whole
+// monorepo suite runs in parallel on a busy machine.
+const SLOW = 60_000;
+let cache: ReturnType<typeof generateLevel>[] | null = null;
+const allLevels = () => (cache ??= Array.from({ length: LEVEL_COUNT }, (_, i) => generateLevel(i + 1)));
+
 describe('levels', () => {
   it(`all ${LEVEL_COUNT} levels are solvable with exactly par gears`, () => {
-    for (let n = 1; n <= LEVEL_COUNT; n++) {
-      const lv = generateLevel(n);
+    for (const lv of allLevels()) {
+      const n = lv.n;
       expect(lv.solution.length, `level ${n}`).toBe(lv.par);
       expect(new Set(lv.solution).size).toBe(lv.par);
       expect(lv.solution.every((c) => isFreePeg(lv, c, []))).toBe(true);
       expect(evaluate(lv, lv.solution).won, `level ${n}`).toBe(true);
       expect(lv.tray).toBeGreaterThanOrEqual(lv.par);
     }
-  });
+  }, SLOW);
 
   it('ramps up: bigger boards, more clocks, belts later', () => {
-    const first = generateLevel(1);
-    const last = generateLevel(LEVEL_COUNT);
+    const first = allLevels()[0];
+    const last = allLevels()[LEVEL_COUNT - 1];
     expect([first.cols, first.rows]).toEqual([5, 6]);
     expect([last.cols, last.rows]).toEqual([7, 9]);
     expect(first.belts.length).toBe(0);
-    const clocks = Array.from({ length: LEVEL_COUNT }, (_, i) => generateLevel(i + 1).clocks.length);
+    const clocks = allLevels().map((lv) => lv.clocks.length);
     expect(Math.max(...clocks)).toBe(3);
-  });
+  }, SLOW);
+
+  it('no belt is drawn over a rock', () => {
+    for (const lv of allLevels()) {
+      const n = lv.n;
+      for (const belt of lv.belts) for (const r of lv.rocks) expect(beltCrosses(lv, belt, r), `level ${n} rock ${r}`).toBe(false);
+    }
+  }, SLOW);
 
   it('is deterministic', () => {
-    for (const n of [1, 17, 88, 150]) expect(generateLevel(n)).toEqual(generateLevel(n));
-  });
+    for (const n of [1, 17, 88, 150]) expect(generateLevel(n)).toEqual(allLevels()[n - 1]);
+  }, SLOW);
 });

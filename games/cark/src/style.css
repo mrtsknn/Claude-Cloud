@@ -9,6 +9,21 @@
   --chip: rgba(255, 255, 255, 0.06);
   --line: rgba(0, 0, 0, 0.25);
   --star: #ffcf5a;
+  /* hero gears (set per skin from main.ts) */
+  --g-hi: #f6d47e;
+  --g-mid: #d9a441;
+  --g-lo: #9c6b1f;
+  --mo-hi: #f2a67a;
+  --mo-mid: #c8693c;
+  --mo-lo: #7d3a1c;
+  /* meta layer theme (kit meta.css) */
+  --m-bg: radial-gradient(130% 90% at 50% 0%, var(--bg-top), var(--bg-bottom));
+  --m-ink: #1d2a2e;
+  --m-card: #fbf5e6;
+  --m-muted: #6f7f80;
+  --m-accent: var(--accent);
+  --m-accent-ink: #2b1d06;
+  --m-alt: #3ddc97;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   font-family: ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -125,7 +140,17 @@ html, body {
   display: grid;
   place-items: center;
 }
-.badge.ad { background: #16a34a; font-size: 10px; letter-spacing: 0.04em; }
+.badge.free { background: #16a34a; font-size: 10px; letter-spacing: 0.04em; }
+.badge.coin::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  margin-right: 3px;
+  border-radius: 50%;
+  background: #ffc83d;
+  box-shadow: inset 0 0 0 2px #b57d10;
+}
+.badge.coin { display: flex; align-items: center; color: #2b1d06; background: #fff3c4; }
 .badge[hidden] { display: none; }
 
 .toast {
@@ -176,44 +201,6 @@ html, body {
 .big { font-size: 40px; font-weight: 800; line-height: 1.05; letter-spacing: -0.02em; text-wrap: balance; }
 .muted { margin: 0; color: var(--muted); font-weight: 600; }
 
-.row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 2px;
-  font-size: 17px;
-  font-weight: 600;
-  border-bottom: 1px solid var(--line);
-}
-
-.switch {
-  appearance: none;
-  flex: none;
-  width: 50px;
-  height: 30px;
-  border-radius: 99px;
-  background: rgba(255, 255, 255, 0.15);
-  position: relative;
-  cursor: pointer;
-  transition: background 0.2s;
-  margin: 0;
-}
-.switch::after {
-  content: '';
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s;
-}
-.switch:checked { background: var(--accent); }
-.switch:checked::after { transform: translateX(20px); }
-
 .btn {
   border: 0;
   border-radius: 18px;
@@ -222,15 +209,17 @@ html, body {
   font-size: 18px;
   font-weight: 800;
   color: #2b1d06;
-  background: linear-gradient(180deg, #f3c565, var(--accent));
+  background: var(--accent);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0));
   box-shadow: 0 6px 0 var(--accent-dark);
   cursor: pointer;
   margin-top: 6px;
 }
 .btn:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--accent-dark); }
-
-.foot { margin: 4px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
-.foot a { color: var(--muted); }
+.btn[disabled] { opacity: 0.45; }
+.btn.alt { color: #06251a; background: linear-gradient(180deg, #6ff0b8, #3ddc97); box-shadow: 0 6px 0 #1f9a66; }
+.btn.ghost { color: var(--ink); background: rgba(255, 255, 255, 0.08); box-shadow: none; font-size: 16px; padding: 12px; }
+.btn[hidden] { display: none; }
 
 @keyframes fade { from { opacity: 0; } }
 @keyframes pop { from { transform: scale(0.85); opacity: 0; } }
@@ -246,3 +235,12 @@ html, body {
 .win-stars i.on { animation: pop 0.4s cubic-bezier(0.2, 1.4, 0.4, 1) backwards; }
 .win-stars i:nth-child(2) { animation-delay: 0.12s; }
 .win-stars i:nth-child(3) { animation-delay: 0.24s; }
+
+/* home-screen artwork (kit meta hero slot): two meshing gears */
+.meta-root svg.hero { width: 240px; height: 150px; display: block; overflow: visible; stroke: none; filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.35)); }
+.hero .spin { transform-box: fill-box; transform-origin: center; animation: hero-cw 6s linear infinite; }
+.hero .spin.ccw { animation-name: hero-ccw; }
+@keyframes hero-cw { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes hero-ccw { from { transform: rotate(15deg); } to { transform: rotate(-345deg); } }
+@media (prefers-reduced-motion: reduce) { .hero .spin { animation: none; } .hero .spin.ccw { transform: rotate(15deg); } }
+#done { z-index: 60; } /* above the meta home it is shown on */

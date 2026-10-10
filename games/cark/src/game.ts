@@ -43,6 +43,25 @@ export function neighbors(lv: { cols: number; rows: number }, cell: number): num
   return out;
 }
 
+/**
+ * Does the straight belt between two pulleys pass over `cell`? Belts are drawn as a thick strap
+ * from hub to hub, so any peg whose centre lies within ~0.6 cells of that segment is covered.
+ */
+export function beltCrosses(lv: { cols: number }, belt: [number, number], cell: number): boolean {
+  const [a, b] = belt;
+  if (cell === a || cell === b) return false;
+  const [ar, ac] = rc(lv, a);
+  const [br, bc] = rc(lv, b);
+  const [pr, pc] = rc(lv, cell);
+  const dr = br - ar;
+  const dc = bc - ac;
+  const len2 = dr * dr + dc * dc;
+  const k = Math.max(0, Math.min(1, ((pr - ar) * dr + (pc - ac) * dc) / len2));
+  const er = ar + k * dr - pr;
+  const ec = ac + k * dc - pc;
+  return er * er + ec * ec < 0.6 * 0.6;
+}
+
 type Board = Pick<Level, 'cols' | 'rows' | 'motor' | 'clocks' | 'rocks' | 'belts'>;
 
 function fixedCells(lv: Board): Set<number> {
@@ -258,7 +277,11 @@ export function generateLevel(n: number): Level {
     }
     if (belts.length < nBelts) continue;
     const rocks: number[] = [];
-    for (let i = 0; i < nRocks; i++) rocks.push(take(() => true));
+    // Rocks never sit under a belt: the strap would have to pass straight through them.
+    for (let i = 0; i < nRocks; i++) {
+      const rock = take((c) => belts.every((bl) => !beltCrosses(lvl, bl, c)));
+      if (rock >= 0) rocks.push(rock);
+    }
     rocks.sort((a, b) => a - b);
     const board: Board = { cols, rows, motor, clocks, rocks, belts };
     const solution = solve(board);
