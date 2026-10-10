@@ -47,12 +47,14 @@ export interface State {
   prestiges: number;
   /** Seconds played in this run (online + claimed offline). */
   runTime: number;
+  /** Seconds of x2 income left (Bazaar boost, bought with meta gems). Counts down online and offline. */
+  boost: number;
 }
 
 export const newCity = (): City => ({ level: 1, camels: 1, speed: 0, merchant: false, stash: 0 });
 
 export function newState(): State {
-  return { v: SAVE_VERSION, coins: 0, cities: [newCity()], runEarned: 0, totalEarned: 0, stars: 0, prestiges: 0, runTime: 0 };
+  return { v: SAVE_VERSION, coins: 0, cities: [newCity()], runEarned: 0, totalEarned: 0, stars: 0, prestiges: 0, runTime: 0, boost: 0 };
 }
 
 export function milestoneMult(level: number): number {
@@ -68,9 +70,14 @@ export function nextMilestone(level: number): number | null {
 
 export const reputationMult = (stars: number) => 1 + STAR_BONUS * stars;
 
+export const BOOST_MULT = 2;
+/** Bazaar boost stacks up to this many seconds. */
+export const BOOST_CAP_SEC = 4 * 3600;
+export const boostMult = (s: State) => (s.boost > 0 ? BOOST_MULT : 1);
+
 export function cityRate(s: State, i: number, c: City = s.cities[i]): number {
   if (!c) return 0;
-  return BASE_RATE[i] * c.level * milestoneMult(c.level) * (1 + 0.5 * (c.camels - 1)) * (1 + 0.25 * c.speed) * reputationMult(s.stars);
+  return BASE_RATE[i] * c.level * milestoneMult(c.level) * (1 + 0.5 * (c.camels - 1)) * (1 + 0.25 * c.speed) * reputationMult(s.stars) * boostMult(s);
 }
 
 export const totalRate = (s: State) => s.cities.reduce((a, _, i) => a + cityRate(s, i), 0);
@@ -141,6 +148,7 @@ export function tick(s: State, dt: number): number {
   });
   earn(s, direct);
   s.runTime += dt;
+  s.boost = Math.max(0, s.boost - dt);
   return direct;
 }
 
@@ -157,10 +165,11 @@ export function tap(s: State, i: number): number {
   return gain;
 }
 
-/** What `sec` seconds away would earn: merchants only, capped at 8 h. Pure. */
+/** What `sec` seconds away would earn: merchants only, capped at 8 h; boost time left doubles its share. Pure. */
 export function offlineEarnings(s: State, sec: number): { coins: number; seconds: number } {
   const seconds = Math.min(Math.max(0, Number.isFinite(sec) ? sec : 0), OFFLINE_CAP_SEC);
-  return { coins: idleRate(s) * seconds, seconds };
+  const base = idleRate(s) / boostMult(s);
+  return { coins: base * (seconds + (BOOST_MULT - 1) * Math.min(s.boost, seconds)), seconds };
 }
 
 /** Credits offline earnings (times `mult`, e.g. 2 for the rewarded ad) and refills stashes. */
@@ -171,7 +180,23 @@ export function applyOffline(s: State, sec: number, mult = 1): number {
   });
   earn(s, coins * mult);
   s.runTime += seconds;
+  s.boost = Math.max(0, s.boost - seconds);
   return coins * mult;
+}
+
+/** Income per second without the Bazaar boost (all cities, tapped or idle). */
+export const baseRate = (s: State) => totalRate(s) / boostMult(s);
+
+/** Bazaar: `sec` seconds of full income (every city, unboosted) credited at once. Returns coins. */
+export function instantIncome(s: State, sec: number): number {
+  const gain = Math.max(1, baseRate(s) * Math.max(0, sec));
+  earn(s, gain);
+  return gain;
+}
+
+/** Bazaar: adds x2 income time (stacks, capped at BOOST_CAP_SEC). */
+export function addBoost(s: State, sec: number) {
+  s.boost = Math.min(BOOST_CAP_SEC, Math.max(0, s.boost) + Math.max(0, sec));
 }
 
 /** Reputation stars a New Era would grant right now. */
@@ -183,7 +208,7 @@ export const canPrestige = (s: State) => s.cities.length >= CITY_COUNT && starsF
 export function prestige(s: State): number {
   if (!canPrestige(s)) return 0;
   const gained = starsFor(s.runEarned);
-  const keep = { stars: s.stars + gained, prestiges: s.prestiges + 1, totalEarned: s.totalEarned };
+  const keep = { stars: s.stars + gained, prestiges: s.prestiges + 1, totalEarned: s.totalEarned, boost: s.boost };
   Object.assign(s, newState(), keep);
   return gained;
 }
@@ -215,6 +240,7 @@ export function migrate(raw: unknown): State {
     stars: Math.floor(num(r.stars, 0)),
     prestiges: Math.floor(num(r.prestiges, 0)),
     runTime: num(r.runTime, 0),
+    boost: num(r.boost, 0, 0, BOOST_CAP_SEC),
   };
 }
 

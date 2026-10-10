@@ -17,12 +17,16 @@
           <i class="coin big-coin"></i>
           <div class="wallet-text">
             <b id="coins">0</b>
-            <span id="rate">0/s</span>
+            <span class="rate-row"><span id="rate">0/s</span><em class="boost-chip" id="boost-chip" hidden></em></span>
           </div>
         </div>
         <div class="stars-chip" id="stars-chip" hidden><i class="star"></i><span id="stars">0</span></div>
-        <button class="icon-btn" id="settings-btn" aria-label="settings">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+        <button class="bazaar-btn" id="bazaar-btn">
+          <span class="bazaar-top"><i class="token"></i><b id="tokens">0</b></span>
+          <small data-i18n="bazaar"></small>
+        </button>
+        <button class="icon-btn" id="settings-btn" aria-label="pause">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6v12M15 6v12" /></svg>
         </button>
       </header>
       <div class="map-wrap">
@@ -52,13 +56,24 @@
     </div>
     <canvas id="fx"></canvas>
 
-    <div class="overlay" id="settings" hidden>
+    <div class="overlay" id="bazaar" hidden>
       <div class="sheet">
-        <h2 data-i18n="settings"></h2>
-        <label class="row"><span data-i18n="sound"></span><input type="checkbox" id="opt-sound" class="switch" /></label>
-        <label class="row"><span data-i18n="vibration"></span><input type="checkbox" id="opt-haptics" class="switch" /></label>
-        <button class="btn" id="close-settings" data-i18n="resume"></button>
-        <p class="foot"><a href="#" id="privacy-link" data-i18n="privacy"></a> · <span id="version"></span></p>
+        <div class="bazaar-head"><h2 data-i18n="bazaar"></h2><span class="token-pill"><i class="token"></i><b id="bazaar-tokens">0</b></span></div>
+        <p class="muted" data-i18n="bazaarInfo"></p>
+        <div class="offer">
+          <span class="offer-ico"><i class="coin big-coin"></i></span>
+          <span class="offer-body"><b data-i18n="instantTitle"></b><small id="instant-sub"></small></span>
+          <button class="btn small" id="buy-instant"><i class="token"></i>50</button>
+        </div>
+        <div class="offer">
+          <span class="offer-ico x2">x2</span>
+          <span class="offer-body"><b data-i18n="boostTitle"></b><small id="boost-sub"></small></span>
+          <button class="btn small" id="buy-boost"><i class="token"></i>80</button>
+        </div>
+        <div class="btn-row">
+          <button class="btn ghost" id="bazaar-more" data-i18n="moreCoins"></button>
+          <button class="btn" id="bazaar-close" data-i18n="close"></button>
+        </div>
       </div>
     </div>
 
