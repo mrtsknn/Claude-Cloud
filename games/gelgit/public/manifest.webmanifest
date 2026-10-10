@@ -1,0 +1,13 @@
+{
+  "name": "Gelgit",
+  "short_name": "Gelgit",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f3e2bf",
+  "theme_color": "#f3e2bf",
+  "icons": [
+    { "src": "icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any" },
+    { "src": "icon.svg", "type": "image/svg+xml", "sizes": "any" }
+  ]
+}
