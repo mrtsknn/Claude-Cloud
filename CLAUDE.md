@@ -47,7 +47,8 @@ Bu repo, Claude Code (bulut oturumları) ile hızlıca geliştirilip App Store /
 6. Uçtan uca test: `npm run preview -w games/<oyun>` açıkken `scripts/e2e.mjs` (bkz. snapgrid);
    çıkan ekran görüntülerini gözle incele.
 7. İkon/splash: `node tools/render-assets.mjs games/<oyun>/public/icon.svg games/<oyun>/assets`
-   ardından oyun klasöründe `npx capacitor-assets generate`.
+   ardından `tools/native-assets.sh <oyun> <arka plan rengi>` (doğrudan `capacitor-assets` çalıştırma:
+   `public/icon.svg`yi siler).
 8. Mağaza görselleri: `scripts/screenshots.mjs`, metinler `store/listing.md`, `PRIVACY.md`.
 9. `docs/STORE_CHECKLIST.md` maddelerini işaretle.
 
