@@ -1,10 +1,14 @@
 import './style.css';
 import {
+  createMeta,
+  createProfile,
   createStore,
   haptic,
-  interstitialMoment,
+  initAds,
+  initStore,
   maybeRequestReview,
   pentatonic,
+  rewardedAvailable,
   setHapticsEnabled,
   setSoundEnabled,
   setupNative,
@@ -14,8 +18,9 @@ import {
   trackSession,
   unlockAudio,
 } from '@studio/kit';
-import { cellCopies, cellCount, generateLevel, press, pressMask, solve, stars, type Level } from './game';
+import { LEVELS, cellCopies, cellCount, generateLevel, press, pressMask, solve, stars, type Level } from './game';
 import { t } from './i18n';
+import { SKINS, type Skin } from './skins';
 
 // TODO(mağaza): gizlilik politikasını yayınladığın adresle değiştir.
 const PRIVACY_URL = 'https://github.com/mrtsknn/Claude-Cloud/blob/main/games/kristal/PRIVACY.md';
@@ -34,15 +39,19 @@ const settings = store.get('settings', { sound: true, haptics: true });
 setSoundEnabled(settings.sound);
 setHapticsEnabled(settings.haptics);
 
-const fresh = (level: number): Save => ({ level, state: 0, history: [], hintsUsed: 0 });
+const HINT_COINS = 40;
+const fresh = (level: number): Save => ({ level: Math.max(1, Math.min(LEVELS, level)), state: 0, history: [], hintsUsed: 0 });
 let S: Save = store.get<Save | null>('save', null) ?? fresh(1);
+if (!Number.isFinite(S.level) || !Array.isArray(S.history)) S = fresh(1);
 let lv: Level = generateLevel(S.level);
+// A save from an older level set may hold a state that can no longer reach the target.
+if (!solve(S.state, lv.target, lv)) S = fresh(S.level);
 let levelStartedAt = Date.now();
 const save = () => store.set('save', S);
 const taps = () => S.history.length;
+let skin: Skin = SKINS[0];
 
 trackSession('kristal');
-track('level_start', { level: S.level, par: lv.par, resumed: taps() > 0 });
 
 // ───────────────────────── DOM ─────────────────────────
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -53,7 +62,6 @@ document.documentElement.lang = navigator.language.slice(0, 2).toLowerCase() ===
 document.querySelectorAll<HTMLElement>('[data-i18n]').forEach((el) => {
   el.textContent = t(el.dataset.i18n as Parameters<typeof t>[0]);
 });
-$('version').textContent = `v${__APP_VERSION__}`;
 
 let toastTimer = 0;
 function toast(text: string, ms = 2600) {
@@ -65,13 +73,16 @@ function toast(text: string, ms = 2600) {
 }
 
 const starHtml = (n: number) => '★'.repeat(n) + `<i>${'★'.repeat(3 - n)}</i>`;
+const COIN_SVG =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#ffc83d" stroke="#b57d10" stroke-width="2"/><circle cx="12" cy="12" r="5" fill="none" stroke="#e0a21c" stroke-width="1.6"/></svg>';
 function refreshHud() {
   $('level').textContent = String(S.level);
   $('stars').innerHTML = starHtml(stars(taps(), lv.par));
   $('taps').textContent = t('tapsShort', { n: taps(), p: lv.par });
   const badge = $('hint-badge');
-  badge.textContent = S.hintsUsed === 0 ? '1' : 'AD';
-  badge.classList.toggle('ad', S.hintsUsed > 0);
+  const free = S.hintsUsed === 0;
+  badge.innerHTML = free ? '1' : `${COIN_SVG}${HINT_COINS}`;
+  badge.classList.toggle('paid', !free);
 }
 
 // ───────────────────────── layout ─────────────────────────
@@ -83,6 +94,7 @@ let R = 20; // hex radius
 let cx = 0;
 let cy = 0;
 let pv = 100; // target preview size
+let py = 6; // target preview top
 let pos: { x: number; y: number }[][] = []; // pos[class][copy]
 
 function layout() {
@@ -92,14 +104,39 @@ function layout() {
   canvas.width = Math.round(W * dpr);
   canvas.height = Math.round(H * dpr);
   const n = lv.n;
-  pv = Math.min(W * 0.27, 112);
-  const top = pv + 14;
-  sp = Math.min((W - 28) / (2 * (0.866 * n + 0.8)), (H - top - 12) / (2 * (n + 0.62)));
-  R = (sp / Math.sqrt(3)) * 0.93;
+  const pad = 10;
+  pv = Math.round(Math.max(84, Math.min(W * 0.3, 132, H * 0.2)));
   cx = W / 2;
-  cy = top + (H - top) / 2;
+  // The flake is a hexagon with a pointy top, so the target preview can tuck into the empty
+  // top-right corner of its bounding box. Grow the flake as wide as the screen allows, then
+  // place it as close under the preview as that corner permits, and centre the pair.
+  const halfW = 0.866 * n + 0.62;
+  const halfH = n + 0.62;
+  let top = 0;
+  const fit = () => {
+    sp = Math.min((W - pad * 2) / (2 * halfW), (H - pad * 2) / (2 * halfH));
+    for (let k = 0; k < 40; k++) {
+      const ro = sp * halfH;
+      const px = W - pv - 12; // preview left edge
+      // upper-right flake edge: y = cy - ro + (x - cx)·tan30 must pass below the preview corner
+      top = Math.max(ro + pad, pv + 6 + 10 + ro - Math.max(0, px - 8 - cx) * 0.577);
+      if (top + ro + pad <= H) break;
+      sp *= 0.97;
+    }
+    return Math.max(0, H - pad - (top + sp * halfH));
+  };
+  let slack = fit();
+  // Tall screens: spend spare height on a bigger, easier to read target rather than on gaps.
+  if (slack > 40 && pv < 156) {
+    pv = Math.round(Math.min(156, pv + slack * 0.35));
+    slack = fit();
+  }
+  py = Math.round(6 + slack * 0.42);
+  cy = top + slack * 0.42;
+  R = (sp / Math.sqrt(3)) * 0.93;
   pos = Array.from({ length: cellCount(n) }, (_, i) => cellCopies(i, n).map((p) => ({ x: cx + p.x * sp, y: cy + p.y * sp })));
   canvas.dataset.layout = JSON.stringify(pos.map((c) => [c[0].x, c[0].y]));
+  canvas.dataset.preview = JSON.stringify({ x: W - pv - 12, y: py, s: pv });
 }
 window.addEventListener('resize', layout);
 layout();
@@ -113,7 +150,7 @@ let hint: { cell: number; until: number } | null = null;
 let showOutline = false;
 let winAt: number | null = null;
 let shownAt = 0;
-let nextSave: Save | null = null;
+
 let frozenAt: number | null = null; // screenshot hook: pins the animation clock
 
 interface Flake { x: number; y: number; r: number; vy: number; ph: number }
@@ -147,18 +184,18 @@ function drawCell(x: number, y: number, r: number, on: boolean, pop: number) {
   }
   const rr = r * (0.82 + 0.18 * pop);
   ctx.save();
-  ctx.shadowColor = 'rgba(170,205,255,0.85)';
+  ctx.shadowColor = `rgba(${skin.glow},0.85)`;
   ctx.shadowBlur = r * 0.7;
   hexPath(x, y, rr);
   const g = ctx.createLinearGradient(x - rr, y - rr, x + rr, y + rr);
-  g.addColorStop(0, '#ffffff');
-  g.addColorStop(0.55, '#d6e6ff');
-  g.addColorStop(1, '#b6b0f5');
+  g.addColorStop(0, skin.hi);
+  g.addColorStop(0.55, skin.mid);
+  g.addColorStop(1, skin.lo);
   ctx.fillStyle = g;
   ctx.fill();
   ctx.restore();
   // crystalline facets
-  ctx.strokeStyle = 'rgba(120,130,210,0.28)';
+  ctx.strokeStyle = skin.facet;
   ctx.lineWidth = 1;
   ctx.beginPath();
   for (let k = 0; k < 3; k++) {
@@ -185,7 +222,7 @@ function drawSparkle(x: number, y: number, s: number, a: number) {
 
 function drawPreview() {
   const x0 = W - pv - 12;
-  const y0 = 6;
+  const y0 = py;
   ctx.fillStyle = 'rgba(255,255,255,0.07)';
   ctx.strokeStyle = 'rgba(255,255,255,0.14)';
   ctx.beginPath();
@@ -202,24 +239,67 @@ function drawPreview() {
   const pcx = x0 + pv / 2;
   const pcy = y0 + pv / 2 + 6;
   hexPath(pcx, pcy, (s / Math.sqrt(3)) * 0.9);
-  ctx.fillStyle = '#cbbcff';
+  ctx.fillStyle = skin.core;
   ctx.fill();
   for (let i = 0; i < cellCount(n); i++) {
     const on = (lv.target >> i) & 1;
     for (const p of cellCopies(i, n)) {
       hexPath(pcx + p.x * s, pcy + p.y * s, (s / Math.sqrt(3)) * 0.9);
-      ctx.fillStyle = on ? '#eef4ff' : 'rgba(255,255,255,0.08)';
+      ctx.fillStyle = on ? skin.mid : 'rgba(255,255,255,0.08)';
       ctx.fill();
     }
   }
 }
 
+/** Tutorial pointer: a solid white hand shape (an emoji renders faint on some devices). */
 function drawHand(x: number, y: number, now: number) {
-  const bob = Math.sin(now / 220) * 6;
-  ctx.font = `${Math.round(Math.max(30, R * 1.4))}px system-ui, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'top';
-  ctx.fillText('👆', x + 6, y + R * 0.4 + bob);
+  const cycle = (now % 1200) / 1200;
+  const press = cycle < 0.18 ? cycle / 0.18 : cycle < 0.36 ? 1 - (cycle - 0.18) / 0.18 : 0;
+  const u = Math.max(4, R * 0.17); // the hand is ~10u tall
+  const tipY = y + R * 0.25 + (1 - press) * u * 1.6;
+  if (press > 0.6) {
+    ctx.strokeStyle = `rgba(255,255,255,${(press - 0.6) * 1.6})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, R * (0.55 + press * 0.25), 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.save();
+  ctx.translate(x + u * 0.2, tipY);
+  ctx.rotate(-0.22);
+  const shapes = () => {
+    ctx.beginPath();
+    ctx.roundRect(-1.1 * u, 0, 2.2 * u, 6.2 * u, 1.1 * u); // index finger
+    ctx.roundRect(-1.5 * u, 3.9 * u, 5.4 * u, 5.0 * u, [1.4 * u, 1.6 * u, 2.2 * u, 2.2 * u]); // palm + curled fingers
+    ctx.roundRect(-3.0 * u, 5.0 * u, 3.2 * u, 1.9 * u, 0.95 * u); // thumb
+    ctx.roundRect(-0.9 * u, 8.4 * u, 4.4 * u, 1.9 * u, 0.6 * u); // wrist
+  };
+  // dark outline first (thick stroke under the fill), so overlapping parts read as one shape
+  ctx.shadowColor = 'rgba(8,10,30,0.45)';
+  ctx.shadowBlur = u * 1.4;
+  ctx.shadowOffsetY = u * 0.4;
+  shapes();
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = u * 0.9;
+  ctx.strokeStyle = '#1b2142';
+  ctx.stroke();
+  ctx.shadowColor = 'transparent';
+  shapes();
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  // knuckle creases and nail
+  ctx.strokeStyle = 'rgba(27,33,66,0.35)';
+  ctx.lineWidth = u * 0.32;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (const kx of [1.45, 2.7]) {
+    ctx.moveTo(kx * u, 4.4 * u);
+    ctx.lineTo(kx * u, 5.6 * u);
+  }
+  ctx.moveTo(-0.45 * u, 1.2 * u);
+  ctx.lineTo(0.45 * u, 1.2 * u);
+  ctx.stroke();
+  ctx.restore();
 }
 
 let last = 0;
@@ -263,7 +343,7 @@ function frame(now: number) {
 
   // centre ornament
   hexPath(cx, cy, R * 0.9);
-  ctx.fillStyle = '#cbbcff';
+  ctx.fillStyle = skin.core;
   ctx.fill();
 
   for (let i = 0; i < pos.length; i++) {
@@ -349,11 +429,13 @@ function tapCell(i: number) {
   tone({ freq: f * 2.01, duration: 0.22, type: 'sine', volume: 0.1 });
   haptic.light();
   refreshHud();
+  profile.progress('taps');
   if (S.state === lv.target) win();
 }
 
 canvas.addEventListener('pointerdown', (e) => {
   unlockAudio();
+  if (meta.covering || hintCovering()) return;
   const rect = canvas.getBoundingClientRect();
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
@@ -371,6 +453,8 @@ canvas.addEventListener('pointerdown', (e) => {
   if (best >= 0) tapCell(best);
 });
 
+interface PendingWin { level: number; stars: number }
+
 function win() {
   winAt = performance.now();
   hint = null;
@@ -387,17 +471,33 @@ function win() {
     duration_s: Math.round((Date.now() - levelStartedAt) / 1000),
   });
   const completed = S.level;
-  const best = store.get<Record<number, number>>('stars', {});
-  best[completed] = Math.max(best[completed] ?? 0, st);
-  store.set('stars', best);
-  $('win-title').textContent = t('levelN', { n: completed });
-  $('win-stars').innerHTML = starHtml(st);
-  $('win-taps').textContent = t('taps', { n: taps(), p: lv.par });
-  // Persist progress right away so quitting during the win animation never loses the level.
-  nextSave = fresh(completed + 1);
-  store.set('save', nextSave);
-  setTimeout(() => ($('win').hidden = false), 1700);
+  // Persist right away so quitting during the win animation never loses the level: the next
+  // level becomes the saved one and the result is replayed into the profile on the next boot.
+  const pending: PendingWin = { level: completed, stars: st };
+  store.set('pendingWin', pending);
+  store.set('save', fresh(Math.min(LEVELS, completed + 1)));
+  setTimeout(() => showResult(pending), 1700);
   maybeRequestReview(completed, completed >= 8);
+}
+
+function showResult(p: PendingWin) {
+  store.remove('pendingWin');
+  profile.progress('flakes');
+  if (profile.data.firstRun) profile.finishFirstRun();
+  meta.showWin({
+    level: p.level,
+    stars: p.stars,
+    coins: 10 + p.stars * 5,
+    onNext: () => {
+      if (p.level >= LEVELS) return meta.showHome();
+      startLevel(fresh(p.level + 1));
+    },
+    onMenu: () => {
+      // keep the saved next level so the home "play" card resumes from it
+      S = store.get<Save>('save', fresh(Math.min(LEVELS, p.level + 1)));
+      startLevel(S, false);
+    },
+  });
 }
 
 function startLevel(state: Save, isNew = true) {
@@ -413,27 +513,30 @@ function startLevel(state: Save, isNew = true) {
   layout();
   refreshHud();
   $('toast').hidden = true;
-  if (isNew) track('level_start', { level: S.level, par: lv.par, resumed: false });
+  if (isNew) track('level_start', { level: S.level, par: lv.par, resumed: taps() > 0 });
+  if (!isNew || meta.covering) return;
   if (S.level === 1) toast(t('tutorial'), 4000);
   if (S.level === 15) toast(t('neighbours'), 4000);
   if (S.level === 40) toast(t('mirror'), 4000);
 }
 
-$('next-btn').addEventListener('click', async () => {
-  $('win').hidden = true;
-  haptic.medium();
-  const completed = S.level;
-  startLevel(nextSave ?? fresh(S.level + 1));
-  nextSave = null;
-  if (completed >= 5) await interstitialMoment('next_level');
-});
-
-$('restart-btn').addEventListener('click', () => {
+/** Meta "play": resume the saved board when it is that level, otherwise start it fresh. */
+function playLevel(n: number) {
   unlockAudio();
+  const resume = S.level === n && winAt === null;
+  startLevel(resume ? S : fresh(n));
+}
+
+function restartLevel() {
   if (winAt !== null) return;
   track('restart', { level: S.level, taps: taps() });
   startLevel(fresh(S.level), false);
   haptic.light();
+}
+
+$('restart-btn').addEventListener('click', () => {
+  unlockAudio();
+  restartLevel();
 });
 
 $('undo-btn').addEventListener('click', () => {
@@ -450,11 +553,8 @@ $('undo-btn').addEventListener('click', () => {
   tone({ freq: 660, to: 520, duration: 0.14, type: 'sine', volume: 0.22 });
 });
 
-$('hint-btn').addEventListener('click', async () => {
-  unlockAudio();
-  if (winAt !== null) return;
-  // First hint in a level is free; more are behind a rewarded ad.
-  if (S.hintsUsed > 0 && !(await showRewarded('hint'))) return;
+// ───────────────────────── hints: first per level free, then coins or a video ─────────────────────────
+function giveHint(paid: 'free' | 'coins' | 'video') {
   const sol = solve(S.state, lv.target, lv);
   if (!sol || !sol.length) return;
   S.hintsUsed++;
@@ -462,7 +562,51 @@ $('hint-btn').addEventListener('click', async () => {
   refreshHud();
   hint = { cell: sol[0], until: performance.now() + 4000 };
   haptic.light();
-  track('hint', { level: S.level, hints: S.hintsUsed });
+  track('hint', { level: S.level, hints: S.hintsUsed, paid });
+}
+
+const hintSheet = document.createElement('div');
+hintSheet.className = 'meta-root';
+hintSheet.hidden = true;
+hintSheet.innerHTML = `<div class="m-overlay"><div class="m-sheet"><div>
+  <h2></h2><p class="m-note" data-note></p>
+  <button class="m-btn" data-coins></button>
+  <button class="m-btn alt" data-video></button>
+  <button class="m-btn ghost" data-close></button></div></div></div>`;
+document.body.appendChild(hintSheet);
+const hs = <T extends HTMLElement>(sel: string) => hintSheet.querySelector(sel) as T;
+hs('h2').textContent = t('hintTitle');
+hs('[data-note]').textContent = t('hintNote');
+hs('[data-coins]').innerHTML = `${COIN_SVG} ${t('hintCoins', { n: HINT_COINS })}`;
+hs('[data-video]').innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9v6l5-3z" fill="currentColor"/></svg> ${t('hintVideo')}`;
+hs('[data-close]').textContent = t('close');
+const hintCovering = () => !hintSheet.hidden;
+const closeHintSheet = () => (hintSheet.hidden = true);
+hs('.m-overlay').addEventListener('click', (e) => e.target === e.currentTarget && closeHintSheet());
+hs('[data-close]').addEventListener('click', closeHintSheet);
+hs('[data-coins]').addEventListener('click', () => {
+  if (!profile.spend(HINT_COINS)) {
+    haptic.error();
+    meta.toast(t('notEnough'));
+    return;
+  }
+  closeHintSheet();
+  giveHint('coins');
+});
+hs('[data-video]').addEventListener('click', async () => {
+  if (!rewardedAvailable()) return meta.toast(t('noVideo'));
+  if (!(await showRewarded('hint'))) return;
+  closeHintSheet();
+  giveHint('video');
+});
+
+$('hint-btn').addEventListener('click', () => {
+  unlockAudio();
+  if (winAt !== null) return;
+  if (S.hintsUsed === 0) return giveHint('free');
+  hs('[data-coins]').toggleAttribute('data-short', profile.data.coins < HINT_COINS);
+  hintSheet.hidden = false;
+  haptic.light();
 });
 
 $('outline-btn').addEventListener('click', () => {
@@ -471,58 +615,159 @@ $('outline-btn').addEventListener('click', () => {
   haptic.light();
 });
 
-// settings
-const opts: [string, 'sound' | 'haptics'][] = [
-  ['opt-sound', 'sound'],
-  ['opt-haptics', 'haptics'],
-];
-for (const [id, k] of opts) {
-  const el = $<HTMLInputElement>(id);
-  el.checked = settings[k];
-  el.addEventListener('change', () => {
-    settings[k] = el.checked;
-    setSoundEnabled(settings.sound);
-    setHapticsEnabled(settings.haptics);
-    store.set('settings', settings);
-    if (k === 'haptics') haptic.medium();
+// ───────────────────────── meta (home, map, missions, daily, shop) ─────────────────────────
+function applySkin(id: string) {
+  skin = SKINS.find((s) => s.id === id) ?? SKINS[0];
+  paintHero();
+}
+
+const profile = createProfile({
+  game: 'kristal',
+  levelCount: LEVELS,
+  defaultSkin: SKINS[0].id,
+  skinIds: SKINS.map((s) => s.id),
+  missions: [
+    { id: 'levels', targets: [2, 3, 5], reward: (n) => 20 + n * 10 },
+    { id: 'stars', targets: [4, 6, 9], reward: (n) => 20 + n * 5 },
+    { id: 'perfect', targets: [1, 2, 3], reward: (n) => 30 + n * 10 },
+    { id: 'taps', targets: [30, 60, 100], reward: (n) => 15 + Math.round(n / 3) },
+    { id: 'flakes', targets: [4, 6, 8], reward: (n) => 25 + n * 6 },
+  ],
+});
+
+// v1.0 kept stars as { level: stars } and the current level in the save: move them into the profile.
+if (!store.get('migrated', false)) {
+  const old = store.get<Record<string, number>>('stars', {});
+  let top = 0;
+  for (const [k, v] of Object.entries(old)) {
+    const i = Number(k) - 1;
+    if (!(i >= 0 && i < LEVELS) || typeof v !== 'number') continue;
+    profile.data.stars[i] = Math.max(profile.data.stars[i], Math.max(0, Math.min(3, Math.floor(v))));
+    top = Math.max(top, i + 1);
+  }
+  const reached = Math.min(LEVELS, Math.max(top + 1, S.level));
+  if (reached > profile.data.unlocked) profile.data.unlocked = reached;
+  if (top > 0) profile.data.firstRun = false;
+  profile.save();
+  store.remove('stars');
+  store.set('migrated', true);
+}
+// A win whose result screen never showed (app closed mid-animation) still counts.
+const pendingWin = store.get<PendingWin | null>('pendingWin', null);
+if (pendingWin && pendingWin.level >= 1 && pendingWin.level <= LEVELS) {
+  profile.recordLevel(pendingWin.level, Math.max(1, Math.min(3, pendingWin.stars)));
+  store.remove('pendingWin');
+}
+
+/** Home-screen artwork: a glowing snowflake in the current crystal theme, slowly turning. */
+const hero = document.createElement('canvas');
+hero.className = 'hero';
+const HERO_N = 4;
+const HERO_ON = [0, 1, 2, 3, 6, 7, 9]; // wedge cells lit: spokes, an inner ring and forked tips
+function paintHero() {
+  const size = 200;
+  const d = Math.min(window.devicePixelRatio || 1, 3);
+  hero.width = size * d;
+  hero.height = size * d;
+  const g = hero.getContext('2d')!;
+  g.setTransform(d, 0, 0, d, 0, 0);
+  g.clearRect(0, 0, size, size);
+  const s = size / (2 * (HERO_N + 0.9));
+  const r = (s / Math.sqrt(3)) * 0.9;
+  const hex = (x: number, y: number, rr: number) => {
+    g.beginPath();
+    for (let k = 0; k < 6; k++) g.lineTo(x + Math.cos((k * Math.PI) / 3) * rr, y + Math.sin((k * Math.PI) / 3) * rr);
+    g.closePath();
+  };
+  const c = size / 2;
+  g.shadowColor = `rgba(${skin.glow},0.9)`;
+  g.shadowBlur = r * 1.1;
+  hex(c, c, r);
+  g.fillStyle = skin.core;
+  g.fill();
+  for (let i = 0; i < cellCount(HERO_N); i++) {
+    for (const p of cellCopies(i, HERO_N)) {
+      const x = c + p.x * s;
+      const y = c + p.y * s;
+      if (!HERO_ON.includes(i)) continue;
+      g.shadowBlur = r * 0.9;
+      hex(x, y, r);
+      const gr = g.createLinearGradient(x - r, y - r, x + r, y + r);
+      gr.addColorStop(0, skin.hi);
+      gr.addColorStop(0.55, skin.mid);
+      gr.addColorStop(1, skin.lo);
+      g.fillStyle = gr;
+      g.fill();
+    }
+  }
+}
+
+const meta = createMeta({
+  title: 'Kristal',
+  hero,
+  tagline: t('tagline'),
+  version: __APP_VERSION__,
+  privacyUrl: PRIVACY_URL,
+  profile,
+  levels: { count: LEVELS, play: playLevel },
+  missionText: (id, n) => t(`mission_${id}` as 'mission_levels', { n }),
+  skins: SKINS.map((s) => ({ id: s.id, name: t(`skin_${s.id}` as 'skin_ice'), price: s.price, swatch: s.swatch })),
+  onSkin: applySkin,
+  settings,
+  onSettings: (st) => {
+    setSoundEnabled(st.sound);
+    setHapticsEnabled(st.haptics);
+    store.set('settings', st);
+  },
+});
+applySkin(profile.data.skin);
+
+function pause() {
+  unlockAudio();
+  if (winAt !== null || meta.covering) return;
+  closeHintSheet();
+  meta.showPause({
+    onResume: () => {},
+    onRestart: restartLevel,
+    onMenu: () => save(),
   });
 }
-$('settings-btn').addEventListener('click', () => {
-  unlockAudio();
-  $('settings').hidden = false;
-});
-$('close-settings').addEventListener('click', () => ($('settings').hidden = true));
-$('settings').addEventListener('click', (e) => {
-  if (e.target === e.currentTarget) $('settings').hidden = true;
-});
-$('privacy-link').addEventListener('click', (e) => {
-  e.preventDefault();
-  window.open(PRIVACY_URL, '_blank');
-});
+$('pause-btn').addEventListener('click', pause);
 
 // ───────────────────────── boot ─────────────────────────
 refreshHud();
-if (S.level === 1 && taps() === 0) toast(t('tutorial'), 4000);
+void initAds();
+void initStore();
 void setupNative({
   darkBackground: true,
   onPause: save,
   onBack: () => {
-    if (!$('settings').hidden) {
-      $('settings').hidden = true;
+    if (hintCovering()) {
+      closeHintSheet();
+      return true;
+    }
+    if (meta.back()) return true;
+    if (!meta.covering) {
+      pause();
       return true;
     }
     return false;
   },
 });
+meta.showHome();
 requestAnimationFrame(frame);
 // Exposed for e2e/screenshot scripts.
 (window as unknown as { __kristal: unknown }).__kristal = {
   get state() { return S; },
   get level() { return lv; },
+  get profile() { return profile.data; },
   solve: () => solve(S.state, lv.target, lv),
   tap: tapCell,
   busy: () => winAt !== null,
-  goto: (level: number) => startLevel(fresh(level)),
+  goto: (level: number) => {
+    meta.hideHome();
+    startLevel(fresh(level));
+  },
   load: (s: Save) => startLevel(s),
   outline: (on: boolean) => { showOutline = on; $('outline-btn').classList.toggle('on', on); },
   hint: (cell: number) => (hint = { cell, until: Infinity }),

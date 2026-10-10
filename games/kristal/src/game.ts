@@ -146,11 +146,22 @@ export function stars(taps: number, par: number): number {
 }
 
 // ───────────────────────── levels ─────────────────────────
-interface Band { from: number; to: number; n: number; neighbours: boolean; mirror: boolean; k: [number, number] }
+interface Band {
+  from: number;
+  to: number;
+  n: number;
+  neighbours: boolean;
+  mirror: boolean;
+  k: [number, number];
+  /** Gentle intro bands: at most this many lit wedge cells, so the target reads as a sparse shape. */
+  maxOn?: number;
+}
 const BANDS: Band[] = [
   { from: 1, to: 6, n: 3, neighbours: false, mirror: false, k: [2, 4] },
   { from: 7, to: 14, n: 4, neighbours: false, mirror: false, k: [3, 6] },
-  { from: 15, to: 24, n: 3, neighbours: true, mirror: false, k: [1, 3] },
+  // First neighbour levels: two or three presses on a sparse target, so the new rule is felt
+  // (a tap lights a little cluster, the second tap carves it) without a near-full flake.
+  { from: 15, to: 24, n: 3, neighbours: true, mirror: false, k: [2, 3], maxOn: 3 },
   { from: 25, to: 39, n: 4, neighbours: true, mirror: false, k: [2, 5] },
   { from: 40, to: 54, n: 4, neighbours: true, mirror: true, k: [2, 4] },
   { from: 55, to: 89, n: 5, neighbours: true, mirror: false, k: [3, 7] },
@@ -158,12 +169,12 @@ const BANDS: Band[] = [
   { from: 120, to: 150, n: 6, neighbours: true, mirror: true, k: [4, 8] },
 ];
 
-export function levelConfig(level: number): Config & { taps: number } {
+export function levelConfig(level: number): Config & { taps: number; maxOn: number } {
   const L = Math.max(1, Math.min(LEVELS, Math.floor(level)));
   const b = BANDS.find((x) => L >= x.from && L <= x.to)!;
   const span = b.k[1] - b.k[0] + 1;
   const taps = b.k[0] + Math.floor(((L - b.from) * span) / (b.to - b.from + 1));
-  return { n: b.n, neighbours: b.neighbours, mirror: b.mirror, taps };
+  return { n: b.n, neighbours: b.neighbours, mirror: b.mirror, taps, maxOn: b.maxOn ?? cellCount(b.n) };
 }
 
 function mulberry32(seed: number) {
@@ -193,8 +204,10 @@ export function generateLevel(level: number): Level {
     if (!target) continue;
     const solution = solve(0, target, cfg)!;
     const lvl: Level = { level, n: cfg.n, neighbours: cfg.neighbours, mirror: cfg.mirror, target, par: solution.length, solution };
-    if (!best || lvl.par > best.par) best = lvl;
-    if (lvl.par >= Math.max(1, cfg.taps - 1)) break;
+    const sparse = popcount(target) <= cfg.maxOn;
+    const bestSparse = best !== null && popcount(best.target) <= cfg.maxOn;
+    if (!best || (sparse && !bestSparse) || (sparse === bestSparse && lvl.par > best.par)) best = lvl;
+    if (sparse && lvl.par >= Math.max(1, cfg.taps - 1)) break;
   }
   return best!;
 }

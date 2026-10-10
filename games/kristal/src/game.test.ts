@@ -126,6 +126,22 @@ describe('levels', () => {
     expect(levelConfig(150).n).toBe(6);
   });
 
+  it('first neighbour levels are gentle: par 2-3 on a sparse target', () => {
+    for (let l = 15; l <= 24; l++) {
+      const lv = generateLevel(l);
+      expect(lv.neighbours).toBe(true);
+      expect(lv.par).toBeGreaterThanOrEqual(2);
+      expect(lv.par).toBeLessThanOrEqual(3);
+      expect(popcount(lv.target)).toBeLessThanOrEqual(cellCount(lv.n) / 2);
+    }
+    // the very first one needs exactly two taps, so the new rule is felt twice
+    expect(generateLevel(15).par).toBe(2);
+  });
+
+  it('par never drops below 2 once the neighbour rule is introduced', () => {
+    for (let l = 15; l <= LEVELS; l++) expect(generateLevel(l).par).toBeGreaterThanOrEqual(2);
+  });
+
   it('generation is deterministic', () => {
     for (const l of [1, 15, 40, 77, 150]) expect(generateLevel(l)).toEqual(generateLevel(l));
   });

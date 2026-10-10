@@ -6,15 +6,17 @@ import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 const [url, outDir] = process.argv.slice(2);
 mkdirSync(outDir, { recursive: true });
 
-// keep: how many solution taps to play; freeze: ms after the last tap to pin the clock
+// home: meta home menu; keep: how many solution taps to play; freeze: ms after the last tap to
+// pin the clock; skin: crystal theme from the shop
 const scenes = [
-  { name: '1-match', level: 33, keep: 2, outline: true },
-  { name: '2-ripple', level: 70, keep: 3, freeze: 140 },
-  { name: '3-sparkle', level: 125, keep: 99, freeze: 520 },
+  { name: '1-match', level: 33, keep: 2, outline: true, skin: 'ice' },
+  { name: '2-ripple', level: 70, keep: 3, freeze: 140, skin: 'aurora' },
+  { name: '3-home', home: true, skin: 'ice' },
+  { name: '4-sparkle', level: 125, keep: 99, freeze: 520, skin: 'rose' },
 ];
 const captions = {
-  en: ['Match the snowflake', 'One tap, six reflections', 'Calm, crystal-clear puzzles'],
-  tr: ['Kar tanesini eşleştir', 'Tek dokunuş, altı yansıma', 'Sakin, kristal gibi bulmacalar'],
+  en: ['Match the snowflake', 'One tap, six reflections', '150 calm levels', 'Collect crystal themes'],
+  tr: ['Kar tanesini eşleştir', 'Tek dokunuş, altı yansıma', '150 sakin seviye', 'Kristal temaları topla'],
 };
 
 const browser = await chromium.launch();
@@ -22,10 +24,25 @@ const raw = {};
 for (const lang of ['en', 'tr']) {
   for (const sc of scenes) {
     const ctx = await browser.newContext({ viewport: { width: 430, height: 932 }, deviceScaleFactor: 3, hasTouch: true, locale: lang === 'tr' ? 'tr-TR' : 'en-US' });
-    await ctx.addInitScript(() => localStorage.setItem('kristal.settings', JSON.stringify({ sound: false, haptics: false })));
+    await ctx.addInitScript((skin) => {
+      localStorage.setItem('kristal.settings', JSON.stringify({ sound: false, haptics: false }));
+      // a returning player: some progress, a few coins, the scene's theme equipped
+      const d = new Date();
+      const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const stars = Array.from({ length: 150 }, (_, i) => (i < 23 ? [3, 3, 2, 3][i % 4] : 0));
+      localStorage.setItem('kristal.profile', JSON.stringify({ coins: 640, stars, unlocked: 24, owned: ['ice', 'aurora', 'rose'], skin, firstRun: false, dailyLast: day }));
+      localStorage.setItem('kristal.save', JSON.stringify({ level: 24, state: 0, history: [], hintsUsed: 0 }));
+    }, sc.skin);
     const page = await ctx.newPage();
     await page.goto(url);
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(sc.home ? 900 : 300);
+    if (sc.home) {
+      const file = `${outDir}/raw-${lang}-${sc.name}.png`;
+      await page.screenshot({ path: file });
+      raw[`${lang}-${sc.name}`] = file;
+      await ctx.close();
+      continue;
+    }
     await page.evaluate((s) => {
       const k = window.__kristal;
       k.goto(s.level);
