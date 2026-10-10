@@ -1,9 +1,13 @@
 import './style.css';
 import {
+  createMeta,
+  createProfile,
   createStore,
   haptic,
-  interstitialMoment,
+  initAds,
+  initStore,
   maybeRequestReview,
+  rewardedAvailable,
   pentatonic,
   setHapticsEnabled,
   setSoundEnabled,
@@ -19,6 +23,7 @@ import {
   STREET,
   WALL,
   WINDOW,
+  LEVEL_COUNT,
   applyHint,
   canPlace,
   evaluate,
@@ -31,13 +36,16 @@ import {
   type Pattern,
   type Placement,
   type Pos,
+  type HintMove,
 } from './game';
 import { t } from './i18n';
+import { SKINS, mix, rgb } from './skins';
 
 // TODO(mağaza): gizlilik politikasını yayınladığın adresle değiştir.
 const PRIVACY_URL = 'https://github.com/mrtsknn/Claude-Cloud/blob/main/games/fener/PRIVACY.md';
 declare const __APP_VERSION__: string;
 
+/** Canvas colours; recomputed from the equipped lamp-light / sky theme by `applySkin`. */
 const theme = {
   board: '#121839',
   street: '#1a2152',
@@ -48,6 +56,9 @@ const theme = {
   pane: '#0a0e2c',
   amber: '#ffc861',
   amberHi: '#fff1c9',
+  glow: '255,190,90',
+  mullion: 'rgba(120,70,20,0.55)',
+  base: '#0d1233',
   red: '#ff5a6e',
   tree: '#1c4651',
   treeHi: '#286069',
@@ -55,6 +66,28 @@ const theme = {
   tile: '#1b2156',
   tileLine: 'rgba(255,255,255,0.09)',
 };
+
+function applySkin(id: string) {
+  const s = SKINS.find((k) => k.id === id) ?? SKINS[0];
+  theme.board = mix(s.bottom, s.top, 0.35);
+  theme.street = mix(s.bottom, s.top, 0.85);
+  theme.house = mix(s.top, '#ffffff', 0.08);
+  theme.houseLit = mix(theme.house, s.light, 0.14);
+  theme.roof = mix(s.top, '#ffffff', 0.015);
+  theme.pane = mix(s.bottom, '#000000', 0.12);
+  theme.amber = s.light;
+  theme.amberHi = s.hi;
+  theme.glow = rgb(mix(s.light, s.hi, 0.1));
+  theme.mullion = `rgba(${rgb(mix(s.light, '#000000', 0.6))},0.55)`;
+  theme.base = mix(s.bottom, s.top, 0.15);
+  theme.tile = mix(s.bottom, s.top, 0.92);
+  const root = document.documentElement.style;
+  root.setProperty('--bg-top', s.top);
+  root.setProperty('--bg-bottom', s.bottom);
+  root.setProperty('--amber', s.light);
+  root.setProperty('--amber-dark', mix(s.light, '#000000', 0.3));
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', s.bottom);
+}
 
 // ───────────────────────── persistence ─────────────────────────
 interface Snapshot { p: Placement; l: boolean[] }
@@ -72,7 +105,10 @@ const store = createStore('fener');
 const settings = store.get('settings', { sound: true, haptics: true });
 setSoundEnabled(settings.sound);
 setHapticsEnabled(settings.haptics);
-const bestStars = store.get<Record<string, number>>('stars', {});
+
+const HINT_COST = 40;
+/** Levels whose free hint was already used (restarting a level does not refill it). */
+const freeHintUsed = new Set(store.get<number[]>('freeHints', []));
 
 function freshLevel(level: number): Save {
   const n = generateLevel(level).tray.length;
@@ -87,7 +123,52 @@ let levelStartedAt = Date.now();
 const save = () => store.set('save', S);
 
 trackSession('fener');
-track('level_start', { level: S.level, size: lvl.size, lamps: lvl.tray.length, resumed: S.moves > 0 });
+
+// ───────────────────────── profile (coins, stars, missions, skins) ─────────────────────────
+const hadProfile = (() => {
+  try {
+    return localStorage.getItem('fener.profile') !== null;
+  } catch {
+    return true;
+  }
+})();
+const profile = createProfile({
+  game: 'fener',
+  levelCount: LEVEL_COUNT,
+  defaultSkin: SKINS[0].id,
+  skinIds: SKINS.map((s) => s.id),
+  missions: [
+    { id: 'levels', targets: [2, 3, 5], reward: (n) => 20 + n * 10 },
+    { id: 'stars', targets: [4, 6, 9], reward: (n) => 20 + n * 5 },
+    { id: 'perfect', targets: [1, 2, 3], reward: (n) => 30 + n * 10 },
+    { id: 'windows', targets: [25, 50, 80], reward: (n) => 20 + Math.round(n / 2) },
+    { id: 'lamps', targets: [10, 20, 35], reward: (n) => 20 + n },
+  ],
+});
+
+/** v1.0 kept stars in `fener.stars` and the reached level in `fener.completed`/`fener.save`. */
+if (!hadProfile) {
+  const oldStars = store.get<Record<string, number> | null>('stars', null);
+  const completed = store.get<number | null>('completed', null);
+  if (oldStars || completed !== null) {
+    let migrated = 0;
+    for (const [k, v] of Object.entries(oldStars ?? {})) {
+      const n = Number(k);
+      if (Number.isInteger(n) && n >= 1 && n <= LEVEL_COUNT && typeof v === 'number' && v > 0) {
+        profile.data.stars[n - 1] = Math.max(profile.data.stars[n - 1], Math.min(3, Math.floor(v)));
+        migrated++;
+      }
+    }
+    const reached = Math.max((completed ?? 0) + 1, S.level);
+    profile.data.unlocked = Math.min(LEVEL_COUNT, Math.max(profile.data.unlocked, reached));
+    profile.data.firstRun = false;
+    track('progress_migrated', { levels: migrated, reached });
+    store.remove('stars');
+    store.remove('completed');
+  }
+  profile.save(); // from now on the profile exists, so migration never runs twice
+}
+applySkin(profile.data.skin);
 
 // ───────────────────────── DOM ─────────────────────────
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -98,7 +179,6 @@ document.documentElement.lang = navigator.language.slice(0, 2).toLowerCase() ===
 document.querySelectorAll<HTMLElement>('[data-i18n]').forEach((el) => {
   el.textContent = t(el.dataset.i18n as Parameters<typeof t>[0]);
 });
-$('version').textContent = `v${__APP_VERSION__}`;
 
 let toastTimer = 0;
 function toast(text: string, ms = 2200) {
@@ -109,11 +189,17 @@ function toast(text: string, ms = 2200) {
   toastTimer = window.setTimeout(() => (el.hidden = true), ms);
 }
 
+const COIN_SVG =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#ffc83d" stroke="#b57d10" stroke-width="2"/><circle cx="12" cy="12" r="5" fill="none" stroke="#e0a21c" stroke-width="1.6"/></svg>';
+const AD_SVG =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9v6l5-3z" fill="currentColor"/></svg>';
+
 function refreshHud() {
   $('level').textContent = String(S.level);
   const badge = $('hint-badge');
-  badge.textContent = S.hints === 0 ? '1' : 'AD';
-  badge.classList.toggle('ad', S.hints > 0);
+  const free = !freeHintUsed.has(S.level);
+  badge.className = `badge ${free ? 'free' : 'paid'}`;
+  badge.innerHTML = free ? t('free') : `${COIN_SVG}${HINT_COST}`;
 }
 
 // ───────────────────────── layout ─────────────────────────
@@ -184,7 +270,6 @@ const flying = new Map<number, { x: number; y: number; t0: number }>();
 const shakeAt = new Map<number, number>();
 let winAt = 0;
 let winPending = false;
-let nextLevel: Save | null = null;
 let trayDealtAt = performance.now();
 let frozenAt: number | null = null; // screenshot hook
 
@@ -252,15 +337,15 @@ function drawLamp(x: number, y: number, c: number, type: Pattern, alpha = 1, sca
   const s = c * scale;
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  glow(x, y, s * 1.05, 'rgba(255,190,90,A)', 0.32 * alpha);
+  glow(x, y, s * 1.05, `rgba(${theme.glow},A)`, 0.32 * alpha);
   ctx.restore();
   ctx.globalAlpha = alpha;
-  ctx.fillStyle = '#0d1233';
+  ctx.fillStyle = theme.base;
   ctx.beginPath();
   ctx.arc(x, y, s * 0.46, 0, Math.PI * 2);
   ctx.fill();
   ctx.lineWidth = Math.max(1.5, s * 0.045);
-  ctx.strokeStyle = locked ? 'rgba(255,255,255,0.75)' : 'rgba(255,200,97,0.55)';
+  ctx.strokeStyle = locked ? 'rgba(255,255,255,0.75)' : `rgba(${theme.glow},0.55)`;
   ctx.stroke();
   ctx.globalAlpha = 1;
   drawMini(x, y, s * 0.72, type, alpha, false);
@@ -314,7 +399,7 @@ function drawHouse(x: number, y: number, c: number, count: number, i: number, no
     }
   }
   // mullions
-  ctx.strokeStyle = lit ? 'rgba(120,70,20,0.55)' : 'rgba(255,255,255,0.08)';
+  ctx.strokeStyle = lit ? theme.mullion : 'rgba(255,255,255,0.08)';
   ctx.lineWidth = Math.max(1, c * 0.03);
   ctx.beginPath();
   ctx.moveTo(wx + ww / 2, wy);
@@ -402,11 +487,11 @@ function drawBoard(now: number) {
   ctx.globalCompositeOperation = 'lighter';
   for (const g of glows) {
     if (g.hot) glow(g.x, g.y, cell * 0.9, 'rgba(255,70,90,A)', 0.3 + 0.12 * Math.sin(now / 120));
-    else glow(g.x, g.y, cell * (0.85 + g.bloom * 0.6), 'rgba(255,186,80,A)', 0.3 * g.k + 0.45 * g.bloom);
+    else glow(g.x, g.y, cell * (0.85 + g.bloom * 0.6), `rgba(${theme.glow},A)`, 0.3 * g.k + 0.45 * g.bloom);
   }
   if (winAt) {
     const k = ease((now - winAt) / 1200);
-    glow(bx + bs / 2, by + bs / 2, bs * 0.8, 'rgba(255,190,100,A)', 0.12 * k);
+    glow(bx + bs / 2, by + bs / 2, bs * 0.8, `rgba(${theme.glow},A)`, 0.12 * k);
   }
   ctx.restore();
 
@@ -432,7 +517,7 @@ function drawBoard(now: number) {
       const x = bx + (k % n) * cell;
       const y = by + Math.floor(k / n) * cell;
       if (lvl.cells[k] !== WINDOW) {
-        ctx.fillStyle = 'rgba(255,200,97,0.18)';
+        ctx.fillStyle = `rgba(${theme.glow},0.18)`;
         ctx.beginPath();
         ctx.arc(x + cell / 2, y + cell / 2, cell * 0.1, 0, Math.PI * 2);
         ctx.fill();
@@ -440,7 +525,7 @@ function drawBoard(now: number) {
       }
       const base = ev.counts[k] - (ownCells.has(k) ? 1 : 0);
       ctx.lineWidth = Math.max(2, cell * 0.07);
-      ctx.strokeStyle = base >= 1 ? `rgba(255,90,110,${0.6 + 0.4 * pulse})` : `rgba(255,200,97,${0.55 + 0.35 * pulse})`;
+      ctx.strokeStyle = base >= 1 ? `rgba(255,90,110,${0.6 + 0.4 * pulse})` : `rgba(${theme.glow},${0.55 + 0.35 * pulse})`;
       rr(x + 3, y + 3, cell - 6, cell - 6, cell * 0.18);
       ctx.stroke();
     }
@@ -482,7 +567,7 @@ function drawTray(now: number) {
     ctx.stroke();
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    glow(px, py, sz * 0.45, 'rgba(255,190,90,A)', 0.18);
+    glow(px, py, sz * 0.45, `rgba(${theme.glow},A)`, 0.18);
     ctx.restore();
     drawMini(px, py, sz * 0.74, type);
   });
@@ -606,25 +691,31 @@ function win() {
     stars,
     duration_s: Math.round((Date.now() - levelStartedAt) / 1000),
   });
-  $('win-title').textContent = t('levelN', { n: S.level });
-  $('win-moves').textContent = t('moves', { n: S.moves });
-  document.querySelectorAll('#win-stars svg').forEach((el, k) => el.classList.toggle('on', k < stars));
   const completed = S.level;
-  bestStars[completed] = Math.max(bestStars[completed] ?? 0, stars);
-  store.set('stars', bestStars);
-  store.set('completed', Math.max(store.get('completed', 0), completed));
-  // Persist progress now so quitting on the win screen never loses the level.
-  nextLevel = freshLevel(completed + 1);
-  store.set('save', nextLevel);
-  const delay = Math.min(1600, 500 + windows.length * 70);
+  profile.progress('windows', windows.length);
+  profile.progress('lamps', lvl.tray.length);
+  if (profile.data.firstRun) profile.finishFirstRun();
+  // Persist the next board now so quitting on the win screen never loses the level.
+  const next = freshLevel(completed + 1);
+  store.set('save', next);
+  const delay = Math.min(1500, 500 + windows.length * 60);
   setTimeout(() => {
-    $('win').hidden = false;
-    [0, 4, 7].forEach((st, k) => k < stars && tone({ freq: pentatonic(st + 5), duration: 0.25, volume: 0.3, delay: 0.2 + k * 0.15 }));
+    meta.showWin({
+      level: completed,
+      stars,
+      coins: 10 + stars * 5,
+      onNext: () => {
+        haptic.medium();
+        startLevel(next);
+      },
+      // Back on the home screen the board behind it is already the next level.
+      onMenu: () => startLevel(next, false, true),
+    });
   }, delay);
   maybeRequestReview(completed, stars === 3 && completed >= 5);
 }
 
-function startLevel(state: Save, resumed = false) {
+function startLevel(state: Save, resumed = false, quiet = false) {
   S = state;
   lvl = generateLevel(S.level);
   ev = evaluate(lvl, S.placement);
@@ -642,7 +733,22 @@ function startLevel(state: Save, resumed = false) {
   syncLit(performance.now());
   refreshHud();
   $('toast').hidden = true;
-  if (!resumed) track('level_start', { level: S.level, size: lvl.size, lamps: lvl.tray.length, resumed: false });
+  if (!quiet) track('level_start', { level: S.level, size: lvl.size, lamps: lvl.tray.length, resumed });
+}
+
+/** Meta entry point (play card / level map): resume an unfinished board, else start fresh. */
+function playLevel(n: number) {
+  unlockAudio();
+  const resume = S.level === n && !ev.solved;
+  startLevel(resume ? S : freshLevel(n), resume && S.moves > 0);
+}
+
+function restartLevel() {
+  track('level_restart', { level: S.level, moves: S.moves });
+  const back = S.placement.map((p) => p && cellCenter(p.r, p.c));
+  startLevel(freshLevel(S.level), true);
+  back.forEach((c, i) => c && sendBack(i, c.x, c.y));
+  haptic.medium();
 }
 
 // ───────────────────────── input ─────────────────────────
@@ -669,7 +775,7 @@ function updateHover() {
 
 canvas.addEventListener('pointerdown', (e) => {
   unlockAudio();
-  if (drag || winPending) return;
+  if (drag || winPending || meta.covering || !hintSheet.hidden) return;
   const { x, y } = pointerPos(e);
   const touch = e.pointerType !== 'mouse';
   const liftBy = touch ? Math.max(L.cell, 40) * 1.25 : 0;
@@ -740,28 +846,15 @@ canvas.addEventListener('pointerup', endDrag);
 canvas.addEventListener('pointercancel', endDrag);
 
 // ───────────────────────── buttons ─────────────────────────
-$('next-btn').addEventListener('click', async () => {
-  $('win').hidden = true;
-  haptic.medium();
-  const completed = S.level;
-  startLevel(nextLevel ?? freshLevel(S.level + 1));
-  nextLevel = null;
-  if (completed >= 5) await interstitialMoment('next_level');
-});
-
 $('restart-btn').addEventListener('click', () => {
   unlockAudio();
-  if (winPending) return;
-  track('level_restart', { level: S.level, moves: S.moves });
-  const back = S.placement.map((p) => p && cellCenter(p.r, p.c));
-  startLevel(freshLevel(S.level), true);
-  back.forEach((c, i) => c && sendBack(i, c.x, c.y));
-  haptic.medium();
+  if (winPending || meta.covering) return;
+  restartLevel();
 });
 
 $('undo-btn').addEventListener('click', () => {
   unlockAudio();
-  if (winPending || drag) return;
+  if (winPending || drag || meta.covering) return;
   const prev = S.history.pop();
   if (!prev) return toast(t('noUndo'));
   S.undos++;
@@ -773,14 +866,12 @@ $('undo-btn').addEventListener('click', () => {
   track('undo', { level: S.level });
 });
 
-$('hint-btn').addEventListener('click', async () => {
-  unlockAudio();
-  if (winPending || drag) return;
-  const move = hintMove(lvl, S.placement, S.locked);
-  if (!move) return toast(t('hintDone'));
-  // First hint in a level is free; more are behind a rewarded ad.
-  if (S.hints > 0 && !(await showRewarded('hint'))) return;
+function useHint(move: HintMove, paid: 'free' | 'coins' | 'video') {
   S.hints++;
+  if (paid === 'free') {
+    freeHintUsed.add(S.level);
+    store.set('freeHints', [...freeHintUsed]);
+  }
   for (const i of move.evict) {
     const p = S.placement[i]!;
     sendBack(i, cellCenter(p.r, p.c).x, cellCenter(p.r, p.c).y);
@@ -790,51 +881,158 @@ $('hint-btn').addEventListener('click', async () => {
   placedAt.set(move.idx, performance.now());
   commit(applyHint(S.placement, move), { locked });
   refreshHud();
-  track('hint', { level: S.level, n: S.hints });
+  track('hint', { level: S.level, n: S.hints, paid });
+}
+
+// Paid hint sheet, styled with the kit meta classes: 40 coins or a rewarded video.
+const hintSheet = document.createElement('div');
+hintSheet.className = 'meta-root hint-sheet';
+hintSheet.hidden = true;
+hintSheet.innerHTML = `<div class="m-overlay"><div class="m-sheet"><div>
+  <h2>${t('hintTitle')}</h2><p class="m-note">${t('hintNote')}</p>
+  <p class="m-note m-have">${COIN_SVG}<b data-hint-coins></b></p>
+  <button class="m-btn" data-hint="coins">${COIN_SVG} ${t('hintCoins', { n: HINT_COST })}</button>
+  <button class="m-btn alt" data-hint="video">${AD_SVG} ${t('hintVideo')}</button>
+  <button class="m-btn ghost" data-hint="close">${t('close')}</button></div></div></div>`;
+document.body.appendChild(hintSheet);
+let pendingHint: HintMove | null = null;
+function closeHintSheet() {
+  hintSheet.hidden = true;
+  pendingHint = null;
+}
+hintSheet.addEventListener('click', async (e) => {
+  const target = e.target as HTMLElement;
+  if (target.classList.contains('m-overlay')) return closeHintSheet();
+  const btn = target.closest<HTMLButtonElement>('[data-hint]');
+  if (!btn || !pendingHint) return;
+  const move = pendingHint;
+  haptic.light();
+  if (btn.dataset.hint === 'close') return closeHintSheet();
+  if (btn.dataset.hint === 'coins') {
+    if (!profile.spend(HINT_COST)) return meta.toast(t('notEnough'));
+    closeHintSheet();
+    return useHint(move, 'coins');
+  }
+  btn.disabled = true;
+  const ok = await showRewarded('hint');
+  btn.disabled = false;
+  if (!ok || pendingHint !== move) return;
+  closeHintSheet();
+  useHint(move, 'video');
 });
 
-// settings
-const opts: [string, 'sound' | 'haptics'][] = [
-  ['opt-sound', 'sound'],
-  ['opt-haptics', 'haptics'],
-];
-for (const [id, k] of opts) {
-  const el = $<HTMLInputElement>(id);
-  el.checked = settings[k];
-  el.addEventListener('change', () => {
-    settings[k] = el.checked;
-    setSoundEnabled(settings.sound);
-    setHapticsEnabled(settings.haptics);
-    store.set('settings', settings);
-    if (k === 'haptics') haptic.medium();
-  });
-}
-$('settings-btn').addEventListener('click', () => {
+$('hint-btn').addEventListener('click', () => {
   unlockAudio();
-  $('settings').hidden = false;
+  if (winPending || drag || meta.covering) return;
+  const move = hintMove(lvl, S.placement, S.locked);
+  if (!move) return toast(t('hintDone'));
+  // The first hint of every level is free; more cost coins or a rewarded video.
+  if (!freeHintUsed.has(S.level)) return useHint(move, 'free');
+  pendingHint = move;
+  hintSheet.querySelector('[data-hint-coins]')!.textContent = String(profile.data.coins);
+  (hintSheet.querySelector('[data-hint="video"]') as HTMLElement).hidden = !rewardedAvailable();
+  hintSheet.hidden = false;
 });
-$('close-settings').addEventListener('click', () => ($('settings').hidden = true));
-$('settings').addEventListener('click', (e) => {
-  if (e.target === e.currentTarget) $('settings').hidden = true;
+
+// ───────────────────────── meta (home, map, missions, daily, shop, pause, win) ─────────────────────────
+/** Home artwork: a lamp post and a row of little houses whose windows light up one by one. */
+function heroArt() {
+  const el = document.createElement('div');
+  el.className = 'hero';
+  let shown = '';
+  const paint = () => {
+    const s = SKINS.find((k) => k.id === profile.data.skin) ?? SKINS[0];
+    if (shown === s.id) return;
+    shown = s.id;
+    const body = mix(s.top, '#ffffff', 0.12);
+    const roof = mix(s.top, '#ffffff', 0.04);
+    const pane = mix(s.bottom, '#000000', 0.25);
+    const iron = mix(s.top, '#ffffff', 0.3);
+    // [x, width, height] per house; the lamp post stands in the gap at x=150
+    const houses: [number, number, number][] = [[8, 60, 60], [74, 62, 86], [164, 62, 70], [232, 60, 92]];
+    let k = 0;
+    const parts = houses.map(([x, w, h]) => {
+      const y = 160 - h;
+      const rows = h > 75 ? 2 : 1;
+      let win = '';
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < 2; c++) {
+          const wx = x + 12 + c * (w - 36);
+          const wy = y + 14 + r * 32;
+          win += `<rect x="${wx}" y="${wy}" width="12" height="16" rx="2" fill="${pane}"/>`;
+          win += `<rect class="win" style="animation-delay:${400 + k++ * 170}ms" x="${wx}" y="${wy}" width="12" height="16" rx="2" fill="url(#hero-w)"/>`;
+        }
+      }
+      return `<path d="M${x - 5} ${y + 2}L${x + w / 2} ${y - 22}L${x + w + 5} ${y + 2}Z" fill="${roof}"/><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="4" fill="${body}"/>${win}`;
+    });
+    el.innerHTML = `<svg viewBox="0 0 300 170" aria-hidden="true">
+      <defs>
+        <radialGradient id="hero-h"><stop offset="0" stop-color="${s.light}" stop-opacity=".6"/><stop offset="1" stop-color="${s.light}" stop-opacity="0"/></radialGradient>
+        <linearGradient id="hero-w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${s.hi}"/><stop offset="1" stop-color="${s.light}"/></linearGradient>
+      </defs>
+      <circle class="halo" cx="150" cy="52" r="74" fill="url(#hero-h)"/>
+      ${parts.join('')}
+      <rect x="0" y="158" width="300" height="6" rx="3" fill="${mix(s.bottom, s.top, 0.5)}"/>
+      <rect x="147" y="60" width="6" height="100" rx="3" fill="${iron}"/>
+      <path d="M137 40h26l-4 22h-18z" fill="url(#hero-w)" stroke="${iron}" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M132 41h36l-9-11h-18z" fill="${iron}"/>
+      <circle cx="150" cy="26" r="4" fill="${iron}"/>
+    </svg>`;
+  };
+  paint();
+  profile.onChange(paint);
+  return el;
+}
+
+const meta = createMeta({
+  title: 'Fener',
+  hero: heroArt(),
+  tagline: t('tagline'),
+  version: __APP_VERSION__,
+  privacyUrl: PRIVACY_URL,
+  profile,
+  levels: { count: LEVEL_COUNT, play: playLevel },
+  missionText: (id, n) => t(`mission_${id}` as 'mission_levels', { n }),
+  skins: SKINS.map((s) => ({ id: s.id, name: t(`skin_${s.id}` as 'skin_amber'), price: s.price, swatch: s.swatch })),
+  onSkin: applySkin,
+  settings,
+  onSettings: (s) => {
+    setSoundEnabled(s.sound);
+    setHapticsEnabled(s.haptics);
+    store.set('settings', s);
+  },
 });
-$('privacy-link').addEventListener('click', (e) => {
-  e.preventDefault();
-  window.open(PRIVACY_URL, '_blank');
-});
+
+function pause() {
+  unlockAudio();
+  if (winPending || meta.covering) return;
+  closeHintSheet();
+  track('pause', { level: S.level });
+  meta.showPause({ onResume: () => {}, onRestart: restartLevel, onMenu: save });
+}
+$('pause-btn').addEventListener('click', pause);
 
 // ───────────────────────── boot ─────────────────────────
 refreshHud();
+void initAds();
+void initStore();
 void setupNative({
   darkBackground: true,
   onPause: save,
   onBack: () => {
-    if (!$('settings').hidden) {
-      $('settings').hidden = true;
+    if (!hintSheet.hidden) {
+      closeHintSheet();
+      return true;
+    }
+    if (meta.back()) return true;
+    if (!meta.covering) {
+      pause();
       return true;
     }
     return false;
   },
 });
+meta.showHome();
 requestAnimationFrame(frame);
 
 // Exposed for e2e/screenshot scripts.
@@ -844,8 +1042,14 @@ requestAnimationFrame(frame);
   get eval() { return ev; },
   busy: () => winPending || !!drag,
   evaluate: (p: Placement) => evaluate(lvl, p),
-  goto: (level: number) => startLevel(freshLevel(level)),
-  load: (s: Save) => startLevel(s),
+  goto: (level: number) => {
+    meta.hideHome();
+    startLevel(freshLevel(level));
+  },
+  load: (s: Save) => {
+    meta.hideHome();
+    startLevel(s);
+  },
   freeze: (ms: number | null) => (frozenAt = ms === null ? null : performance.now() + ms),
   dragTo: (idx: number, pos: Pos) => {
     hover = pos;

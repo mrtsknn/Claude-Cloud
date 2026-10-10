@@ -175,7 +175,7 @@ describe('level generation', () => {
       expect(evaluate(lvl, lvl.tray.map(() => null)).solved).toBe(false);
       if (!params.walls) expect(lvl.cells).not.toContain(WALL);
     }
-  });
+  }, 60_000); // generates all 200 levels: give it room when the whole repo tests in parallel
 });
 
 describe('stars', () => {

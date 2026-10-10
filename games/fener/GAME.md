@@ -7,7 +7,7 @@
 | **Hedef kitle** | Herkes — 4+, metinsiz oynanış, süre baskısı yok |
 | **Oturum** | 1–3 dk/seviye |
 | **Platform** | iOS + Android (Capacitor), web (PWA) |
-| **Durum** | v1.0.0 — mağazaya hazır (bkz. kontrol listesi) |
+| **Durum** | v1.0.0 + meta katmanı — mağazaya hazır (bkz. kontrol listesi) |
 
 ## Pazar ve özgünlük
 
@@ -52,7 +52,31 @@ ağaçlar (lamba konamaz) eklenir. Testler 200 seviyenin hepsini kontrol eder.
 ## Yıldızlar
 
 ★★★ ipucu yok ve en fazla 3 geri alma · ★★ en fazla 1 ipucu · ★ diğer. Seviye başına en iyi
-sonuç `fener.stars` içinde saklanır.
+sonuç kit profilinde (`fener.profile` → `stars`, `unlocked`) saklanır. v1.0'ın `fener.stars` /
+`fener.completed` anahtarları ilk açılışta profile taşınır ve silinir (profil yoksa bir kez).
+
+## Meta katmanı (`@studio/kit` meta)
+
+- **Ana menü:** logo, slogan, kahraman çizimi (fener direği + pencereleri tek tek yanan ev sırası,
+  takılı temanın renkleriyle), jeton, ayarlar, görev şeridi, "Seviye N" kartı; alt menü
+  Seviyeler · Görevler · Günlük · Mağaza.
+- **Seviye haritası:** 200 seviye, yıldızlı, kilitli. Harita/kart → `playLevel(n)`: aynı seviyenin
+  yarım kalmış tahtası varsa devam eder, yoksa temiz başlar. 200'den sonra "Sonraki" ile 9×9
+  seviyeler sürer (haritada gösterilmez).
+- **Kazanma:** kasaba aydınlanma animasyonundan sonra `meta.showWin` (jeton 10 + yıldız×5,
+  videoyla x2). Sayfa altta durur, aydınlanan kasaba üstte görünür kalır.
+- **Duraklat:** HUD'daki duraklat düğmesi → `meta.showPause` (devam, baştan başla, ayarlar, menü).
+  Eski ayarlar ve kazanma katmanları kaldırıldı; ayarlar yalnız meta'da.
+- **İpucu:** her seviyede ilki bedava (yeniden başlatmak yenilemez, `fener.freeHints`);
+  sonrası 40 jeton ya da ödüllü video (kit stilinde küçük seçim sayfası).
+- **Görevler:** standart `levels`, `stars`, `perfect` + `windows` (N pencere aydınlat) ve `lamps`
+  (çözülen kasabalara N fener) — ikisi de seviye kazanılınca ilerler (hamle tekrarıyla şişirilemez).
+- **Görünümler (`src/skins.ts`, 6):** Kehribar (ücretsiz), Ay ışığı 300, Ateş böceği 500,
+  Lavanta 500, Liman 800, Köz 1200. Her biri fener ışığı + gece göğü; tahta, ev, karo renkleri
+  gökten türetilir; hiçbiri kırmızı değil (fazla ışık uyarısı hep okunur). Uygulayınca tuval,
+  CSS (`--bg-*`, `--amber`, meta `--m-bg`/`--m-accent`) ve `theme-color` değişir.
+- **Reklam/IAP:** `initAds()` + `initStore()` (test kimlikleri), AdMob test uygulama kimliği
+  AndroidManifest/Info.plist'te, `@capacitor-community/admob` + `@capgo/native-purchases`.
 
 ## Özellikler (v1.0)
 
@@ -63,8 +87,10 @@ sonuç `fener.stars` içinde saklanır.
 - [x] Geri al (sınırsız, yıldızı etkiler), ipucu (ilki ücretsiz, sonrası ödüllü), yeniden başlat
 - [x] 1. seviyede metinsiz el öğreticisi
 - [x] Her hamlede kayıt; kazanma ekranında kapatılsa da ilerleme korunur
-- [x] Ayarlar: ses, titreşim, gizlilik, sürüm; TR/EN, `<html lang>`
-- [x] Geçiş reklamı yalnız 5. seviyeden sonra (`interstitialMoment`), 3 yıldızda değerlendirme isteği
+- [x] Ayarlar (meta): ses, titreşim, satın alımları geri yükle, gizlilik, sürüm; TR/EN, `<html lang>`
+- [x] Geçiş reklamı yalnız 5. seviyeden sonra (meta `showWin`), 3 yıldızda değerlendirme isteği
+- [x] Meta: ana menü, harita, görevler, günlük ödül, mağaza (6 tema), duraklat, kazanma, ipucu jetonu
+- [x] Yeni ikon: ışık saçan sokak feneri ve pencereleri yanan iki ev (eski ikon oyun kolu yön tuşuna benziyordu)
 
 ## Analytics olayları
 
@@ -75,6 +101,9 @@ sonuç `fener.stars` içinde saklanır.
 | `level_restart` | `level, moves` |
 | `hint` | `level, n` |
 | `undo` | `level` |
+| `hint` → `paid` | `free` / `coins` / `video` |
+| `pause`, `progress_migrated` | `level` / `levels, reached` |
+| `home`, `mission_claim`, `daily_claim`, `skin_buy`, `iap` | kit meta tarafından |
 | `ad_*`, `review_prompt`, `session_start`, `first_open` | kit tarafından |
 
 ## KPI hedefleri
@@ -95,10 +124,13 @@ sonuç `fener.stars` içinde saklanır.
 ## Kontrol listesi durumu
 
 Kodla yapılabilen maddeler tamam: 13 birim testi (200 seviyenin tamamı tam örtü + tepsi eşleşmesi
-dahil), typecheck, build; `scripts/e2e.mjs` gerçek sürüklemelerle 24 kontrol (öğretici, 1–3. seviye,
-çift ışık, taşıma, dokunarak geri alma, kazanma, geri al, ipucu kilidi, yeniden başlat, yeniden
-yüklemede kayıt, ayarlar, 360×640'ta 150/200. seviye yerleşimi), konsol hatasız. Android/iOS
-projeleri dikey kilitli, sürüm 1.0.0.
+dahil), typecheck, build; `scripts/e2e.mjs` gerçek sürüklemelerle 48 kontrol (ana menü, günlük
+ödül, mağazada tema alma/takma ve paletin değişmesi, görevler, 200 seviyelik harita, 1. seviye
+çift ışık + taşıma + meta kazanma sayfası ve jeton, sonraki, dokunarak geri alma, bedava ipucu,
+jetonlu ipucu sayfası, duraklat, yeniden başlatınca bedava ipucunun dönmemesi, yeniden yüklemede
+ilerleme ve tahta, v1.0 kaydının taşınması, 360×640'ta 150/200. seviye), konsol hatasız.
+Mağaza görselleri 4 sahne (ana menü dahil) × 2 dil × 3 boyut. Android/iOS projeleri dikey
+kilitli, sürüm 1.0.0, `npx cap sync` ile AdMob + satın alma eklentileri eklendi.
 
 Hesap sahibine kalanlar:
 
@@ -106,4 +138,5 @@ Hesap sahibine kalanlar:
 - [ ] `PRIVACY.md`'yi herkese açık URL'de yayınla, `src/main.ts` → `PRIVACY_URL`
 - [ ] Android: Actions → **Android build**, cihazda dene; release keystore ile AAB imzala
 - [ ] iOS: Xcode'da Team seç, Archive → App Store Connect
-- [ ] Mağaza formları: `store/listing.md`, `store/screenshots`, yaş anketi, veri güvenliği
+- [ ] Mağaza formları: `store/listing.md`, `store/screenshots`, yaş anketi, veri güvenliği (AdMob)
+- [ ] Gerçek AdMob kimlikleri (`initAds({ units, testing: false })`, manifest/plist) ve IAP ürünleri
