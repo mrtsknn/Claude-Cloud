@@ -481,6 +481,8 @@ export function createMeta(cfg: MetaConfig) {
     label?: string;
     continuesUsed: number;
     canContinue: boolean;
+    /** Coin price per continue (index = continues already used). Default 100 / 200 / 400. */
+    continuePrices?: number[];
     onContinue?: () => void;
     onRetry: () => void;
     onMenu?: () => void;
@@ -489,7 +491,7 @@ export function createMeta(cfg: MetaConfig) {
     const isBest = P.recordBest(o.score);
     P.addCoins(o.coins);
     P.progress('games');
-    const price = [100, 200, 400][o.continuesUsed] ?? 0;
+    const price = (o.continuePrices ?? [100, 200, 400])[o.continuesUsed] ?? 0;
     const wrap = el(`<div class="m-result"><p class="m-eyebrow">${isBest ? tt('newBest') : o.label ?? tt('over')}</p>
       <div class="m-score">${o.score}</div>${isBest ? '' : `<p class="m-note">${ICON.trophy} ${tt('best')} ${P.data.best}</p>`}
       ${o.coins ? `<p class="m-reward">${ICON.coin}<b>+${o.coins}</b></p>` : ''}
