@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Katla</string>
+    <string name="title_activity_main">Katla</string>
+    <string name="package_name">com.indiestudio.katla</string>
+    <string name="custom_url_scheme">com.indiestudio.katla</string>
+</resources>
