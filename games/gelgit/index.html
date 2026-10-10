@@ -14,8 +14,8 @@
     <div id="app">
       <canvas id="stage"></canvas>
       <header class="hud">
-        <button class="icon-btn" id="settings-btn" aria-label="settings">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+        <button class="icon-btn" id="pause-btn" aria-label="pause">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6v12M15 6v12" /></svg>
         </button>
         <div class="score-box">
           <span class="eyebrow" id="round"></span>
@@ -46,32 +46,6 @@
         </svg>
       </div>
       <div class="toast" id="toast" hidden></div>
-    </div>
-
-    <div class="overlay" id="settings" hidden>
-      <div class="sheet">
-        <h2 data-i18n="settings"></h2>
-        <label class="row"><span data-i18n="sound"></span><input type="checkbox" id="opt-sound" class="switch" /></label>
-        <label class="row"><span data-i18n="vibration"></span><input type="checkbox" id="opt-haptics" class="switch" /></label>
-        <button class="btn ghost" id="restart-btn" data-i18n="restart"></button>
-        <button class="btn" id="close-settings" data-i18n="resume"></button>
-        <p class="foot"><a href="#" id="privacy-link" data-i18n="privacy"></a> · <span id="version"></span></p>
-      </div>
-    </div>
-
-    <div class="overlay" id="gameover" hidden>
-      <div class="sheet center">
-        <p class="eyebrow" id="go-title"></p>
-        <div class="big" id="go-score">0</div>
-        <p class="muted" id="go-best"></p>
-        <div class="stats">
-          <div><b id="go-rounds">0</b><span data-i18n="rounds"></span></div>
-        </div>
-        <button class="btn revive" id="revive-btn">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg><span data-i18n="revive"></span>
-        </button>
-        <button class="btn" id="again-btn" data-i18n="playAgain"></button>
-      </div>
     </div>
 
     <script type="module" src="./src/main.ts"></script>

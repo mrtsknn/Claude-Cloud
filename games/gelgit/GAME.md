@@ -7,7 +7,7 @@
 | **Hedef kitle** | Herkes — 4+, metinsiz öğretici, şiddet yok |
 | **Oturum** | 2–5 dk/oyun |
 | **Platform** | iOS + Android (Capacitor), web (PWA) |
-| **Durum** | v1.0.0 — mağazaya hazır (bkz. kontrol listesi) |
+| **Durum** | v1.0.0 + meta katmanı — mağazaya hazır (bkz. kontrol listesi) |
 
 ## Pazar ve özgünlük
 
@@ -52,8 +52,19 @@ savunucu ~9 dalgada kaybediyor. Test: idle < 5, açgözlü > 6 (20 tohum).
 - [x] Sentezlenmiş sesler: filtrelenmiş gürültüyle dalga uğultusu ve köpük, kum, yıkılma, kusursuz akor
 - [x] Haptik: inşa, dalga, kale kaybı, kusursuz tur, oyun sonu, kova bitti
 - [x] 3 adımlı metinsiz el öğreticisi (inşa et → önizlemeye bak → Dalga!)
-- [x] Oyun sonu: skor, rekor, tur; ödüllü "Kaleleri yeniden kur" (bir kez, +5 kova); tekrar oyna (geçiş reklamı anı)
-- [x] Her dokunuşta kayıt, tur ortasında bile devam; ayarlar (ses, titreşim, yeni oyun, gizlilik, sürüm)
+- [x] **Meta katmanı (`@studio/kit` meta):** ana menü (logo, animasyonlu kale + dalga çizimi, jeton,
+  ayarlar, görev şeridi, "Sonsuz sahil" kartı + rekor), 3 günlük görev, 7 günlük ödül, mağaza
+  (6 sahil teması, video ile jeton, başlangıç paketi / reklamsız / jeton paketleri, geri yükleme)
+- [x] Görevler: `games` (N oyun), `castles` (dalgalardan N kale kurtar — dalga sonrası ayakta kalan
+  her kale), `rounds` (N tur hayatta kal), `walls` (N kum duvarı ör — dalgaya giren duvarlar)
+- [x] Temalar (`src/skins.ts`): Altın sahil, Tropik (300), Gün batımı (500), Mercan (600), Kutup (800),
+  Ay ışığı (1200) — kum, deniz, köpük, önizleme, duvar, kale, bayrak ve menü arka planının tamamı değişir
+- [x] Oyun sonu → `meta.showLose`: skor, rekor, jeton = skor/2; devam (bir kez: 100 jeton ya da video)
+  son dalganın yıktığı kaleleri yeniden kurar + 5 kova; tekrar dene (geçiş reklamı anı) / menü
+- [x] HUD duraklat → `meta.showPause` (devam, baştan başla, ayarlar, menü); Android geri tuşu da duraklatır
+- [x] Ses ayarı dalga sentezini de kapsar (ayrı AudioContext: kapatınca çıkış kazancı 0 + context askıya alınır)
+- [x] v1.0 rekoru profile taşınır; her dokunuşta kayıt, tur ortasında bile devam
+- [x] AdMob + uygulama içi satın alma: `initAds()` / `initStore()` (test kimlikleri), native eklentiler bağımlılıklarda
 - [x] TR / EN, `<html lang>`; 360×640 – 430×932 düzen; safe-area; dikey kilit; açık status bar
 
 ## Analytics olayları
@@ -66,6 +77,7 @@ savunucu ~9 dalgada kaybediyor. Test: idle < 5, açgözlü > 6 (20 tohum).
 | `continue` | `round, score` | ödüllü reklam değeri |
 | `new_best`, `tutorial_complete`, `game_abandon` | `score` / – / `score, rounds` | |
 | `ad_rewarded_*`, `ad_interstitial`, `review_prompt` | `placement` | monetizasyon (kit) |
+| `home`, `daily_claim`, `mission_claim`, `skin_buy`, `iap` | – / `day` / `mission` / `skin` / `product` | meta (kit) |
 
 ## KPI hedefleri
 
@@ -82,18 +94,21 @@ savunucu ~9 dalgada kaybediyor. Test: idle < 5, açgözlü > 6 (20 tohum).
 - Günün Sahili (tarih tohumlu, herkese aynı harita, ayrı rekor)
 - Fırtına turları (bir tur önceden bulut ikonuyla duyurulur, menzil +2)
 - Oyun ortasında yeni kale çıkması; hasarlı duvarı onarma
-- Kozmetik temalar (gün batımı, gece), "reklamları kaldır" IAP
 
 ## Kontrol listesi durumu
 
 Kodla yapılabilen her madde tamam: 13 birim test (flood/menzil, duvar/kaya engeli, aşınma, kale
 kaybı, kova ekonomisi, tohum determinizmi, 50 tohumda 1. tur savunulabilirlik, idle vs. açgözlü),
-typecheck, build ve `scripts/e2e.mjs` ile gerçek dokunuşlarla 24 kontrol konsol hatasız.
+typecheck, build ve `scripts/e2e.mjs` ile gerçek dokunuşlarla 45 kontrol konsol hatasız (ana menü →
+günlük → mağaza satın al/kullan → görevler → oyun → dalga → meta kaybet → jetonla devam → duraklat /
+ses → yeniden yükleyince devam → 360×640). Mağaza görüntüleri ana menü dahil 4 sahne × 2 dil × 3 boyut.
 Android/iOS projeleri, ikon/splash, dikey kilit, `versionName 1.0.0` hazır.
 
 Hesap sahibinin yapacakları:
 
 - [ ] `appId`'yi kendi alan adınla değiştir, `npx cap sync`
+- [ ] Gerçek AdMob kimlikleri (`initAds({ units, testing: false })`, AndroidManifest, Info.plist) ve
+  Play Console / App Store Connect'te aynı kimlikli ürünler (`starter_pack`, `remove_ads`, `coins_small`, `coins_large`)
 - [ ] `PRIVACY.md`'yi herkese açık URL'de yayınla, `src/main.ts` → `PRIVACY_URL`
 - [ ] Android: Actions → **Android build**; release keystore ile AAB imzala
 - [ ] iOS: Xcode'da Team seç, Archive → App Store Connect

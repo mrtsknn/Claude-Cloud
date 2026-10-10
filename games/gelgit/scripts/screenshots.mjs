@@ -8,13 +8,14 @@ mkdirSync(outDir, { recursive: true });
 
 const SEED = 20261010;
 const scenes = [
+  { name: '0-home', home: true },
   { name: '1-wave', rounds: 1, walls: 'all', freeze: 520 },
   { name: '2-preview', rounds: 0, walls: 1 },
-  { name: '3-later', rounds: 4, walls: 'all' },
+  { name: '3-later', rounds: 4, walls: 'all', skin: 'sunset' },
 ];
 const captions = {
-  en: ['Hold back the tide', 'See exactly where the wave will reach', 'Every round, the sea reaches further'],
-  tr: ['Denizi geri tut', 'Dalganın nereye ulaşacağını gör', 'Her turda deniz daha ileri gelir'],
+  en: ['Build sand castles, beat the tide', 'Hold back the tide', 'See exactly where the wave will reach', 'Every round, the sea reaches further'],
+  tr: ['Kum kaleni kur, dalgayı yen', 'Denizi geri tut', 'Dalganın nereye ulaşacağını gör', 'Her turda deniz daha ileri gelir'],
 };
 
 const browser = await chromium.launch();
@@ -22,13 +23,22 @@ const raw = {};
 for (const lang of ['en', 'tr']) {
   for (const sc of scenes) {
     const ctx = await browser.newContext({ viewport: { width: 430, height: 932 }, deviceScaleFactor: 3, hasTouch: true, locale: lang === 'tr' ? 'tr-TR' : 'en-US' });
-    await ctx.addInitScript(() => {
+    await ctx.addInitScript((skin) => {
       localStorage.setItem('gelgit.settings', JSON.stringify({ sound: false, haptics: false }));
       localStorage.setItem('gelgit.tutorialDone', 'true');
-      localStorage.setItem('gelgit.best', '64');
-    });
+      localStorage.setItem('gelgit.profile', JSON.stringify({ coins: 1250, best: 64, owned: ['classic', skin], skin, firstRun: true }));
+    }, sc.skin ?? 'classic');
     const page = await ctx.newPage();
     await page.goto(url);
+    await page.waitForTimeout(sc.home ? 1200 : 300);
+    if (sc.home) {
+      const file = `${outDir}/raw-${lang}-${sc.name}.png`;
+      await page.screenshot({ path: file });
+      raw[`${lang}-${sc.name}`] = file;
+      await ctx.close();
+      continue;
+    }
+    await page.click('[data-act="play-endless"]');
     await page.waitForTimeout(300);
     await page.evaluate((s) => window.__gelgit.beach(s), SEED);
     const build = async (n) => {

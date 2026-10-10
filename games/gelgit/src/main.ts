@@ -1,14 +1,16 @@
 import './style.css';
 import {
+  createMeta,
+  createProfile,
   createStore,
   haptic,
-  interstitialMoment,
+  initAds,
+  initStore,
   maybeRequestReview,
   pentatonic,
   setHapticsEnabled,
   setSoundEnabled,
   setupNative,
-  showRewarded,
   tone,
   track,
   trackSession,
@@ -38,33 +40,13 @@ import {
   type WaveResult,
 } from './game';
 import { t } from './i18n';
+import { SKINS, swatchOf, type Palette } from './skins';
 
 // TODO(mağaza): gizlilik politikasını yayınladığın adresle değiştir.
 const PRIVACY_URL = 'https://github.com/mrtsknn/Claude-Cloud/blob/main/games/gelgit/PRIVACY.md';
 declare const __APP_VERSION__: string;
 
-const C = {
-  sandTop: '#f6e7c6',
-  sandBottom: '#eed6a6',
-  speck: 'rgba(170,125,60,0.16)',
-  cell: 'rgba(175,130,70,0.07)',
-  wet: '120,85,40',
-  seaDeep: '#118aa0',
-  seaLight: '#3ccbcc',
-  water: '#3cc6c9',
-  foam: '#ffffff',
-  rock: '#9c958b',
-  rockLight: '#bdb6aa',
-  rockDark: '#7c766d',
-  wallSide: '#cf9f5c',
-  wallTop: '#efcb8b',
-  wallEdge: '#a97a3e',
-  castle: '#f1d39b',
-  castleSide: '#d7ad68',
-  castleEdge: '#a97a3e',
-  flag: '#ff7a59',
-  danger: '255,110,80',
-};
+let C: Palette = SKINS[0];
 
 // ───────────────────────── persistence & settings ─────────────────────────
 const store = createStore('gelgit');
@@ -75,8 +57,28 @@ setHapticsEnabled(settings.haptics);
 const randomSeed = () => Math.floor(Math.random() * 2 ** 31);
 const loaded = store.get<GameState | null>('save', null);
 let game: GameState = loaded && loaded.terrain?.length === N ? loaded : newGame(randomSeed());
-const resumed = game.round > 1 || game.fresh.length > 0;
-let best = store.get('best', 0);
+// ───────────────────────── profile (coins, missions, skins, best) ─────────────────────────
+const profile = createProfile({
+  game: 'gelgit',
+  levelCount: 0,
+  defaultSkin: SKINS[0].id,
+  skinIds: SKINS.map((s) => s.id),
+  missions: [
+    { id: 'games', targets: [2, 3, 5], reward: (n) => 15 + n * 8 },
+    { id: 'castles', targets: [10, 20, 35], reward: (n) => 20 + n * 2 },
+    { id: 'rounds', targets: [5, 10, 15], reward: (n) => 20 + n * 4 },
+    { id: 'walls', targets: [10, 20, 40], reward: (n) => 15 + n * 2 },
+  ],
+});
+// Players from v1.0 keep their best score.
+const legacyBest = store.get('best', 0);
+if (profile.data.best < legacyBest) {
+  profile.data.best = legacyBest;
+  profile.save();
+}
+store.remove('best');
+/** Best shown in the HUD; the profile records it for real at game over (meta lose sheet). */
+let best = profile.data.best;
 let bestAtStart = best;
 let gamesPlayed = store.get('gamesPlayed', 0);
 let tutorialDone = store.get('tutorialDone', false);
@@ -86,7 +88,6 @@ const save = () => store.set('save', game);
 save();
 
 trackSession('gelgit');
-track('game_start', { mode: 'classic', resumed });
 
 // ───────────────────────── DOM ─────────────────────────
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -99,7 +100,6 @@ document.documentElement.lang = navigator.language.slice(0, 2).toLowerCase() ===
 document.querySelectorAll<HTMLElement>('[data-i18n]').forEach((el) => {
   el.textContent = t(el.dataset.i18n as Parameters<typeof t>[0]);
 });
-$('version').textContent = `v${__APP_VERSION__}`;
 
 let toastTimer = 0;
 function toast(text: string, ms = 1800) {
@@ -131,12 +131,15 @@ function bump(id: string) {
 // ───────────────────────── local audio: filtered-noise surf ─────────────────────────
 let actx: AudioContext | null = null;
 let noise: AudioBuffer | null = null;
+let surfOut: GainNode | null = null;
 function audio() {
   if (!settings.sound) return null;
   if (!actx) {
     const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!AC) return null;
     actx = new AC();
+    surfOut = actx.createGain();
+    surfOut.connect(actx.destination);
     noise = actx.createBuffer(1, actx.sampleRate * 2, actx.sampleRate);
     const d = noise.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -145,10 +148,24 @@ function audio() {
   return actx;
 }
 
+/**
+ * The surf synth runs on its own AudioContext (the kit only synthesizes tones), so the kit/meta
+ * sound toggle is mirrored here: muting silences anything still ringing and suspends the context.
+ */
+function applySound(on: boolean) {
+  settings.sound = on;
+  setSoundEnabled(on);
+  if (!actx || !surfOut) return;
+  surfOut.gain.cancelScheduledValues(actx.currentTime);
+  surfOut.gain.value = on ? 1 : 0;
+  if (on) void actx.resume();
+  else void actx.suspend();
+}
+
 /** Band-passed noise with a swept centre frequency: surf, sand, crumbles. */
 function noiseSweep(dur: number, f0: number, f1: number, f2: number, vol: number, delay = 0, q = 0.9) {
   const a = audio();
-  if (!a || !noise) return;
+  if (!a || !noise || !surfOut || !settings.sound) return;
   const t0 = a.currentTime + delay;
   const src = a.createBufferSource();
   src.buffer = noise;
@@ -163,7 +180,7 @@ function noiseSweep(dur: number, f0: number, f1: number, f2: number, vol: number
   g.gain.setValueAtTime(0.0001, t0);
   g.gain.exponentialRampToValueAtTime(vol, t0 + dur * 0.3);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  src.connect(bp).connect(g).connect(a.destination);
+  src.connect(bp).connect(g).connect(surfOut);
   src.start(t0, Math.random());
   src.stop(t0 + dur + 0.05);
 }
@@ -292,7 +309,7 @@ function getPreview() {
   return preview;
 }
 
-function sandBurst(i: number, n: number, color = '#e3bd7c', speed = 160) {
+function sandBurst(i: number, n: number, color = C.wallTop, speed = 160) {
   const now = performance.now();
   for (let k = 0; k < n; k++) {
     const a = Math.random() * Math.PI * 2;
@@ -395,7 +412,7 @@ function drawPreview(now: number) {
   const dist = getPreview();
   const { cell } = L;
   const pulse = 0.16 + 0.05 * Math.sin(now / 400);
-  ctx.fillStyle = `rgba(47,185,189,${pulse})`;
+  ctx.fillStyle = `rgba(${C.preview},${pulse})`;
   for (let i = 0; i < N; i++) {
     if (dist[i] < 1) continue;
     ctx.beginPath();
@@ -404,7 +421,7 @@ function drawPreview(now: number) {
   }
   // dashed reach line: where the wave will stop although it could flow further
   ctx.save();
-  ctx.strokeStyle = 'rgba(17,120,135,0.85)';
+  ctx.strokeStyle = C.reachLine;
   ctx.lineWidth = Math.max(2, cell * 0.07);
   ctx.lineCap = 'round';
   ctx.setLineDash([cell * 0.18, cell * 0.16]);
@@ -563,7 +580,7 @@ function drawCastle(i: number, now: number, scale = 1, alpha = 1, danger = 0) {
   const x = cx(i);
   const base = cy(i) + cell * 0.38;
   if (danger > 0) {
-    ctx.fillStyle = `rgba(${C.danger},${danger})`;
+    ctx.fillStyle = `rgba(255,110,80,${danger})`;
     ctx.beginPath();
     ctx.ellipse(x, base - cell * 0.02, cell * 0.5, cell * 0.2, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -614,7 +631,7 @@ function drawCastle(i: number, now: number, scale = 1, alpha = 1, danger = 0) {
   body(1.4 * u, 3 * u, 4 * u, C.castleSide);
   body(-2.4 * u, 4.8 * u, 7 * u, C.castle);
   // door
-  ctx.fillStyle = '#b98a4a';
+  ctx.fillStyle = C.door;
   ctx.beginPath();
   ctx.moveTo(-0.9 * u, 0);
   ctx.lineTo(-0.9 * u, -1.8 * u);
@@ -785,10 +802,11 @@ function finishWave(now: number) {
     sfx.saved(castlesLeft(game));
     haptic.success();
   }
-  if (game.score > best) {
-    best = game.score;
-    store.set('best', best);
-  }
+  if (game.score > best) best = game.score;
+  const standing = castlesLeft(game);
+  if (standing > 0) profile.progress('castles', standing);
+  if (res.before.fresh.length) profile.progress('walls', res.before.fresh.length);
+  if (!isOver(game)) profile.progress('rounds');
   if (isOver(game)) {
     over = true;
     refreshHud();
@@ -895,38 +913,46 @@ function finishTutorial() {
 
 // ───────────────────────── game over / continue / restart ─────────────────────────
 function showGameOver() {
-  const isBest = game.score > bestAtStart && game.score > 0;
   haptic.error();
   [392, 330, 262].forEach((f, i) => tone({ freq: f, duration: 0.3, type: 'sine', volume: 0.35, delay: i * 0.15 }));
-  $('go-title').textContent = isBest ? t('newBest') : t('tideWon');
-  $('go-score').textContent = String(game.score);
-  $('go-best').textContent = t('best', { n: best });
-  $('go-best').hidden = isBest;
-  $('go-rounds').textContent = String(game.round - 1);
-  $('revive-btn').hidden = game.continued || game.lastLost.length === 0;
-  $('gameover').hidden = false;
   track('game_over', {
     score: game.score,
     rounds: game.round - 1,
     duration_s: Math.round((Date.now() - startedAt) / 1000),
     continued: game.continued,
-    best,
+    best: Math.max(best, profile.data.best),
   });
-  if (isBest) track('new_best', { score: game.score });
+  if (game.score > bestAtStart && game.score > 0) track('new_best', { score: game.score });
+  // A continue rebuilds the castles the last wave took, so it needs a fresh loss to undo.
+  const canContinue = !game.continued && game.lastLost.length > 0;
+  meta.showLose({
+    score: game.score,
+    label: t('tideWon'),
+    coins: Math.round(game.score / 2),
+    continuesUsed: game.continued ? 1 : 0,
+    canContinue,
+    onContinue: revive,
+    onRetry: () => {
+      finishGame();
+      restart();
+    },
+    onMenu: () => {
+      finishGame();
+      restart();
+    },
+  });
 }
 
 function finishGame() {
   gamesPlayed++;
   store.set('gamesPlayed', gamesPlayed);
+  // From now on the home screen offers the daily reward on its own (kept quiet on the very first visit).
+  if (profile.data.firstRun) profile.finishFirstRun();
   maybeRequestReview(gamesPlayed, game.score > bestAtStart && game.score > 0);
 }
 
-async function revive() {
-  $('gameover').hidden = true;
-  if (!(await showRewarded('continue'))) {
-    $('gameover').hidden = false;
-    return;
-  }
+/** Continue after game over (paid on the meta lose sheet with coins or a video). */
+function revive() {
   const restored = game.lastLost;
   game = continueGame(game);
   over = false;
@@ -946,6 +972,7 @@ function restart() {
   game = newGame(randomSeed());
   over = false;
   anim = null;
+  best = Math.max(best, profile.data.best);
   bestAtStart = best;
   startedAt = Date.now();
   particles = [];
@@ -959,71 +986,123 @@ function restart() {
   track('game_start', { mode: 'classic', resumed: false });
 }
 
-$('again-btn').addEventListener('click', async () => {
-  $('gameover').hidden = true;
-  haptic.medium();
-  finishGame();
-  restart();
-  await interstitialMoment('play_again');
-});
-$('revive-btn').addEventListener('click', () => void revive());
-$('privacy-link').addEventListener('click', (e) => {
-  e.preventDefault();
-  window.open(PRIVACY_URL, '_blank');
+// ───────────────────────── meta (menu, missions, daily, shop) ─────────────────────────
+function applySkin(id: string) {
+  C = SKINS.find((s) => s.id === id) ?? SKINS[0];
+  sandLayer = null;
+  document.documentElement.style.setProperty('--m-bg', C.bg);
+  document.documentElement.style.setProperty('--sand', C.sandTop);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', C.seaDeep);
+}
+applySkin(profile.data.skin);
+
+/** Home-screen artwork: a little sand castle on its beach, a wave rolling in and out. */
+function heroArt() {
+  const el = document.createElement('div');
+  el.className = 'hero';
+  const paint = () => {
+    const p = C;
+    el.innerHTML = `<svg viewBox="0 0 200 150" aria-hidden="true">
+      <defs><clipPath id="hero-clip"><rect width="200" height="150" rx="28"/></clipPath></defs>
+      <g clip-path="url(#hero-clip)">
+        <rect width="200" height="150" fill="${p.sandBottom}"/>
+        <path d="M0 96 Q100 84 200 96 V150 H0z" fill="${p.sandTop}"/>
+        <g class="hero-wave">
+          <path d="M-40 -30 H240 V58 Q215 50 190 58 T140 58 T90 58 T40 58 T-10 58 T-40 58z" fill="${p.seaLight}"/>
+          <path d="M-40 -30 H240 V40 Q215 33 190 40 T140 40 T90 40 T40 40 T-10 40 T-40 40z" fill="${p.seaDeep}" opacity="0.8"/>
+          <path d="M-40 58 Q-15 66 10 58 T60 58 T110 58 T160 58 T210 58 T240 58" fill="none" stroke="${p.foam}" stroke-width="5" stroke-linecap="round"/>
+        </g>
+        <g class="hero-castle" stroke="${p.castleEdge}" stroke-width="2" stroke-linejoin="round">
+          <ellipse cx="100" cy="130" rx="46" ry="8" fill="rgba(90,70,40,0.2)" stroke="none"/>
+          <path d="M56 130 V104 h6 v-5 h6 v5 h6 v-5 h6 v5 h4 V130z" fill="${p.castleSide}"/>
+          <path d="M112 130 V104 h4 v-5 h6 v5 h6 v-5 h6 v5 h6 V130z" fill="${p.castleSide}"/>
+          <path d="M80 130 V82 h7 v-6 h8 v6 h10 v-6 h8 v6 h7 V130z" fill="${p.castle}"/>
+          <path d="M94 130 v-12 a6 6 0 0 1 12 0 v12z" fill="${p.door}" stroke="none"/>
+          <circle cx="100" cy="96" r="3.6" fill="${p.door}" stroke="none"/>
+          <path d="M100 76 V58" fill="none"/>
+          <path class="hero-flag" d="M100 58 q8 2 16 6 q-8 3 -16 4z" fill="${p.flag}" stroke="none"/>
+          <path d="M28 136 h22 v-8 h-22z M150 136 h22 v-8 h-22z" fill="${p.wallTop}"/>
+        </g>
+      </g>
+    </svg>`;
+  };
+  paint();
+  profile.onChange(paint);
+  return el;
+}
+
+const meta = createMeta({
+  title: 'Gelgit',
+  hero: heroArt(),
+  tagline: t('tagline'),
+  version: __APP_VERSION__,
+  privacyUrl: PRIVACY_URL,
+  profile,
+  endless: {
+    title: t('beach'),
+    play: () => {
+      unlockAudio();
+      audio();
+      if (over || isOver(game)) {
+        finishGame();
+        restart();
+      } else {
+        track('game_start', { mode: 'classic', resumed: game.round > 1 || game.fresh.length > 0 });
+      }
+      layout();
+      refreshHud();
+      if (!tutorialDone) setTimeout(() => setTutStep(game.fresh.length > 0 ? 2 : 0), 400);
+    },
+  },
+  missionText: (id, n) => t(`mission_${id}` as 'mission_games', { n }),
+  skins: SKINS.map((s) => ({ id: s.id, name: t(`skin_${s.id}` as 'skin_classic'), price: s.price, swatch: swatchOf(s) })),
+  onSkin: applySkin,
+  settings,
+  onSettings: (s) => {
+    applySound(s.sound);
+    setHapticsEnabled(s.haptics);
+    store.set('settings', { sound: s.sound, haptics: s.haptics });
+  },
 });
 
-const soundOpt = $<HTMLInputElement>('opt-sound');
-const hapticsOpt = $<HTMLInputElement>('opt-haptics');
-soundOpt.checked = settings.sound;
-hapticsOpt.checked = settings.haptics;
-soundOpt.addEventListener('change', () => {
-  settings.sound = soundOpt.checked;
-  setSoundEnabled(settings.sound);
-  store.set('settings', settings);
-});
-hapticsOpt.addEventListener('change', () => {
-  settings.haptics = hapticsOpt.checked;
-  setHapticsEnabled(settings.haptics);
-  store.set('settings', settings);
-  haptic.medium();
-});
-$('settings-btn').addEventListener('click', () => {
+function pause() {
   unlockAudio();
-  $('settings').hidden = false;
-});
-$('close-settings').addEventListener('click', () => ($('settings').hidden = true));
-$('settings').addEventListener('click', (e) => {
-  if (e.target === e.currentTarget) $('settings').hidden = true;
-});
-$('restart-btn').addEventListener('click', () => {
-  $('settings').hidden = true;
-  if (over) finishGame();
-  else if (game.round > 1) track('game_abandon', { score: game.score, rounds: game.round - 1 });
-  $('gameover').hidden = true;
-  restart();
-});
+  if (over || meta.covering) return;
+  meta.showPause({
+    onResume: () => {},
+    onRestart: () => {
+      if (game.round > 1) track('game_abandon', { score: game.score, rounds: game.round - 1 });
+      hand.hidden = true;
+      restart();
+      if (!tutorialDone) setTimeout(() => setTutStep(0), 400);
+    },
+    onMenu: () => (hand.hidden = true),
+  });
+}
+$('pause-btn').addEventListener('click', pause);
 
 // ───────────────────────── boot ─────────────────────────
 refreshHud();
-if (isOver(game)) {
-  over = true;
-  refreshHud();
-  setTimeout(showGameOver, 300);
-} else if (!tutorialDone) {
-  setTimeout(() => setTutStep(game.fresh.length > 0 ? 2 : 0), 500);
-}
+if (isOver(game)) over = true;
 
+void initAds();
+void initStore();
 void setupNative({
   darkBackground: false,
-  onPause: save,
+  onPause: () => {
+    save();
+    if (actx && actx.state === 'running') void actx.suspend();
+  },
   onBack: () => {
-    if (!$('settings').hidden) {
-      $('settings').hidden = true;
+    if (meta.back()) return true;
+    if (!meta.covering && !over) {
+      pause();
       return true;
     }
     return false;
   },
 });
+meta.showHome();
 requestAnimationFrame(frame);
 
 // Test hook for scripts/e2e.mjs and scripts/screenshots.mjs.
@@ -1051,6 +1130,8 @@ requestAnimationFrame(frame);
     refreshHud();
   },
   skipTutorial: () => finishTutorial(),
+  /** Surf synth state: proves the meta sound toggle reaches the separate AudioContext. */
+  surf: () => (actx && surfOut ? { state: actx.state, gain: surfOut.gain.value } : null),
   beach: (seed: number) => {
     game = newGame(seed);
     over = false;
