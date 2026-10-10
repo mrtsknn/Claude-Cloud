@@ -7,7 +7,7 @@
 | **Hedef kitle** | Herkes — 4+, metinsiz oynanış, nötr taş-pirinç estetik |
 | **Oturum** | 30 sn–2 dk/seviye, süre baskısı yok |
 | **Platform** | iOS + Android (Capacitor), web (PWA) |
-| **Durum** | v1.0.0 — mağazaya hazır (bkz. kontrol listesi) |
+| **Durum** | v1.0.0 + meta katmanı — mağazaya hazır (bkz. kontrol listesi) |
 
 ## Pazar analizi
 
@@ -50,12 +50,33 @@ Yıldız: hamle (yerleştirme + geri alma) ≤ par (ağırlık sayısı) → 3, 
 - [x] Tohumlu, deterministik 150 seviye; kurgu + çözücü doğrulaması
 - [x] Sürükle-bırak (parmağın üstüne kaldırma, hayalet önizleme, çiviye mıknatıs), yay animasyonlu eğilme
 - [x] Yerleşen ağırlık sallanır; dokununca tepsiye döner; sabit (taş) ağırlıklar, kapalı çiviler, yığma
-- [x] Su terazisi kabarcığı, sol/sağ tork göstergesi, seviyede yeşil + halka + çan
-- [x] Geri al, ipucu (ilki ücretsiz, sonra ödüllü reklam; kilitli), yeniden başlat
+- [x] Su terazisi kabarcığı (rengi doğrudan torktan: bir şey asılı ve tork 0 → yeşil), sol/sağ tork göstergesi, kazanınca halka + çan
+- [x] Tahta her yarı açıklıkta (±3…±6) ekran genişliğini kullanır; ağırlık rakamları en az 14 px
+- [x] Geri al, ipucu (seviyede ilki ücretsiz, sonra 40 jeton ya da ödüllü video; kilitli), yeniden başlat
 - [x] 1. seviyede kayan parmak öğretici + kısa ipucu metni; 30. seviyede yığma bildirimi
 - [x] Her hamlede kayıt, yeniden açılışta devam; kazanma anında ilerleme kaydedilir
-- [x] Ayarlar: ses, titreşim, gizlilik, sürüm; TR/EN (`<html lang>`); açık zemin status bar
-- [x] Geçiş reklamı 5. seviyeden sonra (kit sınırlı), değerlendirme isteği 8. seviyeden sonra
+- [x] TR/EN (`<html lang>`); açık zemin status bar
+- [x] Değerlendirme isteği 8. seviyeden sonra
+
+## Meta katmanı (`@studio/kit` meta)
+
+- **Ana menü:** logo, jeton, ayarlar (ses, titreşim, satın alımları geri yükle, gizlilik, sürüm),
+  görev şeridi, "Seviye N" kartı, alt menü Seviyeler · Görevler · Günlük · Mağaza.
+  Kahraman görseli: sallanıp dengeye oturan küçük terazi (sol 3×2 = sağ 2×3), kabarcık yeşile döner;
+  seçili malzemenin renkleriyle çizilir.
+- **Seviye haritası:** 150 seviye, yıldızlı, kilitli. **Günlük ödül:** 7 günlük takvim.
+- **Görevler (günde 3):** standart `levels`, `stars`, `perfect` + oyuna özgü `weights` (N ağırlık as)
+  ve `balanced` (ipucusuz N seviye dengele).
+- **Mağaza — malzemeler (`src/skins.ts`):** Pirinç (varsayılan), Ahşap 300, Mermer 500, Şeker 500,
+  Taş 800, Yeşim 1200 — tahta, ayak, ağırlık, çivi renkleri; sabit ağırlıklar her temada koyu arduvaz.
+  Jeton sekmesi: günde 5 video, başlangıç paketi, reklamsız, jeton paketleri.
+- **Oyun içi:** HUD'daki duraklat → `meta.showPause` (devam, yeniden başlat, ayarlar, menü);
+  kazanınca `meta.showWin` (yıldız, 10 + yıldız×5 jeton, videoyla x2, sonraki/menü; geçiş reklamı
+  kit tarafından 5. seviyeden sonra sınırlı).
+- **Reklam/IAP:** `initAds()` + `initStore()` açılışta (test kimlikleri); AdMob test uygulama kimliği
+  AndroidManifest ve Info.plist'te (`NSUserTrackingUsageDescription` dahil).
+- **Kayıt göçü:** v1.0'ın `terazi.stars` / `terazi.completed` anahtarları ilk açılışta profile
+  (`terazi.profile`) aktarılır; devam eden seviye (`terazi.save`) aynen korunur.
 
 ## Analytics olayları
 
@@ -64,7 +85,9 @@ Yıldız: hamle (yerleştirme + geri alma) ≤ par (ağırlık sayısı) → 3, 
 | `level_start` | `level, weights, resumed` | seviye hunisi |
 | `level_complete` | `level, moves, stars, hints, duration_s` | zorluk ayarı |
 | `restart` | `level, moves` | zor seviyeleri bulma |
-| `hint`, `undo` | `level` | yardım kullanımı |
+| `hint` | `level, n, paid (free/coins/video)` | yardım kullanımı, ipucu ekonomisi |
+| `undo` | `level` | yardım kullanımı |
+| `home`, `mission_claim`, `daily_claim`, `skin_buy`, `iap` | — | meta hunisi (kit) |
 | `ad_rewarded_*`, `ad_interstitial`, `review_prompt` | `placement` | monetizasyon |
 
 ## KPI hedefleri
@@ -81,14 +104,15 @@ Yıldız: hamle (yerleştirme + geri alma) ≤ par (ağırlık sayısı) → 3, 
 
 - Günlük terazi + seri sayacı; 150 sonrası sonsuz mod
 - Çift kollu / iki pivotlu tahtalar; negatif (balon) ağırlıklar
-- "Reklamları kaldır" IAP, tahta temaları
 
 ## Kontrol listesi durumu
 
-Kodla yapılabilen maddeler tamam: 13 birim test (150 seviyenin kurgu + çözücü doğrulaması dahil),
-typecheck, build ve `scripts/e2e.mjs` ile 18 kontrol (öğretici, 1–3. seviyeleri gerçek
-sürüklemeyle çözme, kazanma, yıldız, dokunarak geri alma, geri al, ipucu, 120. seviye yığma,
-yeniden yüklemede ilerleme), konsol hatasız.
+Kodla yapılabilen maddeler tamam: birim testler (150 seviyenin kurgu + çözücü doğrulaması dahil),
+typecheck, build ve `scripts/e2e.mjs` ile 46 kontrol: ana menü → günlük ödül → mağaza (malzeme
+al + kullan) → görevler → harita → 1. seviyeyi gerçek sürüklemeyle çözme → meta kazanma ekranı
+(3 yıldız, +25 jeton) → sonraki → dokunarak geri alma, geri al, ücretsiz ve 40 jetonluk ipucu →
+duraklat → yeniden yüklemede ilerleme → 120. seviye (±6, yığma) → torktan türeyen kabarcık →
+v1.0 kayıt göçü; konsol hatasız. Mağaza görselleri ana menü dahil 4 sahne × 2 dil × 3 boyut.
 
 Hesap sahibine kalanlar:
 
@@ -97,3 +121,5 @@ Hesap sahibine kalanlar:
 - [ ] Android: Actions → **Android build**; release keystore ile AAB imzala
 - [ ] iOS: macOS + Xcode'da `ios/App` aç, Team seç, Archive
 - [ ] Mağaza: `store/listing.md`, `store/screenshots`, yaş anketi, veri güvenliği formu
+- [ ] AdMob: gerçek uygulama/birim kimlikleri (`initAds({ units, testing: false })`, Manifest, Info.plist)
+- [ ] IAP ürünleri Play Console / App Store Connect'te kit kimlikleriyle (`starter_pack`, `remove_ads`, `coins_small`, `coins_large`)
