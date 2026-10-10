@@ -1,0 +1,13 @@
+{
+  "name": "Liman",
+  "short_name": "Liman",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#e8f6f8",
+  "theme_color": "#e8f6f8",
+  "icons": [
+    { "src": "icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any" },
+    { "src": "icon.svg", "type": "image/svg+xml", "sizes": "any" }
+  ]
+}
