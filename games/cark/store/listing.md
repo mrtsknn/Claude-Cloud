@@ -4,7 +4,7 @@
 
 - **Name (30):** Cogwork: Gear Chain Puzzle
 - **Subtitle (iOS, 30):** Connect gears, start the clocks
-- **Short description (Play, 80):** Drag gears to link the motor to every clock — the right way round. Calm and offline.
+- **Short description (Play, 80):** Drag gears to link the motor to every clock — the right way round. Calm, no timer.
 - **Keywords (iOS, 100):** gear,cog,puzzle,logic,brain,clock,machine,connect,chain,relax,offline,steampunk,mechanic
 - **Description:**
 
@@ -19,14 +19,21 @@
   Made to be fair
   • Unlimited undo, tap a gear to take it back
   • A free hint in every level
-  • No timer, no lives, fully offline
+  • No timer, no lives, plays offline
   • Smooth spinning gears, ticking sounds and haptics
+
+  More to come back for
+  • Daily missions and a 7-day reward calendar
+  • Six workshop styles: brass, steel, copper, wood, candy and neon
+  • A level map to chase every star
+
+  Contains ads (optional rewarded videos, occasional between levels) — remove them with a one-time purchase.
 
 ## Türkçe
 
 - **Ad:** Çark: Dişli Bulmacası
 - **Alt başlık:** Çarkları bağla, saatleri çalıştır
-- **Kısa açıklama:** Motoru her saate doğru yönde bağlamak için çarkları sürükle. Sakin ve internetsiz.
+- **Kısa açıklama:** Motoru her saate doğru yönde bağlamak için çarkları sürükle. Sakin, süresiz.
 - **Anahtar kelimeler:** çark,dişli,bulmaca,puzzle,zeka,mantık,saat,makine,bağla,zincir,rahatlatıcı,çevrimdışı
 - **Açıklama:**
 
@@ -41,5 +48,26 @@
   Adil tasarım
   • Sınırsız geri alma, dokunarak çarkı geri al
   • Her seviyede ücretsiz ipucu
-  • Süre yok, can yok, tamamen çevrimdışı
+  • Süre yok, can yok, internetsiz oynanır
   • Akıcı dönen çarklar, tık sesleri ve titreşim
+
+  Her gün geri dönmek için
+  • Günlük görevler ve 7 günlük ödül takvimi
+  • Altı atölye görünümü: pirinç, çelik, bakır, ahşap, şeker ve neon
+  • Tüm yıldızların peşinden gideceğin seviye haritası
+
+  Reklam içerir (isteğe bağlı ödüllü videolar, ara sıra seviye arası) — tek seferlik satın alımla kaldırılabilir.
+
+## Ekran görüntüleri
+
+`store/screenshots/{en,tr}/{ios-6.9,ios-6.5,android}/`: `1-chain`, `2-belts`, `3-home` (ana menü),
+`4-levels` — `node games/cark/scripts/screenshots.mjs <preview url> games/cark/store/screenshots`.
+
+## Uygulama içi satın alımlar
+
+| Kimlik | Ürün |
+|---|---|
+| `starter_pack` | Başlangıç paketi: 500 jeton + reklamsız |
+| `remove_ads` | Reklamları kaldır |
+| `coins_small` | 300 jeton |
+| `coins_large` | 2000 jeton |
