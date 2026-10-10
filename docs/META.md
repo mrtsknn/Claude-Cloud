@@ -24,12 +24,14 @@ meta.showHome();
 // Oyun içi: kazanınca  meta.showWin({ level, stars, coins: 10 + stars*5, onNext: () => startLevel(level+1) })
 //           kaybedince (sonsuz) meta.showLose({ score, coins, continuesUsed, canContinue, onContinue, onRetry })
 //           seviye başarısız  meta.showFail({ level, reason, continuesUsed?, onContinue?, onRetry })  (rekora dokunmaz)
-// Android geri: setupNative({ onBack: () => meta.back() || (pause(), true) })
+// Android geri: setupNative({ onBack: () => meta.back() || (!meta.covering && (pause(), true)) })
+//   (ana menüdeyken false döner → uygulama arka plana alınır)
 ```
 İlk sonuç ekranından sonra `firstRun` otomatik kapanır (günlük ödül sonraki menü açılışında kendiliğinden açılır).
 `showPause({ onResume, onRestart? })`: idle oyunlarda `onRestart` verilmez. `endless.subtitle` kart alt yazısını değiştirir.
 Standart görev kimlikleri meta tarafından otomatik ilerletilir: `levels`, `stars`, `perfect` (showWin), `games` (showLose).
-Tema: `:root { --m-bg; --m-ink; --m-card; --m-muted; --m-accent; --m-accent-ink; --m-alt; --m-font }` (bkz. meta.css).
+Tema: `:root { --m-bg; --m-ink; --m-card; --m-muted; --m-accent; --m-accent-ink; --m-alt; --m-font; --m-home-ink; --m-strip }` (bkz. meta.css).
+Açık renkli ana menüde `--m-home-ink` koyu bir renge ayarlanır.
 
 ## Native
 - Oyunun `package.json` bağımlılıklarına `@capacitor-community/admob` ve `@capgo/native-purchases` eklenir (cap sync native eklentiyi ancak böyle görür).

@@ -5,6 +5,8 @@
  *   --m-muted   secondary text              --m-accent primary button / highlights
  *   --m-accent-ink text on accent           --m-alt    secondary (video) button
  *   --m-font    display font stack
+ *   --m-home-ink text on the home background (default white; set dark for light homes)
+ *   --m-strip   mission strip background on home
  * Style: solid cards with a hard offset shadow (no blur/glow) so it reads as a game UI.
  */
 .meta-root {
@@ -28,7 +30,7 @@
   background: var(--_bg); background-color: #10142a;
   display: flex; flex-direction: column;
   padding: calc(env(safe-area-inset-top, 0px) + 12px) 16px calc(env(safe-area-inset-bottom, 0px) + 14px);
-  color: #fff;
+  color: var(--m-home-ink, #fff);
 }
 .m-top { display: flex; justify-content: space-between; align-items: center; }
 .m-coins, .m-icon {
@@ -44,7 +46,7 @@
 .m-hero { flex: 1; display: grid; place-content: center; text-align: center; gap: 6px; }
 .m-logo {
   margin: 0; font-size: clamp(44px, 14vw, 72px); font-weight: 900; letter-spacing: 0.02em; line-height: 1;
-  color: #fff; text-shadow: 0 6px 0 rgba(0, 0, 0, 0.3);
+  color: var(--m-home-ink, #fff); text-shadow: 0 6px 0 rgba(0, 0, 0, 0.18);
   animation: m-float 3s ease-in-out infinite;
 }
 .m-tag { margin: 0; font-weight: 700; opacity: 0.85; font-size: 16px; }
@@ -54,7 +56,7 @@
 .m-strip {
   position: relative; border: 0; font: inherit; cursor: pointer; text-align: left;
   display: flex; align-items: center; gap: 10px; padding: 10px 14px;
-  background: rgba(0, 0, 0, 0.28); color: #fff; border-radius: 16px;
+  background: var(--m-strip, rgba(0, 0, 0, 0.28)); color: var(--m-home-ink, #fff); border-radius: 16px;
 }
 .m-strip-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 700; }
 .m-strip-body span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
