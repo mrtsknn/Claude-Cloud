@@ -15,10 +15,13 @@
   ▸ Mistakes glow red and the ship leans as you load, so you learn by playing
   ▸ 150 levels from 2 ports and 4 boxes to 4 ports and 14 boxes
   ▸ Every level is checked by a solver, so every one can be solved
-  ▸ No timer, no lives, fully offline
+  ▸ No dock you can just load in order: every level past the first few needs a plan
+  ▸ Stacks from 3 to 5 high as the ships get busier
+  ▸ No timer, no lives, plays offline
 
   Fair by design
-  • A free hint in every level, hints come from a real solver
+  • The first hint in every level is free, and hints come from a real solver
+  • Daily missions, a 7-day reward calendar and 7 ship & container themes to unlock with coins
   • Unlimited undo
   • Every port has its own color and shape, friendly to color-blind players
   • Smooth crane animations, gentle sounds and haptics
@@ -38,10 +41,13 @@
   ▸ Hatalar kırmızı yanar, gemi yükledikçe yatar; oynarken öğrenirsin
   ▸ 2 liman ve 4 kutudan 4 liman ve 14 kutuya 150 seviye
   ▸ Her seviye bir çözücüyle kontrol edilir, hepsi çözülebilir
-  ▸ Süre yok, can yok, tamamen internetsiz
+  ▸ Rıhtımı sırayla yükleyip geçemezsin: ilk birkaç seviyeden sonra her biri plan ister
+  ▸ Gemiler kalabalıklaştıkça 3'ten 5 kata kadar istifler
+  ▸ Süre yok, can yok, internetsiz oynanır
 
   Adil olmak için yapıldı
-  • Her seviyede ücretsiz ipucu; ipuçları gerçek çözücüden gelir
+  • Her seviyede ilk ipucu ücretsiz; ipuçları gerçek çözücüden gelir
+  • Günlük görevler, 7 günlük ödül takvimi ve jetonla açılan 7 gemi ve konteyner teması
   • Sınırsız geri alma
   • Her limanın kendi rengi ve şekli var, renk körlüğüne uygun
   • Akıcı vinç animasyonları, yumuşak sesler ve titreşim
@@ -50,9 +56,13 @@
 
 - **Kategori:** Games → Puzzle
 - **Yaş derecesi:** 4+ / PEGI 3 / Everyone
-- **Veri güvenliği / gizlilik etiketi:** "Veri toplanmıyor" — reklam/analiz sağlayıcısı eklenirse güncelle.
+- **Uygulama içi satın alma:** Başlangıç paketi, Reklamları kaldır, jeton paketleri (kit `PRODUCTS`).
+- **Reklam:** Evet (AdMob: ödüllü video + seviyeler arası, sıklık sınırlı).
+- **Veri güvenliği / gizlilik etiketi:** AdMob reklam kimliği ve tanılama verisi toplar (üçüncü
+  taraf reklam); iOS'ta ATT izni istenir. Etiketleri buna göre doldur, `PRIVACY.md` güncel olmalı.
 
 ## Ekran görüntüleri
 
-`store/screenshots/<dil>/<boyut>/` — `ios-6.9` (1290×2796), `ios-6.5` (1242×2688), `android` (1080×1920).
+`store/screenshots/<dil>/<boyut>/` — 4 sahne (yükleme, kurallar + kırmızı yanlış istif, sefer,
+ana menü); `ios-6.9` (1290×2796), `ios-6.5` (1242×2688), `android` (1080×1920).
 Yeniden üretmek: `scripts/screenshots.mjs`.

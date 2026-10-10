@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyMove, balance, check, generateLevel, levelParams, orderViolations, solve, stars, type Box, type Level, type Ship } from './game';
+import { GREEDY_FROM, applyMove, balance, check, generateLevel, greedySolves, levelParams, orderViolations, solve, stars, type Box, type Level, type Ship } from './game';
 
 const b = (id: number, port: number, w = 1): Box => ({ id, port, w });
 const lv: Level = { level: 1, ports: 3, height: 3, tol: 1, ncols: 3, boxes: 0 };
@@ -59,10 +59,37 @@ describe('levels', () => {
     expect(generateLevel(7).ship).not.toEqual(generateLevel(8).ship);
   });
   it('ramps from 2 ports/4 boxes to 4 ports/14 boxes', () => {
-    expect(levelParams(1)).toMatchObject({ ports: 2, boxes: 4 });
-    expect(levelParams(150)).toMatchObject({ ports: 4, boxes: 14, ncols: 6 });
+    expect(levelParams(1)).toMatchObject({ ports: 2, boxes: 4, height: 3 });
+    expect(levelParams(150)).toMatchObject({ ports: 4, boxes: 14 });
   });
-  it('every level 1–150 is valid and solvable in par moves', () => {
+  it('stack height varies 3–5 and grows with difficulty', () => {
+    const hs = Array.from({ length: 150 }, (_, i) => levelParams(i + 1).height);
+    expect(Math.min(...hs)).toBe(3);
+    expect(Math.max(...hs)).toBe(5);
+    const avg = (a: number[]) => a.reduce((s, x) => s + x, 0) / a.length;
+    expect(avg(hs.slice(0, 30))).toBeLessThan(avg(hs.slice(60, 100)));
+    expect(avg(hs.slice(60, 100))).toBeLessThan(avg(hs.slice(100)));
+    for (let l = 1; l <= 150; l++) {
+      const p = levelParams(l);
+      expect(p.ncols * p.height, `level ${l}`).toBeGreaterThan(p.boxes);
+      expect(p.ncols).toBeGreaterThanOrEqual(3);
+      expect(p.ncols).toBeLessThanOrEqual(6);
+    }
+  });
+  it('greedy check: loading the dock left to right with balance-first placement', () => {
+    const p: Level = { level: 9, ports: 2, height: 3, tol: 0, ncols: 2, boxes: 2 };
+    // Port-2 box first, then port-1: greedy puts them on opposite sides → solved.
+    expect(greedySolves({ cols: [[], []], dock: [b(0, 2), b(1, 1)] }, p)).toBe(true);
+    // Port-1 boxes first leave no legal spot for the port-2 box.
+    expect(greedySolves({ cols: [[], []], dock: [b(0, 1), b(1, 1), b(2, 2)] }, p)).toBe(false);
+  });
+  it(`from level ${GREEDY_FROM} no dock can be loaded greedily`, () => {
+    for (let l = GREEDY_FROM; l <= 150; l++) {
+      const { lv: p, ship } = generateLevel(l);
+      expect(greedySolves(ship, p), `level ${l}`).toBe(false);
+    }
+  });
+  it('every level 1–150 is valid and solvable in par moves', { timeout: 60000 }, () => {
     for (let l = 1; l <= 150; l++) {
       const { lv: p, ship, solution } = generateLevel(l);
       expect(ship.dock).toHaveLength(p.boxes);

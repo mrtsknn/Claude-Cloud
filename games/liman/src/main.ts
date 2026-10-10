@@ -1,10 +1,14 @@
 import './style.css';
 import {
+  createMeta,
+  createProfile,
   createStore,
   haptic,
-  interstitialMoment,
+  initAds,
+  initStore,
   maybeRequestReview,
   pentatonic,
+  rewardedAvailable,
   setHapticsEnabled,
   setSoundEnabled,
   setupNative,
@@ -15,14 +19,22 @@ import {
   unlockAudio,
 } from '@studio/kit';
 import { MAX_LEVEL, applyMove, balance, check, generateLevel, orderViolations, solve, stars, type Box, type Level, type Move, type Ship } from './game';
-import { t } from './i18n';
+import { t, type Key } from './i18n';
+import { SKINS, inkOn, skinById, type Skin } from './skins';
 
 // TODO(mağaza): gizlilik politikasını yayınladığın adresle değiştir.
 const PRIVACY_URL = 'https://github.com/mrtsknn/Claude-Cloud/blob/main/games/liman/PRIVACY.md';
 declare const __APP_VERSION__: string;
 
-// Port colours in visit order; each also has its own icon (circle, triangle, square, star).
-const PORTS = ['#f28c28', '#e9b200', '#22a06b', '#8e5cf7'];
+/** Coins for a hint after the free one in each level. */
+const HINT_PRICE = 40;
+const COIN_SVG =
+  '<svg class="coin" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#ffc83d" stroke="#b57d10" stroke-width="2"/><circle cx="12" cy="12" r="5" fill="none" stroke="#e0a21c" stroke-width="1.6"/></svg>';
+
+// Port colours in visit order (from the equipped theme); each also has its own icon
+// (circle, triangle, square, star).
+let skin: Skin = SKINS[0];
+let PORTS: string[] = skin.ports;
 const BAD = '#e11d48';
 const INK = '#16324a';
 
@@ -34,17 +46,74 @@ const settings = store.get('settings', { sound: true, haptics: true });
 setSoundEnabled(settings.sound);
 setHapticsEnabled(settings.haptics);
 
-/** Levels past 150 replay the 150 designed ones. */
-const levelData = (level: number) => generateLevel(((level - 1) % MAX_LEVEL) + 1);
-const freshLevel = (level: number): Save => ({ level, ship: levelData(level).ship, history: [], moves: 0, undos: 0, hints: 0 });
+const clampLevel = (level: number) => Math.max(1, Math.min(MAX_LEVEL, Math.floor(level) || 1));
+const levelData = (level: number) => generateLevel(clampLevel(level));
+/** `hints` carries over on restart so restarting never re-arms the free hint. */
+const freshLevel = (level: number, hints = 0): Save => ({ level: clampLevel(level), ship: levelData(level).ship, history: [], moves: 0, undos: 0, hints });
 
-let S: Save = store.get<Save | null>('save', null) ?? freshLevel(1);
+/** A saved ship is only resumable if it holds exactly this level's containers on this level's deck. */
+function validSave(v: Save | null): v is Save {
+  if (!v || typeof v !== 'object' || !(v.level >= 1 && v.level <= MAX_LEVEL) || !v.ship || !Array.isArray(v.ship.cols) || !Array.isArray(v.ship.dock)) return false;
+  const { lv: p, ship } = levelData(v.level);
+  if (v.ship.cols.length !== p.ncols || v.ship.cols.some((c) => !Array.isArray(c) || c.length > p.height)) return false;
+  const key = (b: Box) => `${b.id}:${b.port}:${b.w}`;
+  const want = ship.dock.map(key).sort().join();
+  return [...v.ship.dock, ...v.ship.cols.flat()].map(key).sort().join() === want;
+}
+
+const saved = store.get<Save | null>('save', null);
+const savedLevel = clampLevel(Number((saved as { level?: unknown } | null)?.level) || 1);
+// v1.0 levels looped after 150 and used another generator: keep the level number, re-deal the ship.
+let S: Save = validSave(saved) ? saved : freshLevel(savedLevel);
+if (!Array.isArray(S.history)) S.history = [];
 let lv: Level = levelData(S.level).lv;
 let levelStartedAt = Date.now();
-const save = () => store.set('save', S);
+let winPending = false;
+// Never persist a finished ship: after a win the next level is already saved.
+const save = () => !winPending && store.set('save', S);
 
 trackSession('liman');
-track('level_start', { level: S.level, boxes: lv.boxes, resumed: S.moves > 0 });
+
+// ───────────────────────── profile (coins, stars, missions, skins) ─────────────────────────
+const profile = createProfile({
+  game: 'liman',
+  levelCount: MAX_LEVEL,
+  defaultSkin: SKINS[0].id,
+  skinIds: SKINS.map((s) => s.id),
+  missions: [
+    { id: 'levels', targets: [2, 3, 5], reward: (n) => 20 + n * 10 },
+    { id: 'stars', targets: [4, 6, 9], reward: (n) => 20 + n * 5 },
+    { id: 'perfect', targets: [1, 2, 3], reward: (n) => 30 + n * 10 },
+    { id: 'containers', targets: [20, 40, 60], reward: (n) => 20 + Math.round(n / 2) },
+    { id: 'voyages', targets: [2, 4, 6], reward: (n) => 20 + n * 8 },
+  ],
+});
+
+// v1.0 kept stars per level and the current level in its own store; carry them over once.
+if (!store.get('migrated', false)) {
+  const old = store.get<Record<string, number>>('stars', {});
+  let completed = 0;
+  for (const [k, v] of Object.entries(old ?? {})) {
+    const n = Number(k);
+    if (!(n >= 1 && n <= MAX_LEVEL)) continue;
+    profile.data.stars[n - 1] = Math.max(profile.data.stars[n - 1], Math.max(1, Math.min(3, Math.floor(Number(v)) || 1)));
+    completed = Math.max(completed, n);
+  }
+  const unlocked = Math.min(MAX_LEVEL, Math.max(completed + 1, savedLevel));
+  if (unlocked > 1) {
+    profile.data.unlocked = Math.max(profile.data.unlocked, unlocked);
+    profile.data.firstRun = false;
+    profile.save();
+    track('progress_migrated', { completed, unlocked });
+  }
+  store.set('migrated', true);
+}
+
+function applySkin(id: string) {
+  skin = skinById(id);
+  PORTS = skin.ports;
+}
+applySkin(profile.data.skin);
 
 // ───────────────────────── DOM ─────────────────────────
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -55,7 +124,6 @@ document.documentElement.lang = navigator.language.slice(0, 2).toLowerCase() ===
 document.querySelectorAll<HTMLElement>('[data-i18n]').forEach((el) => {
   el.textContent = t(el.dataset.i18n as Parameters<typeof t>[0]);
 });
-$('version').textContent = `v${__APP_VERSION__}`;
 
 let toastTimer = 0;
 function toast(text: string, ms = 2200) {
@@ -68,8 +136,9 @@ function toast(text: string, ms = 2200) {
 
 function refreshHud() {
   $('level').textContent = String(S.level);
-  $('hint-badge').textContent = S.hints === 0 ? '1' : 'AD';
-  $('hint-badge').classList.toggle('ad', S.hints > 0);
+  const badge = $('hint-badge');
+  badge.innerHTML = S.hints === 0 ? t('free') : `${COIN_SVG}${HINT_PRICE}`;
+  badge.classList.toggle('free', S.hints === 0);
   const sail = $<HTMLButtonElement>('sail-btn');
   sail.disabled = S.ship.dock.length > 0;
   sail.classList.toggle('ready', S.ship.dock.length === 0 && check(S.ship, lv).ok);
@@ -128,7 +197,6 @@ let fly: { id: number; fx: number; fy: number; t0: number; dur: number } | null 
 let tilt = 0;
 let shakeAt = -1e9;
 let sail: { t0: number } | null = null;
-let winPending = false;
 let hint: { move: Move; until: number } | null = null;
 let tutorialMove: { key: string; move: Move | null } = { key: '', move: null };
 let frozenAt: number | null = null;
@@ -213,7 +281,7 @@ function drawBox(b: Box, cx: number, cy: number, bad: boolean, glow: boolean, no
   ctx.stroke();
   ctx.fillStyle = 'rgba(255,255,255,0.22)';
   ctx.fillRect(x + 3, y + 2, w - 6, 3);
-  drawIcon(b.port, cx, cy, h * 0.5);
+  drawIcon(b.port, cx, cy, h * 0.5, inkOn(color));
   // weight bars, bottom-right
   for (let i = 0; i < b.w; i++) {
     const bx = x + w - 7 - i * 5;
@@ -288,7 +356,7 @@ function drawRoute(current: number) {
     ctx.beginPath();
     ctx.arc(x, L.routeY - 4, 13, 0, Math.PI * 2);
     ctx.fill();
-    drawIcon(p, x, L.routeY - 4, 12);
+    drawIcon(p, x, L.routeY - 4, 12, inkOn(PORTS[p - 1]));
     ctx.fillStyle = INK;
     ctx.font = '700 11px system-ui, sans-serif';
     ctx.textAlign = 'center';
@@ -353,7 +421,7 @@ function drawHull(listed: boolean) {
   const half = L.shipW / 2;
   const top = L.deckY;
   const bot = L.deckY + 50;
-  ctx.fillStyle = listed ? '#c2414f' : '#24476b';
+  ctx.fillStyle = listed ? '#c2414f' : skin.hull;
   ctx.beginPath();
   ctx.moveTo(L.pivotX - half - 14, top);
   ctx.lineTo(L.pivotX + half + 26, top - 12);
@@ -361,7 +429,7 @@ function drawHull(listed: boolean) {
   ctx.lineTo(L.pivotX - half + 10, bot);
   ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = '#f4fbfc';
+  ctx.fillStyle = listed ? '#f4fbfc' : skin.trim;
   ctx.fillRect(L.pivotX - half - 8, top + 7, L.shipW + 22, 4);
   // deck slots: faint height-limit guides per column
   for (let c = 0; c < n; c++) {
@@ -400,7 +468,8 @@ function frame(now: number) {
   let local = 0;
   let sailX = 0;
   if (sail) {
-    const e = now - sail.t0;
+    // rAF timestamps can predate the tap that started sailing: clamp so portIdx is never -1.
+    const e = Math.max(0, now - sail.t0);
     portIdx = Math.min(lv.ports - 1, Math.floor(e / PORT_MS));
     local = e - portIdx * PORT_MS;
     sailX = Math.sin(e / 300) * 3;
@@ -442,7 +511,7 @@ function frame(now: number) {
     ctx.beginPath();
     ctx.arc(px + 30, L.waterY - 50, 14, 0, Math.PI * 2);
     ctx.fill();
-    drawIcon(portIdx + 1, px + 30, L.waterY - 50, 13);
+    drawIcon(portIdx + 1, px + 30, L.waterY - 50, 13, inkOn(PORTS[portIdx]));
   }
 
   // ship (listed by balance)
@@ -595,6 +664,8 @@ function invalid() {
 }
 
 const busy = () => !!fly || !!sail || winPending;
+/** Input is ignored while the meta layer or the hint sheet covers the ship. */
+const blocked = () => meta.covering || !$('hint-sheet').hidden;
 
 function selectSound() {
   haptic.light();
@@ -656,13 +727,14 @@ function hitTest(x: number, y: number): Parameters<typeof tap>[0] {
 
 canvas.addEventListener('pointerdown', (e) => {
   unlockAudio();
+  if (blocked()) return;
   const r = canvas.getBoundingClientRect();
   tap(hitTest(e.clientX - r.left, e.clientY - r.top));
 });
 
 $('sail-btn').addEventListener('click', () => {
   unlockAudio();
-  if (busy() || S.ship.dock.length) return;
+  if (busy() || blocked() || S.ship.dock.length) return;
   const res = check(S.ship, lv);
   if (!res.ok) {
     const rule = !res.order && !res.balance ? 'both' : !res.order ? 'order' : 'balance';
@@ -687,56 +759,74 @@ $('sail-btn').addEventListener('click', () => {
 
 function win() {
   const st = stars(S.moves, lv.boxes, S.undos, S.hints);
-  [0, 2, 4, 5, 7, 9].forEach((s, i) => tone({ freq: pentatonic(s), duration: 0.22, volume: 0.4, delay: i * 0.08 }));
-  haptic.success();
-  track('level_complete', { level: S.level, moves: S.moves, stars: st, hints: S.hints, duration_s: Math.round((Date.now() - levelStartedAt) / 1000) });
-  $('win-title').textContent = t('levelN', { n: S.level });
-  $('win-stars').innerHTML = [1, 2, 3].map((i) => `<span class="${i <= st ? '' : 'off'}">★</span>`).join('');
-  $('win-moves').textContent = t('moves', { n: S.moves, p: lv.boxes });
   const completed = S.level;
-  const best = store.get<Record<number, number>>('stars', {});
-  best[completed] = Math.max(best[completed] ?? 0, st);
-  store.set('stars', best);
-  store.set('save', freshLevel(completed + 1));
-  setTimeout(() => ($('win').hidden = false), 250);
+  [0, 2, 4, 5, 7, 9].forEach((s, i) => tone({ freq: pentatonic(s), duration: 0.22, volume: 0.4, delay: i * 0.08 }));
+  track('level_complete', { level: completed, moves: S.moves, stars: st, hints: S.hints, duration_s: Math.round((Date.now() - levelStartedAt) / 1000) });
+  // Persist progress right away so quitting on the win sheet never loses the level.
+  if (completed < MAX_LEVEL) store.set('save', freshLevel(completed + 1));
+  profile.progress('voyages');
+  profile.progress('containers', lv.boxes);
+  const moves = S.moves;
+  setTimeout(() => {
+    meta.showWin({
+      level: completed,
+      stars: st,
+      coins: 10 + st * 5,
+      onNext: () => (completed < MAX_LEVEL ? startLevel(freshLevel(completed + 1)) : meta.showHome()),
+    });
+    // Moves against par under the kit's title.
+    const head = document.querySelector('.meta-root .m-result h2');
+    if (head) {
+      const p = document.createElement('p');
+      p.className = 'win-moves' + (st === 3 ? ' par' : '');
+      p.textContent = t('winMoves', { n: moves, p: lv.boxes });
+      head.after(p);
+    }
+  }, 250);
   maybeRequestReview(completed, completed >= 8 && st >= 2);
 }
 
 function startLevel(state: Save) {
+  meta.hideHome();
+  closeHintSheet();
   S = state;
   lv = levelData(S.level).lv;
-  save();
   selected = null;
   fly = null;
   sail = null;
   hint = null;
   winPending = false;
+  save();
   levelStartedAt = Date.now();
   layout();
   tilt = targetTilt();
   refreshHud();
   $('toast').hidden = true;
-  track('level_start', { level: S.level, boxes: lv.boxes, resumed: false });
+  track('level_start', { level: S.level, boxes: lv.boxes, height: lv.height, resumed: S.moves > 0 });
 }
 
-$('next-btn').addEventListener('click', async () => {
-  $('win').hidden = true;
-  haptic.medium();
-  const done = S.level;
-  startLevel(freshLevel(done + 1));
-  if (done >= 5) await interstitialMoment('next_level');
-});
+/** From the home screen or the map: resume the ship in progress, else start clean. */
+function play(n: number) {
+  unlockAudio();
+  if (S.level === n && !winPending && !sail) startLevel(S);
+  else startLevel(freshLevel(n));
+}
+
+function restartLevel() {
+  track('restart', { level: S.level, moves: S.moves });
+  startLevel(freshLevel(S.level, S.hints));
+}
 
 $('restart-btn').addEventListener('click', () => {
   unlockAudio();
-  if (busy()) return;
-  track('restart', { level: S.level, moves: S.moves });
-  startLevel(freshLevel(S.level));
+  if (busy() || blocked() || !S.moves) return;
+  restartLevel();
+  haptic.medium();
 });
 
 $('undo-btn').addEventListener('click', () => {
   unlockAudio();
-  if (busy()) return;
+  if (busy() || blocked()) return;
   if (!S.history.length) return toast(t('noUndo'));
   S.ship = S.history.pop()!;
   S.undos++;
@@ -749,11 +839,8 @@ $('undo-btn').addEventListener('click', () => {
   track('undo', { level: S.level });
 });
 
-$('hint-btn').addEventListener('click', async () => {
-  unlockAudio();
-  if (busy()) return;
-  // First hint in a level is free; more are behind a rewarded ad.
-  if (S.hints > 0 && !(await showRewarded('hint'))) return;
+// ───────────────────────── hints ─────────────────────────
+function giveHint() {
   const moves = solve(S.ship, lv);
   if (!moves || !moves.length) return toast(t('noHint'));
   S.hints++;
@@ -763,51 +850,184 @@ $('hint-btn').addEventListener('click', async () => {
   refreshHud();
   haptic.light();
   track('hint', { level: S.level, n: S.hints });
+}
+
+/** First hint per level is free; after that the player pays coins or watches a video. */
+function openHintSheet() {
+  const coins = $<HTMLButtonElement>('hint-coins');
+  const enough = profile.data.coins >= HINT_PRICE;
+  coins.disabled = !enough;
+  coins.innerHTML = enough ? `${COIN_SVG} ${t('hintCoins', { n: HINT_PRICE })}` : t('notEnough', { n: profile.data.coins });
+  const video = $<HTMLButtonElement>('hint-video');
+  video.hidden = !rewardedAvailable();
+  video.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9v6l5-3z" fill="currentColor"/></svg> ${t('hintVideo')}`;
+  $('hint-sheet').hidden = false;
+}
+function closeHintSheet() {
+  $('hint-sheet').hidden = true;
+}
+
+$('hint-btn').addEventListener('click', () => {
+  unlockAudio();
+  if (busy() || blocked()) return;
+  if (S.hints === 0) return giveHint();
+  openHintSheet();
+});
+$('hint-coins').addEventListener('click', () => {
+  if (!profile.spend(HINT_PRICE)) return;
+  closeHintSheet();
+  track('hint_coins', { level: S.level });
+  giveHint();
+});
+$('hint-video').addEventListener('click', async () => {
+  const b = $<HTMLButtonElement>('hint-video');
+  b.disabled = true;
+  const ok = await showRewarded('hint');
+  b.disabled = false;
+  if (!ok) return;
+  closeHintSheet();
+  giveHint();
+});
+$('hint-cancel').addEventListener('click', closeHintSheet);
+$('hint-sheet').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeHintSheet();
 });
 
-// settings
-for (const [id, k] of [['opt-sound', 'sound'], ['opt-haptics', 'haptics']] as const) {
-  const el = $<HTMLInputElement>(id);
-  el.checked = settings[k];
-  el.addEventListener('change', () => {
-    settings[k] = el.checked;
-    setSoundEnabled(settings.sound);
-    setHapticsEnabled(settings.haptics);
-    store.set('settings', settings);
-    if (k === 'haptics') haptic.medium();
+// ───────────────────────── meta (menu, map, missions, daily, shop) ─────────────────────────
+/** Home artwork: a little ship of the equipped theme, stacked with containers, bobbing on waves. */
+function heroArt() {
+  const el = document.createElement('div');
+  el.className = 'hero';
+  // Column stacks (bottom → top) as port numbers: later ports below, like a correct load.
+  const stacks = [[3, 2], [4, 3, 1], [4, 2, 1], [3, 1]];
+  const paint = () => {
+    const bw = 40;
+    const bh = 24;
+    const x0 = 50;
+    const deck = 112;
+    const boxes = stacks
+      .map((col, c) =>
+        col
+          .map((port, k) => {
+            const x = x0 + c * (bw + 2);
+            const y = deck - (k + 1) * bh;
+            const fill = skin.ports[port - 1];
+            return `<g><rect x="${x}" y="${y}" width="${bw}" height="${bh - 2}" rx="3" fill="${fill}"/>
+              <path d="M${x + 8} ${y + 4}v${bh - 10}M${x + 32} ${y + 4}v${bh - 10}" stroke="rgba(0,0,0,.14)" stroke-width="2"/>
+              <rect x="${x + 2}" y="${y + 1}" width="${bw - 4}" height="3" fill="rgba(255,255,255,.25)"/>
+              ${heroIcon(port, x + bw / 2, y + bh / 2 - 1, inkOn(fill))}</g>`;
+          })
+          .join(''),
+      )
+      .join('');
+    el.innerHTML = `<svg viewBox="0 0 280 190" width="260" height="176" aria-hidden="true">
+      <g class="hero-ship">
+        <path d="M216 112 L216 70 L238 70 L238 112Z" fill="#f4fbfc"/>
+        <rect x="220" y="76" width="14" height="8" rx="2" fill="#2bb3c0"/>
+        <rect x="224" y="56" width="8" height="14" fill="${skin.hull}"/>
+        ${boxes}
+        <path d="M24 112 L262 104 L240 150 L46 150Z" fill="${skin.hull}"/>
+        <rect x="30" y="118" width="226" height="5" rx="2" fill="${skin.trim}"/>
+        <circle cx="70" cy="134" r="4" fill="${skin.trim}" opacity=".7"/><circle cx="88" cy="134" r="4" fill="${skin.trim}" opacity=".7"/>
+      </g>
+      <defs>
+        <linearGradient id="hero-fade" x1="0" x2="1"><stop offset="0" stop-color="#000"/><stop offset=".18" stop-color="#fff"/><stop offset=".82" stop-color="#fff"/><stop offset="1" stop-color="#000"/></linearGradient>
+        <mask id="hero-mask"><rect x="0" y="0" width="280" height="190" fill="url(#hero-fade)"/></mask>
+      </defs>
+      <g mask="url(#hero-mask)">
+        <path class="hero-wave w1" d="M-40 146 q20 -8 40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 V184 H-40Z" fill="#2bb3c0" opacity=".9"/>
+        <path class="hero-wave w2" d="M-40 158 q20 -7 40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 t40 0 V184 H-40Z" fill="#127a96"/>
+      </g>
+    </svg>`;
+  };
+  paint();
+  return { el, paint };
+}
+function heroIcon(port: number, cx: number, cy: number, fill: string) {
+  const s = 12;
+  switch ((port - 1) % 4) {
+    case 0:
+      return `<circle cx="${cx}" cy="${cy}" r="${s * 0.45}" fill="${fill}"/>`;
+    case 1:
+      return `<path d="M${cx} ${cy - s * 0.52}L${cx + s * 0.52} ${cy + s * 0.4}H${cx - s * 0.52}Z" fill="${fill}"/>`;
+    case 2:
+      return `<rect x="${cx - s * 0.4}" y="${cy - s * 0.4}" width="${s * 0.8}" height="${s * 0.8}" fill="${fill}"/>`;
+    default: {
+      const pts = Array.from({ length: 10 }, (_, i) => {
+        const a = -Math.PI / 2 + (i * Math.PI) / 5;
+        const r = i % 2 ? s * 0.24 : s * 0.56;
+        return `${(cx + Math.cos(a) * r).toFixed(1)},${(cy + Math.sin(a) * r).toFixed(1)}`;
+      });
+      return `<polygon points="${pts.join(' ')}" fill="${fill}"/>`;
+    }
+  }
+}
+
+const hero = heroArt();
+const meta = createMeta({
+  title: t('title'),
+  hero: hero.el,
+  tagline: t('tagline'),
+  version: __APP_VERSION__,
+  privacyUrl: PRIVACY_URL,
+  profile,
+  levels: { count: MAX_LEVEL, play },
+  missionText: (id, n) => t(`mission_${id}` as Key, { n }),
+  skins: SKINS.map((s) => ({ id: s.id, name: t(`skin_${s.id}` as Key), price: s.price, swatch: s.swatch })),
+  onSkin: (id) => {
+    applySkin(id);
+    hero.paint();
+  },
+  settings,
+  onSettings: (s) => {
+    setSoundEnabled(s.sound);
+    setHapticsEnabled(s.haptics);
+    store.set('settings', s);
+  },
+});
+
+function pause() {
+  unlockAudio();
+  closeHintSheet();
+  selected = null;
+  meta.showPause({
+    onResume: () => {},
+    onRestart: restartLevel,
+    onMenu: save,
   });
 }
 $('settings-btn').addEventListener('click', () => {
-  unlockAudio();
-  $('settings').hidden = false;
-});
-$('close-settings').addEventListener('click', () => ($('settings').hidden = true));
-$('settings').addEventListener('click', (e) => {
-  if (e.target === e.currentTarget) $('settings').hidden = true;
-});
-$('privacy-link').addEventListener('click', (e) => {
-  e.preventDefault();
-  window.open(PRIVACY_URL, '_blank');
+  if (busy() || meta.covering) return;
+  pause();
 });
 
 // ───────────────────────── boot ─────────────────────────
 tilt = targetTilt();
 refreshHud();
+void initAds();
+void initStore();
 void setupNative({
   darkBackground: false,
   onPause: save,
   onBack: () => {
-    if (!$('settings').hidden) {
-      $('settings').hidden = true;
+    if (!$('hint-sheet').hidden) {
+      closeHintSheet();
       return true;
     }
+    if (meta.back()) return true;
+    if (meta.covering) return false;
     if (selected) {
       selected = null;
       return true;
     }
-    return false;
+    if (!busy()) {
+      pause();
+      return true;
+    }
+    return true;
   },
 });
+meta.showHome();
 requestAnimationFrame(frame);
 
 // Exposed for e2e/screenshot scripts.
@@ -817,6 +1037,7 @@ requestAnimationFrame(frame);
   solve: () => solve(S.ship, lv),
   busy,
   goto: (level: number) => startLevel(freshLevel(level)),
+  skin: (id: string) => applySkin(id),
   load: (s: Save) => startLevel(s),
   freeze: (ms: number | null) => (frozenAt = ms === null ? null : performance.now() + ms),
   /** Screen points (canvas-relative) to tap a container or a column. */
