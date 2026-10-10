@@ -2,15 +2,32 @@
 
 _Last updated / Son güncelleme: 2026-10-10_
 
-**English.** Fener does not collect, store or share any personal data. Your progress,
-settings and current puzzle are saved only on your device. The app requires no account and no
-permissions. Anonymous gameplay events (for example "level 12 complete, 3 stars") may be
-recorded on the device to improve the game. If a future version shows ads or uses an analytics
-service, this policy will be updated before that version is released, listing the provider and
-the data it receives. Contact: mrtbnymntskn@gmail.com
+**English.** Fener requires no account. Your progress, coins, stars, settings and current puzzle
+are saved only on your device. Anonymous gameplay events (for example "level 12 complete,
+3 stars") may be recorded on the device to improve the game.
 
-**Türkçe.** Fener hiçbir kişisel veri toplamaz, saklamaz veya paylaşmaz. İlerlemen, ayarların
-ve devam eden bulmacan yalnızca cihazında saklanır. Uygulama hesap veya izin gerektirmez.
-Oyunu iyileştirmek için anonim oyun olayları (ör. "12. seviye tamamlandı, 3 yıldız") cihazda
-kaydedilebilir. İleride reklam veya analiz hizmeti eklenirse, o sürüm yayınlanmadan önce bu
-politika sağlayıcı ve paylaşılan veriler belirtilerek güncellenir. İletişim: mrtbnymntskn@gmail.com
+- **Ads:** the app shows ads through Google AdMob (optional rewarded videos, and occasional
+  full-screen ads after level 5 unless you buy "Remove ads"). AdMob may collect device
+  identifiers (such as the advertising ID), IP address and ad-interaction data to serve and
+  measure ads; see Google's policy at https://policies.google.com/technologies/ads. Where the law
+  requires it you are asked for consent first, and on iOS ads are personalised only if you allow
+  tracking.
+- **Purchases:** in-app purchases are handled by the App Store / Google Play; the app only
+  receives whether a product is owned.
+
+Contact: mrtbnymntskn@gmail.com
+
+**Türkçe.** Fener hesap gerektirmez. İlerlemen, jetonların, yıldızların, ayarların ve devam
+eden bulmacan yalnızca cihazında saklanır. Oyunu iyileştirmek için anonim oyun olayları
+(ör. "12. seviye tamamlandı, 3 yıldız") cihazda kaydedilebilir.
+
+- **Reklamlar:** uygulama Google AdMob ile reklam gösterir (isteğe bağlı ödüllü videolar ve
+  "Reklamları kaldır" alınmadıysa 5. seviyeden sonra ara sıra tam ekran reklam). AdMob reklam
+  sunmak ve ölçmek için cihaz tanımlayıcılarını (ör. reklam kimliği), IP adresini ve reklam
+  etkileşim verilerini toplayabilir; bkz. https://policies.google.com/technologies/ads. Yasanın
+  gerektirdiği yerlerde önce onayın istenir; iOS'ta reklamlar yalnızca izlemeye izin verirsen
+  kişiselleştirilir.
+- **Satın alımlar:** uygulama içi satın alımları App Store / Google Play yürütür; uygulama
+  yalnızca bir ürünün sende olup olmadığını öğrenir.
+
+İletişim: mrtbnymntskn@gmail.com

@@ -8,6 +8,13 @@
   --sheet: #1a2050;
   --chip: rgba(255, 255, 255, 0.07);
   --line: rgba(255, 255, 255, 0.08);
+  /* meta layer theme (kit meta.css); --m-bg follows the equipped sky theme */
+  --m-bg: radial-gradient(120% 80% at 50% 0%, var(--bg-top), var(--bg-bottom));
+  --m-ink: #1b2046;
+  --m-muted: #6c7299;
+  --m-accent: var(--amber);
+  --m-accent-ink: #2a1a00;
+  --m-alt: #4fd1a5;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   font-family: ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -125,7 +132,9 @@ html, body {
   display: grid;
   place-items: center;
 }
-.badge.ad { background: #4fd1a5; color: #062b20; font-size: 10px; letter-spacing: 0.04em; }
+.badge.free { font-size: 10px; letter-spacing: 0.04em; }
+.badge.paid { display: flex; align-items: center; gap: 2px; background: #fff; color: #2a1a00; }
+.badge svg { width: 13px; height: 13px; stroke: none; }
 
 .toast {
   position: fixed;
@@ -146,108 +155,25 @@ html, body {
 }
 .toast[hidden] { display: none; }
 
-.overlay {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgba(6, 8, 26, 0.55);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
-  animation: fade 0.3s ease;
-  z-index: 10;
-}
-.overlay[hidden] { display: none; }
-
-.sheet {
-  width: min(340px, calc(100% - 40px));
-  background: linear-gradient(180deg, #232a63, var(--sheet));
-  border: 1px solid var(--line);
-  border-radius: 28px;
-  padding: 26px 22px 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5), 0 0 60px rgba(255, 200, 97, 0.08);
-  animation: pop 0.35s cubic-bezier(0.2, 1.4, 0.4, 1);
-}
-.sheet.center { text-align: center; }
-.sheet h2 { margin: 0 0 6px; font-size: 22px; }
-.big { font-size: 34px; font-weight: 800; line-height: 1.1; letter-spacing: -0.01em; text-wrap: balance; color: #fff; }
-.muted { margin: 0; color: var(--muted); font-weight: 600; }
-
-.stars { display: flex; justify-content: center; gap: 10px; margin: 4px 0; }
-.stars svg { width: 44px; height: 44px; fill: rgba(255, 255, 255, 0.1); transition: fill 0.2s; }
-.stars svg.on { fill: var(--amber); filter: drop-shadow(0 0 10px rgba(255, 200, 97, 0.7)); animation: star 0.45s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
-.stars svg:nth-child(2) { margin-top: -10px; }
-.stars svg.on:nth-child(2) { animation-delay: 0.15s; }
-.stars svg.on:nth-child(3) { animation-delay: 0.3s; }
-
-.row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 2px;
-  font-size: 17px;
-  font-weight: 600;
-  border-bottom: 1px solid var(--line);
-}
-
-.switch {
-  appearance: none;
-  flex: none;
-  width: 50px;
-  height: 30px;
-  border-radius: 99px;
-  background: rgba(255, 255, 255, 0.15);
-  position: relative;
-  cursor: pointer;
-  transition: background 0.2s;
-  margin: 0;
-}
-.switch::after {
-  content: '';
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  transition: transform 0.2s;
-}
-.switch:checked { background: var(--amber-dark); }
-.switch:checked::after { transform: translateX(20px); }
-
-.btn {
-  border: 0;
-  border-radius: 18px;
-  padding: 16px;
-  font: inherit;
-  font-size: 18px;
-  font-weight: 800;
-  color: #2a1a00;
-  background: linear-gradient(180deg, #ffd884, var(--amber));
-  box-shadow: 0 6px 0 var(--amber-dark);
-  cursor: pointer;
-  margin-top: 6px;
-}
-.btn:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--amber-dark); }
-
-.foot { margin: 4px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
-.foot a { color: var(--muted); }
-
-/* Win: keep the freshly lit town visible above a compact bottom sheet. */
-#win { place-items: end center; background: linear-gradient(180deg, rgba(6, 8, 26, 0) 40%, rgba(6, 8, 26, 0.6)); backdrop-filter: none; -webkit-backdrop-filter: none; }
-#win .sheet { margin-bottom: calc(16px + var(--safe-bottom)); gap: 8px; padding: 20px 22px 20px; }
-#win .big { font-size: 28px; }
-
 @keyframes fade { from { opacity: 0; } }
-@keyframes pop { from { transform: scale(0.85); opacity: 0; } }
 @keyframes rise { from { transform: translate(-50%, 10px); opacity: 0; } }
-@keyframes star { from { transform: scale(0.2); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .overlay, .sheet, .toast, .stars svg.on { animation: none; }
+  .toast, .hero .win { animation: none; }
 }
+
+/* home-screen artwork (kit meta hero slot): a row of houses lighting up under a lamp */
+.hero { width: min(300px, 78vw); }
+/* kit meta.css sizes every `.meta-root svg` as a 22px stroked icon: undo that for the artwork */
+.meta-root .hero svg { display: block; width: 100%; height: auto; overflow: visible; stroke: none; fill: none; }
+.hero .win { opacity: 0.15; animation: hero-lit 0.5s ease forwards; }
+.hero .halo { animation: hero-breathe 3.2s ease-in-out infinite; transform-origin: 150px 52px; }
+@keyframes hero-lit { to { opacity: 1; } }
+@keyframes hero-breathe { 50% { transform: scale(1.08); opacity: 0.85; } }
+
+/* Win sheet: dock it at the bottom so the freshly lit town stays visible above it. */
+.m-overlay:has(.m-result [data-next]) {
+  place-items: end center;
+  background: linear-gradient(180deg, rgba(6, 8, 26, 0) 35%, rgba(6, 8, 26, 0.65));
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+}
+.m-overlay:has(.m-result [data-next]) .m-sheet { gap: 8px; padding: 18px 18px 16px; }

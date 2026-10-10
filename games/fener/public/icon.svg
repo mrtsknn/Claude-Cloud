@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="0%" r="120%">
+      <stop offset="0" stop-color="#26306e"/><stop offset="1" stop-color="#0b0f2a"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <g id="art">
+    <defs>
+      <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+        <stop offset="0" stop-color="#ffc861" stop-opacity=".62"/>
+        <stop offset=".55" stop-color="#ffc861" stop-opacity=".2"/>
+        <stop offset="1" stop-color="#ffc861" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#fff6d8"/><stop offset="1" stop-color="#ffc861"/>
+      </linearGradient>
+      <linearGradient id="win" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#fff1c9"/><stop offset="1" stop-color="#ffbe4d"/>
+      </linearGradient>
+    </defs>
+    <!-- warm light pooling around the lantern -->
+    <circle cx="512" cy="372" r="380" fill="url(#halo)"/>
+    <!-- stars -->
+    <circle cx="168" cy="190" r="9" fill="#c9cff5"/>
+    <circle cx="860" cy="160" r="11" fill="#c9cff5"/>
+    <circle cx="884" cy="420" r="7" fill="#c9cff5" opacity=".7"/>
+    <!-- left house: both windows lit -->
+    <path d="M86 646 L246 500 L406 646 Z" fill="#323b7c"/>
+    <rect x="110" y="632" width="272" height="300" rx="22" fill="#3d4790"/>
+    <rect x="148" y="690" width="82" height="96" rx="12" fill="url(#win)"/>
+    <rect x="262" y="690" width="82" height="96" rx="12" fill="url(#win)"/>
+    <path d="M189 690v96M148 738h82M303 690v96M262 738h82" stroke="#b5741d" stroke-width="9" opacity=".55"/>
+    <rect x="206" y="826" width="80" height="106" rx="12" fill="#232a63"/>
+    <!-- right house: both windows lit -->
+    <path d="M618 646 L778 500 L938 646 Z" fill="#323b7c"/>
+    <rect x="642" y="632" width="272" height="300" rx="22" fill="#3d4790"/>
+    <rect x="680" y="690" width="82" height="96" rx="12" fill="url(#win)"/>
+    <rect x="794" y="690" width="82" height="96" rx="12" fill="url(#win)"/>
+    <path d="M721 690v96M680 738h82M835 690v96M794 738h82" stroke="#b5741d" stroke-width="9" opacity=".55"/>
+    <rect x="738" y="826" width="80" height="106" rx="12" fill="#232a63"/>
+    <!-- ground -->
+    <rect x="60" y="924" width="904" height="24" rx="12" fill="#1a2052"/>
+    <!-- lamp post -->
+    <rect x="494" y="470" width="36" height="470" rx="16" fill="#5a63a8"/>
+    <rect x="466" y="900" width="92" height="40" rx="16" fill="#5a63a8"/>
+    <!-- lantern: finial, cap, glowing glass, base -->
+    <circle cx="512" cy="168" r="26" fill="#5a63a8"/>
+    <path d="M392 274 L512 182 L632 274 Z" fill="#5a63a8" stroke="#5a63a8" stroke-width="24" stroke-linejoin="round"/>
+    <path d="M410 290 H614 L584 452 H440 Z" fill="url(#glass)" stroke="#5a63a8" stroke-width="24" stroke-linejoin="round"/>
+    <path d="M512 296 V446" stroke="#5a63a8" stroke-width="16"/>
+    <rect x="428" y="452" width="168" height="38" rx="14" fill="#5a63a8"/>
+  </g>
+</svg>
