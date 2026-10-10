@@ -22,16 +22,26 @@ export interface GameState {
   streak: number;
   moves: number;
   lines: number;
+  /** Adventure only: ice hit points per cell (2 = fresh ice, 1 = cracked, 0 = none). */
+  ice?: number[];
+  /** Adventure only: 1 where a gem is embedded in a filled cell. */
+  gems?: number[];
 }
 
 export interface PlaceResult {
   state: GameState;
   rows: number[];
   cols: number[];
-  /** Board indices that were cleared (deduplicated). */
+  /** Board indices that were emptied (deduplicated). */
   clearedCells: number[];
   /** Colors of cleared cells, aligned with `clearedCells` (for particles). */
   clearedColors: number[];
+  /** Ice cells that were hit but stay on the board (cracked). */
+  crackedCells: number[];
+  /** Gems collected by this move (board indices). */
+  gemCells: number[];
+  /** Ice blocks fully broken by this move. */
+  iceBroken: number;
   gained: number;
   lineCount: number;
   boardCleared: boolean;
@@ -177,47 +187,124 @@ export function newGame(rng: Rng): GameState {
   return { board, tray: dealTray(board, rng), score: 0, streak: 0, moves: 0, lines: 0 };
 }
 
-export function place(state: GameState, slot: number, row: number, col: number, rng: Rng): PlaceResult | null {
-  const piece = state.tray[slot];
-  if (!piece || !canPlace(state.board, piece, row, col)) return null;
+/**
+ * Removes `cells` from the board the way a line clear does: ice loses one hit point (and
+ * only leaves once it is gone), gems inside emptied cells are collected.
+ */
+function clearCells(board: Board, ice: number[] | undefined, gems: number[] | undefined, cells: Iterable<number>) {
+  const clearedCells: number[] = [];
+  const clearedColors: number[] = [];
+  const crackedCells: number[] = [];
+  const gemCells: number[] = [];
+  let iceBroken = 0;
+  for (const i of cells) {
+    if (!board[i]) continue;
+    if (ice && ice[i] > 0) {
+      ice[i]--;
+      if (ice[i] > 0) {
+        crackedCells.push(i);
+        continue;
+      }
+      iceBroken++;
+    }
+    if (gems && gems[i]) {
+      gems[i] = 0;
+      gemCells.push(i);
+    }
+    clearedCells.push(i);
+    clearedColors.push(board[i]);
+    board[i] = 0;
+  }
+  return { clearedCells, clearedColors, crackedCells, gemCells, iceBroken };
+}
 
+/**
+ * Drops `piece` at (row, col) and resolves line clears. Does not touch the tray or the move
+ * counter, so boosters (single block) can reuse it.
+ */
+export function applyPiece(state: GameState, piece: Piece, row: number, col: number): PlaceResult | null {
+  if (!canPlace(state.board, piece, row, col)) return null;
   const board = state.board.slice();
+  const ice = state.ice?.slice();
+  const gems = state.gems?.slice();
   for (const [dr, dc] of piece.cells) board[(row + dr) * SIZE + col + dc] = piece.color;
 
   const { rows, cols } = fullLines(board);
-  const cleared = new Set<number>();
-  for (const r of rows) for (let c = 0; c < SIZE; c++) cleared.add(r * SIZE + c);
-  for (const c of cols) for (let r = 0; r < SIZE; r++) cleared.add(r * SIZE + c);
-  const clearedCells = [...cleared];
-  const clearedColors = clearedCells.map((i) => board[i]);
-  for (const i of clearedCells) board[i] = 0;
+  const hit = new Set<number>();
+  for (const r of rows) for (let c = 0; c < SIZE; c++) hit.add(r * SIZE + c);
+  for (const c of cols) for (let r = 0; r < SIZE; r++) hit.add(r * SIZE + c);
+  const cleared = clearCells(board, ice, gems, hit);
 
   const lineCount = rows.length + cols.length;
   const streak = lineCount > 0 ? state.streak + 1 : 0;
   const boardCleared = lineCount > 0 && board.every((v) => v === 0);
   const gained = piece.cells.length + lineScore(lineCount, streak) + (boardCleared ? BOARD_CLEAR_BONUS : 0);
-
-  let tray = state.tray.map((p, i) => (i === slot ? null : p));
-  if (tray.every((p) => p === null)) tray = dealTray(board, rng);
-
   return {
-    state: {
-      board,
-      tray,
-      score: state.score + gained,
-      streak,
-      moves: state.moves + 1,
-      lines: state.lines + lineCount,
-    },
+    state: { ...state, board, ice, gems, score: state.score + gained, streak, lines: state.lines + lineCount },
     rows,
     cols,
-    clearedCells,
-    clearedColors,
+    ...cleared,
     gained,
     lineCount,
     boardCleared,
   };
 }
+
+/**
+ * Places tray piece `slot`. When the tray empties, `refill` deals the next one (endless:
+ * the fair random dealer; adventure: the level's fixed piece sequence).
+ */
+export function place(
+  state: GameState,
+  slot: number,
+  row: number,
+  col: number,
+  rng: Rng,
+  refill: (s: GameState) => (Piece | null)[] = (s) => dealTray(s.board, rng),
+): PlaceResult | null {
+  const piece = state.tray[slot];
+  if (!piece) return null;
+  const res = applyPiece(state, piece, row, col);
+  if (!res) return null;
+  const next = { ...res.state, moves: state.moves + 1, tray: state.tray.map((p, i) => (i === slot ? null : p)) };
+  if (next.tray.every((p) => p === null)) next.tray = refill(next);
+  res.state = next;
+  return res;
+}
+
+/** Bomb booster: clears the 3×3 area around (row, col). Ice loses a hit point as usual. */
+export function bomb(state: GameState, row: number, col: number): PlaceResult {
+  const board = state.board.slice();
+  const ice = state.ice?.slice();
+  const gems = state.gems?.slice();
+  const area: number[] = [];
+  for (let r = row - 1; r <= row + 1; r++)
+    for (let c = col - 1; c <= col + 1; c++) if (r >= 0 && c >= 0 && r < SIZE && c < SIZE) area.push(r * SIZE + c);
+  const cleared = clearCells(board, ice, gems, area);
+  const gained = (cleared.clearedCells.length + cleared.crackedCells.length) * 2;
+  return {
+    state: { ...state, board, ice, gems, score: state.score + gained },
+    rows: [],
+    cols: [],
+    ...cleared,
+    gained,
+    lineCount: 0,
+    boardCleared: false,
+  };
+}
+
+/** How many (piece, position) placements the tray still has — drives the danger warning. */
+export function countPlacements(board: Board, tray: (Piece | null)[], cap = Infinity): number {
+  let n = 0;
+  for (const p of tray) {
+    if (!p) continue;
+    for (let r = 0; r <= SIZE - p.h; r++)
+      for (let c = 0; c <= SIZE - p.w; c++) if (canPlace(board, p, r, c) && ++n >= cap) return n;
+  }
+  return n;
+}
+
+export const DOT: Readonly<Piece> = { cells: [[0, 0]], w: 1, h: 1, color: 1 };
 
 export function isGameOver(state: GameState): boolean {
   return state.tray.every((p) => p === null || !fitsAnywhere(state.board, p));
