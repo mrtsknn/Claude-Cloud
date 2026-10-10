@@ -1,10 +1,17 @@
 import './style.css';
+import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
 import {
+  createMeta,
+  createProfile,
   createStore,
   haptic,
-  interstitialMoment,
+  initAds,
+  initStore,
+  isNative,
   maybeRequestReview,
   pentatonic,
+  rewardedAvailable,
   setHapticsEnabled,
   setSoundEnabled,
   setupNative,
@@ -16,28 +23,16 @@ import {
 } from '@studio/kit';
 import { DX, DY, LEVEL_COUNT, generateLevel, hintFor, rotateCw, simulate, solve, starsFor, type Dir, type Level } from './game';
 import { t } from './i18n';
+import { SKINS, type Palette } from './skins';
 
 // TODO(mağaza): gizlilik politikasını yayınladığın adresle değiştir.
 const PRIVACY_URL = 'https://github.com/mrtsknn/Claude-Cloud/blob/main/games/devril/PRIVACY.md';
 declare const __APP_VERSION__: string;
 
-const C = {
-  board: 'rgba(255,255,255,0.38)',
-  cell: 'rgba(60,84,64,0.10)',
-  wood: '#ecc99c',
-  woodLight: '#f6dcb6',
-  woodEdge: '#b98552',
-  woodFallen: '#d7ab78',
-  start: '#e4784c',
-  startLight: '#f19a71',
-  startEdge: '#a8481f',
-  arrow: '#7a4a24',
-  pin: '#3c5440',
-  bad: '#d24b3c',
-  hint: '#f2b43c',
-  shadow: 'rgba(40,58,44,0.16)',
-};
-const CONFETTI = ['#d9643a', '#f2b43c', '#5f9a6c', '#ecc99c', '#7fb0c9', '#ffffff'];
+/** Canvas palette; the material part is swapped by the equipped skin (see applySkin). */
+let C: Palette & { bad: string; hint: string } = { ...SKINS[0].colors, bad: '#d24b3c', hint: '#f2b43c' };
+let CONFETTI = ['#d9643a', '#f2b43c', '#5f9a6c', '#ecc99c', '#7fb0c9', '#ffffff'];
+const HINT_COINS = 40;
 const STEP = 150; // ms between chain links
 const FALL = 230; // ms a tile takes to tip over
 
@@ -46,7 +41,8 @@ interface Save {
   level: number;
   dirs: Dir[];
   taps: number;
-  history: { tile: number; prev: Dir }[];
+  /** `hint` marks turns made by a hint: undoing one never gives back a tap. */
+  history: { tile: number; prev: Dir; hint?: boolean }[];
   hintsUsed: number;
   pushes: number;
 }
@@ -55,7 +51,6 @@ const store = createStore('devril');
 const settings = store.get('settings', { sound: true, haptics: true });
 setSoundEnabled(settings.sound);
 setHapticsEnabled(settings.haptics);
-const stars: number[] = store.get('stars', []);
 
 function freshLevel(level: number): Save {
   return { level, dirs: generateLevel(level).scrambled.slice(), taps: 0, history: [], hintsUsed: 0, pushes: 0 };
@@ -75,7 +70,6 @@ let levelStartedAt = Date.now();
 const save = () => store.set('save', S);
 
 trackSession('devril');
-track('level_start', { level: S.level, tiles: L.tiles.length, par: L.par, resumed: S.taps > 0 });
 
 // ───────────────────────── DOM ─────────────────────────
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -86,7 +80,6 @@ document.documentElement.lang = navigator.language.slice(0, 2).toLowerCase() ===
 document.querySelectorAll<HTMLElement>('[data-i18n]').forEach((el) => {
   el.textContent = t(el.dataset.i18n as Parameters<typeof t>[0]);
 });
-$('version').textContent = `v${__APP_VERSION__}`;
 
 let toastTimer = 0;
 function toast(text: string, ms = 2200) {
@@ -104,11 +97,12 @@ function refreshHud() {
   $('level').textContent = String(S.level);
   $('taps').textContent = String(S.taps);
   $('par').textContent = String(L.par);
-  const best = stars[S.level - 1] ?? 0;
+  const best = profile.data.stars[S.level - 1] ?? 0;
   $('level-stars').querySelectorAll('i').forEach((el, i) => el.classList.toggle('on', i < best));
+  $('meter-cap').hidden = S.hintsUsed === 0;
   const badge = $('hint-badge');
-  badge.textContent = S.hintsUsed === 0 ? '1' : 'AD';
-  badge.classList.toggle('ad', S.hintsUsed > 0);
+  badge.innerHTML = S.hintsUsed === 0 ? '1' : `${COIN}${HINT_COINS}`;
+  badge.classList.toggle('paid', S.hintsUsed > 0);
   const push = $<HTMLButtonElement>('push-btn');
   push.classList.toggle('reset', phase === 'failed');
   push.disabled = phase === 'falling' || phase === 'won';
@@ -217,7 +211,7 @@ function drawPin(x: number, y: number, s: number) {
 }
 
 function drawStartBadge(x: number, y: number, s: number) {
-  ctx.fillStyle = '#fffdf8';
+  ctx.fillStyle = C.startArrow;
   ctx.beginPath();
   ctx.arc(x, y, s * 0.15, 0, Math.PI * 2);
   ctx.fill();
@@ -286,7 +280,7 @@ function drawTile(i: number, cx: number, cy: number, now: number, k: number) {
   rr(x, y, w, h, s * 0.18);
   ctx.fill();
   // grain lines
-  ctx.strokeStyle = 'rgba(122,74,36,0.08)';
+  ctx.strokeStyle = C.grain;
   ctx.lineWidth = 1;
   for (let gI = 1; gI <= 2; gI++) {
     ctx.beginPath();
@@ -319,7 +313,7 @@ function drawTile(i: number, cx: number, cy: number, now: number, k: number) {
   ctx.save();
   ctx.translate(x + w / 2, y + h / 2);
   ctx.rotate((a * Math.PI) / 2);
-  drawArrow(s, 1 - 0.65 * kk, isStart ? '#fffdf8' : C.arrow);
+  drawArrow(s, 1 - 0.65 * kk, isStart ? C.startArrow : C.arrow);
   ctx.restore();
   if (k < 0.5) {
     if (tile.locked) drawPin(x + w - s * 0.18, y + s * 0.18, s);
@@ -327,8 +321,15 @@ function drawTile(i: number, cx: number, cy: number, now: number, k: number) {
   }
 }
 
+let wasCovering: boolean | null = null;
 function frame(nowReal: number) {
   const now = frozenAt ?? nowReal;
+  // Hide the tutorial hand/tip and toasts while a meta screen covers the game.
+  if (meta.covering !== wasCovering) {
+    wasCovering = meta.covering;
+    document.body.classList.toggle('covered', wasCovering);
+    updateStatusBar();
+  }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, W, H);
   const bs = cell * L.size;
@@ -495,6 +496,7 @@ function push() {
   const chain = simulate(L, S.dirs);
   S.pushes++;
   save();
+  profile.progress('pushes');
   order = chain.order;
   const t0 = performance.now() + 40;
   order.forEach((i, k) => (fallT0[i] = t0 + k * STEP));
@@ -506,6 +508,7 @@ function push() {
   const done = (order.length - 1) * STEP + FALL + 120;
   setTimeout(() => {
     if (phase !== 'falling') return;
+    profile.progress('topples', order.length);
     if (chain.allFell) return win();
     phase = 'failed';
     failAt = performance.now();
@@ -519,11 +522,9 @@ function push() {
 
 function win() {
   phase = 'won';
-  const got = starsFor(S.taps, L.par);
+  const hinted = S.hintsUsed > 0;
+  const got = starsFor(S.taps, L.par, hinted);
   const completed = S.level;
-  const prevBest = stars[completed - 1] ?? 0;
-  stars[completed - 1] = Math.max(prevBest, got);
-  store.set('stars', stars);
   burst(W * 0.25, H * 0.3, 60, 600, 500);
   burst(W * 0.75, H * 0.3, 60, 600, 500);
   [0, 2, 4, 5, 7, 9].forEach((st, i) => tone({ freq: pentatonic(st), duration: 0.22, volume: 0.45, delay: i * 0.08 }));
@@ -537,30 +538,40 @@ function win() {
     pushes: S.pushes,
     duration_s: Math.round((Date.now() - levelStartedAt) / 1000),
   });
-  $('win-title').textContent = t('levelN', { n: completed });
-  $('win-taps').textContent = t('tapsPar', { taps: S.taps, par: L.par });
-  const starEls = $('win-stars').querySelectorAll('svg');
-  starEls.forEach((el) => el.classList.remove('on'));
   // Persist progress now so quitting on the win screen never loses the level.
   const next = completed < LEVEL_COUNT ? completed + 1 : 1;
   store.set('save', freshLevel(next));
-  store.set('best', Math.max(store.get('best', 0), completed));
   refreshHud();
   setTimeout(() => {
-    $('win').hidden = false;
-    starEls.forEach((el, i) => {
-      if (i >= got) return;
-      (el as SVGElement).style.animationDelay = `${0.15 + i * 0.18}s`;
-      el.classList.add('on');
-      tone({ freq: pentatonic(5 + i * 2), duration: 0.18, volume: 0.4, delay: 0.3 + i * 0.18 });
+    meta.showWin({
+      level: completed,
+      stars: got,
+      coins: 10 + got * 5,
+      onNext: () => {
+        haptic.medium();
+        if (completed >= LEVEL_COUNT) toast(t('allDone'), 3000);
+        playLevel(next);
+      },
+      // Back to the menu: the next level waits on the board behind the home screen.
+      onMenu: () => startLevel(freshLevel(next)),
     });
-    updateTutorial();
+    if (completed === 1) profile.finishFirstRun();
+    refreshHud();
   }, 650);
   maybeRequestReview(completed, completed >= 5 && got === 3);
 }
 
+/** Level map / home "Play" card: resumes the saved board of that level, else a fresh one. */
+function playLevel(n: number) {
+  unlockAudio();
+  const saved = loadSave();
+  const resume = saved.level === n && phase !== 'won';
+  startLevel(resume ? saved : freshLevel(n), resume && saved.taps > 0);
+}
+
 function startLevel(state: Save, resumed = false) {
   S = state;
+  phase = 'edit';
   L = generateLevel(S.level);
   save();
   phase = 'edit';
@@ -576,6 +587,7 @@ function startLevel(state: Save, resumed = false) {
 
 canvas.addEventListener('pointerdown', (e) => {
   unlockAudio();
+  if (meta.covering) return;
   const rect = canvas.getBoundingClientRect();
   const gx = Math.floor((e.clientX - rect.left - bx) / cell);
   const gy = Math.floor((e.clientY - rect.top - by) / cell);
@@ -586,17 +598,7 @@ canvas.addEventListener('pointerdown', (e) => {
 
 $('push-btn').addEventListener('click', push);
 
-$('next-btn').addEventListener('click', async () => {
-  $('win').hidden = true;
-  haptic.medium();
-  const completed = S.level;
-  if (completed >= LEVEL_COUNT) toast(t('allDone'), 3000);
-  startLevel(store.get('save', freshLevel(completed < LEVEL_COUNT ? completed + 1 : 1)));
-  if (completed >= 5) await interstitialMoment('next_level');
-});
-
-$('restart-btn').addEventListener('click', () => {
-  unlockAudio();
+function restartLevel() {
   if (phase === 'falling' || phase === 'won') return;
   track('level_restart', { level: S.level, taps: S.taps, pushes: S.pushes });
   const fresh = freshLevel(S.level);
@@ -609,6 +611,10 @@ $('restart-btn').addEventListener('click', () => {
   haptic.medium();
   tone({ freq: 600, to: 400, duration: 0.1, type: 'triangle', volume: 0.25 });
   refreshHud();
+}
+$('restart-btn').addEventListener('click', () => {
+  unlockAudio();
+  restartLevel();
 });
 
 $('undo-btn').addEventListener('click', () => {
@@ -626,7 +632,7 @@ $('undo-btn').addEventListener('click', () => {
   angle[last.tile] -= tapsBetweenCcw(S.dirs[last.tile], last.prev);
   rotT0[last.tile] = now;
   S.dirs[last.tile] = last.prev;
-  S.taps = Math.max(0, S.taps - 1);
+  if (!last.hint) S.taps = Math.max(0, S.taps - 1);
   save();
   haptic.light();
   tone({ freq: 500, to: 380, duration: 0.1, type: 'triangle', volume: 0.3 });
@@ -636,82 +642,212 @@ $('undo-btn').addEventListener('click', () => {
 
 const tapsBetweenCcw = (from: Dir, to: Dir) => (from - to + 4) % 4;
 
-$('hint-btn').addEventListener('click', async () => {
+$('hint-btn').addEventListener('click', () => {
   unlockAudio();
   if (phase === 'falling' || phase === 'won') return;
   if (phase === 'failed') setUp();
-  const h = hintFor(L, S.dirs);
-  if (!h) {
+  if (!hintFor(L, S.dirs)) {
     toast(t('noHint'), 1800);
     refreshHud();
     return;
   }
-  const paid = S.hintsUsed > 0;
-  if (paid && !(await showRewarded('hint'))) return;
+  // First hint of every level is free; after that coins or a rewarded video.
+  if (S.hintsUsed === 0) applyHint('free');
+  else openHintSheet();
+});
+
+function applyHint(paid: 'free' | 'coins' | 'video') {
+  if (phase === 'falling' || phase === 'won') return;
+  if (phase === 'failed') setUp();
+  const h = hintFor(L, S.dirs);
+  if (!h) return;
   S.hintsUsed++;
   const now = performance.now();
   rotFrom[h.tile] = currentAngle(h.tile, now);
   angle[h.tile] += (h.dir - S.dirs[h.tile] + 4) % 4;
   rotT0[h.tile] = now;
-  S.history.push({ tile: h.tile, prev: S.dirs[h.tile] });
+  S.history.push({ tile: h.tile, prev: S.dirs[h.tile], hint: true });
   S.dirs[h.tile] = h.dir;
   save();
   hintGlow = { tile: h.tile, t0: now };
   haptic.light();
   tone({ freq: pentatonic(4), duration: 0.14, volume: 0.35 });
   tone({ freq: pentatonic(7), duration: 0.18, volume: 0.35, delay: 0.08 });
-  toast(t('hintShown'), 1800);
+  toast(t('hintShown'), 2200);
   track('hint', { level: S.level, paid });
   refreshHud();
+}
+
+const hintSheet = $('hint-sheet');
+function openHintSheet() {
+  const coinsBtn = $<HTMLButtonElement>('hint-coins');
+  coinsBtn.innerHTML = `<span>${t('hint')}</span>${COIN}<span>${HINT_COINS}</span>`;
+  coinsBtn.classList.toggle('short', profile.data.coins < HINT_COINS);
+  $('hint-balance').innerHTML = `${COIN}<span>${profile.data.coins}</span>`;
+  $<HTMLButtonElement>('hint-video').disabled = !rewardedAvailable();
+  hintSheet.hidden = false;
+}
+function closeHintSheet() {
+  hintSheet.hidden = true;
+}
+$('hint-coins').addEventListener('click', () => {
+  if (!profile.spend(HINT_COINS)) {
+    haptic.error();
+    toast(t('notEnough'), 1600);
+    return;
+  }
+  closeHintSheet();
+  applyHint('coins');
+});
+$('hint-video').addEventListener('click', async () => {
+  closeHintSheet();
+  if (await showRewarded('hint')) applyHint('video');
+});
+$('hint-cancel').addEventListener('click', closeHintSheet);
+hintSheet.addEventListener('click', (e) => {
+  if (e.target === hintSheet) closeHintSheet();
 });
 
-// settings
-const opts: [string, 'sound' | 'haptics'][] = [
-  ['opt-sound', 'sound'],
-  ['opt-haptics', 'haptics'],
-];
-for (const [id, k] of opts) {
-  const el = $<HTMLInputElement>(id);
-  el.checked = settings[k];
-  el.addEventListener('change', () => {
-    settings[k] = el.checked;
-    setSoundEnabled(settings.sound);
-    setHapticsEnabled(settings.haptics);
-    store.set('settings', settings);
-    if (k === 'haptics') haptic.medium();
+// ───────────────────────── meta (home, map, missions, daily, shop, pause, win) ─────────────────────────
+const COIN =
+  '<svg class="coin" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="#ffc83d" stroke="#b57d10" stroke-width="2"/><circle cx="12" cy="12" r="5" fill="none" stroke="#e0a21c" stroke-width="1.6"/></svg>';
+
+let darkSkin = false;
+function applySkin(id: string) {
+  const skin = SKINS.find((s) => s.id === id) ?? SKINS[0];
+  const p = skin.colors;
+  C = { ...p, bad: '#d24b3c', hint: '#f2b43c' };
+  CONFETTI = [p.start, '#f2b43c', p.wood, p.woodEdge, '#7fb0c9', '#ffffff'];
+  const vars: Record<string, string> = {
+    '--bg-top': p.bgTop,
+    '--bg-bottom': p.bgBottom,
+    '--hud-ink': p.hudInk,
+    '--hud-muted': p.hudMuted,
+    '--m-bg': `radial-gradient(120% 80% at 50% 0%, ${p.home[0]}, ${p.home[1]})`,
+    '--d-face': p.woodLight,
+    '--d-face2': p.wood,
+    '--d-edge': p.woodEdge,
+    '--d-start': p.startLight,
+    '--d-start2': p.start,
+    '--d-start-edge': p.startEdge,
+    '--d-arrow': p.arrow,
+    '--d-start-arrow': p.startArrow,
+  };
+  for (const [k, v] of Object.entries(vars)) document.documentElement.style.setProperty(k, v);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', p.bgTop);
+  darkSkin = skin.id === 'midnight';
+  updateStatusBar();
+}
+/** Light status-bar icons over the dark home screen and the midnight table, dark icons otherwise. */
+function updateStatusBar() {
+  if (!isNative()) return;
+  const dark = darkSkin || !!wasCovering;
+  void StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light }).catch(() => {});
+  if (Capacitor.getPlatform() === 'android') void StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {});
+}
+
+const profile = createProfile({
+  game: 'devril',
+  levelCount: LEVEL_COUNT,
+  defaultSkin: SKINS[0].id,
+  skinIds: SKINS.map((s) => s.id),
+  missions: [
+    { id: 'levels', targets: [2, 3, 5], reward: (n) => 20 + n * 10 },
+    { id: 'stars', targets: [4, 6, 9], reward: (n) => 20 + n * 5 },
+    { id: 'perfect', targets: [1, 2, 3], reward: (n) => 30 + n * 10 },
+    { id: 'topples', targets: [40, 80, 150], reward: (n) => 20 + Math.round(n / 4) },
+    { id: 'pushes', targets: [5, 10, 20], reward: (n) => 15 + n * 2 },
+  ],
+});
+
+// v1.0 kept stars and the current level in its own store: fold them into the profile once.
+if (!store.get('migrated', false)) {
+  const d = profile.data;
+  const oldStars = store.get<unknown>('stars', []);
+  if (Array.isArray(oldStars)) {
+    oldStars.forEach((v, i) => {
+      if (i < d.stars.length && typeof v === 'number') d.stars[i] = Math.max(d.stars[i], Math.min(3, Math.max(0, Math.floor(v))));
+    });
+  }
+  let reached = S.level;
+  d.stars.forEach((v, i) => {
+    if (v > 0) reached = Math.max(reached, Math.min(LEVEL_COUNT, i + 2));
   });
+  d.unlocked = Math.max(d.unlocked, Math.min(LEVEL_COUNT, reached));
+  if (reached > 1 || S.taps > 0) d.firstRun = false;
+  profile.save();
+  store.set('migrated', true);
+  store.remove('stars');
+  store.remove('best');
+}
+applySkin(profile.data.skin);
+
+/** Home-screen artwork: a short row of dominoes toppling one after another, in the skin's colours. */
+function heroArt() {
+  const el = document.createElement('div');
+  el.className = 'hero';
+  el.setAttribute('aria-hidden', 'true');
+  const arrow = '<svg viewBox="0 0 24 24"><path d="M12 18V7M7.5 11.5L12 7l4.5 4.5" /></svg>';
+  el.innerHTML =
+    Array.from({ length: 5 }, (_, i) => `<i class="${i === 0 ? 'first' : ''}" style="--i:${i}">${arrow}</i>`).join('') + '<b></b>';
+  return el;
+}
+
+const meta = createMeta({
+  title: 'Devril',
+  hero: heroArt(),
+  tagline: t('tagline'),
+  version: __APP_VERSION__,
+  privacyUrl: PRIVACY_URL,
+  profile,
+  levels: { count: LEVEL_COUNT, play: playLevel },
+  missionText: (id, n) => t(`mission_${id}` as 'mission_levels', { n }),
+  skins: SKINS.map((s) => ({ id: s.id, name: t(`skin_${s.id}` as 'skin_oak'), price: s.price, swatch: s.swatch })),
+  onSkin: applySkin,
+  settings,
+  onSettings: (s) => {
+    setSoundEnabled(s.sound);
+    setHapticsEnabled(s.haptics);
+    store.set('settings', s);
+  },
+});
+profile.onChange(refreshHud);
+
+function openPause() {
+  if (phase === 'falling' || phase === 'won' || meta.covering) return;
+  closeHintSheet();
+  meta.showPause({ onResume: () => {}, onRestart: restartLevel, onMenu: save });
 }
 $('settings-btn').addEventListener('click', () => {
   unlockAudio();
-  $('settings').hidden = false;
-});
-$('close-settings').addEventListener('click', () => ($('settings').hidden = true));
-$('settings').addEventListener('click', (e) => {
-  if (e.target === e.currentTarget) $('settings').hidden = true;
-});
-$('privacy-link').addEventListener('click', (e) => {
-  e.preventDefault();
-  window.open(PRIVACY_URL, '_blank');
+  openPause();
 });
 
 // ───────────────────────── boot ─────────────────────────
 layout();
 refreshHud();
+void initAds();
+void initStore();
 void setupNative({
-  darkBackground: false,
+  darkBackground: true,
   onPause: save,
   onBack: () => {
-    if (!$('settings').hidden) {
-      $('settings').hidden = true;
+    if (!hintSheet.hidden) {
+      closeHintSheet();
       return true;
     }
+    if (meta.back()) return true;
+    if (meta.covering) return false;
     if (phase === 'failed') {
       push();
       return true;
     }
-    return false;
+    openPause();
+    return true;
   },
 });
+track('level_start', { level: S.level, tiles: L.tiles.length, par: L.par, resumed: S.taps > 0 });
+meta.showHome();
 requestAnimationFrame(frame);
 
 // Exposed for e2e/screenshot scripts.
@@ -722,8 +858,11 @@ requestAnimationFrame(frame);
   tap: tapTile,
   optimal: () => solve(L, S.dirs, 2_000_000)?.dirs ?? L.solution,
   push,
-  goto: (level: number) => startLevel(freshLevel(level)),
-  load: (s: Save) => startLevel(s),
+  goto: (level: number) => (meta.hideHome(), startLevel(freshLevel(level))),
+  load: (s: Save) => (meta.hideHome(), startLevel(s)),
+  profile,
+  /** Unlocks + equips a skin (screenshots). */
+  skin: (id: string) => (profile.unlockSkin(id), applySkin(id)),
   /** Pins the animation clock `ms` after the current push started (null to release). */
   freeze: (ms: number | null) => (frozenAt = ms === null ? null : (order.length ? fallT0[order[0]] + ms : performance.now())),
 };

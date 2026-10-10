@@ -7,7 +7,7 @@
 | **Hedef kitle** | Herkes — 4+, metinsiz oynanış, süre baskısı yok |
 | **Oturum** | 30 sn – 2 dk/seviye |
 | **Platform** | iOS + Android (Capacitor), web (PWA) |
-| **Durum** | v1.0.0 — mağazaya hazır (bkz. kontrol listesi) |
+| **Durum** | v1.1 — meta katmanı (ana menü, harita, görevler, günlük, mağaza) entegre; mağazaya hazır |
 
 ## Pazar ve özgünlük
 
@@ -32,7 +32,8 @@ yalnızca dokunuş sayısı işler).
   sonrakini gösterir. Sonra sabit (pin) taşlar seçilir, kalan taşlar döndürülerek karıştırılır.
 - **Par** = gerçek minimum dokunuş: dal-sınır DFS ile tüm Hamilton yolları üzerinde en ucuz
   çözüm (bağlantılılık + çıkmaz uç budaması). Testte küçük seviyelerde kaba kuvvetle doğrulanır.
-- Yıldız: dokunuş ≤ par → 3, ≤ par+3 → 2, aksi 1.
+- Yıldız: dokunuş ≤ par → 3, ≤ par+3 → 2, aksi 1. İpucu dönüşleri dokunuş sayılmaz; bu yüzden
+  ipucu kullanılan seviye **en çok 2 yıldız** verir (HUD'da "en çok 2★" etiketi).
 
 ## Zorluk eğrisi (200 seviye)
 
@@ -56,8 +57,30 @@ Boş hücreler doğal "tuzak"tır: yanlış yön zinciri boşlukta bitirir. 200 
 - [x] Geri al (dokunuşu iade eder), ipucu (ilki ücretsiz, sonra ödüllü), yeniden başlat
 - [x] 1. seviyede el animasyonlu öğretici: önce taşa dokun, sonra Devir!
 - [x] Her eylemde kayıt; kazanma ekranında kapatılsa bile ilerleme korunur; seviye başına en iyi yıldız
-- [x] Ayarlar: ses, titreşim, gizlilik bağlantısı, sürüm; TR/EN, `<html lang>`
-- [x] Geçiş reklamı yalnızca 5. seviyeden sonra (`interstitialMoment`); 3 yıldızda değerlendirme isteği
+- [x] Ayarlar (meta): ses, titreşim, satın alımları geri yükle, gizlilik bağlantısı, sürüm; TR/EN, `<html lang>`
+- [x] Geçiş reklamı yalnızca 5. seviyeden sonra (meta `showWin` → Sonraki); 3 yıldızda değerlendirme isteği
+- [x] İtiş sırasında Devir! düğmesi soluk değil, "basılı" görünür; Geri al / İpucu yalnızca gri ikon
+
+## Meta katmanı (`@studio/kit` meta)
+
+- **Ana menü** açılışta: logo, devrilen 5 domino animasyonu (görünüm renklerinde), jeton, ayarlar,
+  görev şeridi, "Seviye N" kartı; alt menü Seviyeler · Görevler · Günlük · Mağaza.
+- **Seviye haritası** (200 seviye, yıldızlı, kilitli) — oyunun kendi seviye gezinmesinin yerini aldı.
+  Haritadan/karttan açılan seviye, kayıtlı tahta o seviyeye aitse kaldığı yerden devam eder.
+- **Kazanınca** `meta.showWin`: yıldız + `10 + yıldız×5` jeton, videoyla x2, Sonraki / Menü.
+- **Duraklat** (HUD sol üst) → `meta.showPause`: devam, baştan başla, ayarlar, menü. Eski ayarlar ve
+  kazanma katmanları kaldırıldı.
+- **İpucu**: her seviyede ilki ücretsiz; sonrası 40 jeton ya da ödüllü video (küçük seçim penceresi).
+- **Görevler**: standart `levels`, `stars`, `perfect` + oyuna özgü `topples` (N domino devir) ve
+  `pushes` (Devir!'e N kez bas).
+- **Görünümler** (`src/skins.ts`, 6 adet): Meşe (ücretsiz), Ceviz 300, Mermer 500, Yeşim 500,
+  Şeker 800, Gece 1200. Her biri taş malzemesi + masa/arka plan temasıdır; tuval paleti, sayfa
+  arka planı, HUD rengi ve ana menü arka planı birlikte değişir.
+- **Kayıt göçü**: v1.0'ın `devril.stars` ve `devril.save` kayıtları ilk açılışta profile taşınır
+  (yıldızlar + açık seviye), sonra eski anahtarlar silinir.
+- **Native**: `@capacitor-community/admob` + `@capgo/native-purchases` bağımlılık; AdMob TEST
+  uygulama kimliği AndroidManifest ve Info.plist'te (`GADApplicationIdentifier`,
+  `NSUserTrackingUsageDescription`). `initAds()` / `initStore()` açılışta.
 
 ## Analytics olayları
 
@@ -67,7 +90,8 @@ Boş hücreler doğal "tuzak"tır: yanlış yön zinciri boşlukta bitirir. 200 
 | `push` | `level, fell, total` | deneme sayısı, zorluk |
 | `level_complete` | `level, taps, par, stars, hints, pushes, duration_s` | zorluk ayarı |
 | `level_restart` | `level, taps, pushes` | sinir bozucu seviyeler |
-| `undo`, `hint` | `level` (`paid`) | yardım kullanımı |
+| `undo`, `hint` | `level` (`paid`: free/coins/video) | yardım kullanımı |
+| `home`, `mission_claim`, `daily_claim`, `skin_buy`, `iap` | (kit meta) | meta hunisi |
 | `ad_rewarded_*`, `ad_interstitial`, `review_prompt` | `placement` | monetizasyon |
 
 ## KPI hedefleri
@@ -82,20 +106,23 @@ Boş hücreler doğal "tuzak"tır: yanlış yön zinciri boşlukta bitirir. 200 
 ## v1.1 fikirleri
 
 - Çatal (T) taşlar: iki yöne iten taş, zincir ağaca dönüşür
-- Seviye seçim ekranı (20'lik bölümler), günlük bulmaca + seri
-- Taş temaları (kozmetik IAP), "reklamları kaldır" IAP
+- Günlük bulmaca + seri
 
 ## Kontrol listesi durumu
 
-Kodla yapılabilen her madde tamam: 15 birim test (200 seviyenin tamamı: çözülebilir, karışık
+Kodla yapılabilen her madde tamam: 16 birim test (200 seviyenin tamamı: çözülebilir, karışık
 hali çözülmüş değil, par çözücüyle eşit, ızgaraya sığıyor; küçük seviyelerde kaba kuvvet par
-kontrolü), typecheck, build; `scripts/e2e.mjs` 28 kontrol (öğretici, 1–3. seviye gerçek
-dokunuşla, başarısız itiş + tekrar diz, geri al, ipucu, yeniden başlat, pin, 150. seviye,
-yeniden yüklemede ilerleme), konsol hatasız. İkon/splash, dikey kilit, mağaza görselleri hazır.
+kontrolü; ipucuyla en çok 2 yıldız), typecheck, build; `scripts/e2e.mjs` 48 kontrol (ana menü →
+günlük ödül → mağazada görünüm al + kullan → görevler → harita → 1. seviye öğretici + gerçek
+dokunuş → meta kazanma → sonraki → başarısız itiş + tekrar diz → ücretsiz/jetonlu ipucu, 2 yıldız
+sınırı → geri al → duraklat + baştan başla → yeniden yüklemede ilerleme → pin → v1.0 kayıt göçü),
+konsol hatasız. İkon/splash, dikey kilit, mağaza görselleri (ana menü dahil 4 sahne) hazır.
 
 Yalnızca hesap sahibinin yapabileceği adımlar:
 
 - [ ] `capacitor.config.ts` → `appId` kendi alan adınla, sonra `npx cap sync`
+- [ ] Gerçek AdMob kimlikleri (`initAds({ units, testing: false })`, manifest/plist) ve
+      Play Console / App Store Connect'te aynı kimlikli IAP ürünleri
 - [ ] `PRIVACY.md`'yi herkese açık URL'de yayınla, `src/main.ts` → `PRIVACY_URL`
 - [ ] Android: Actions → **Android build** (`devril`) ile APK'yı cihazda dene; keystore + imzalı AAB
 - [ ] iOS: macOS + Xcode'da `ios/App` aç, Team seç, Archive → App Store Connect

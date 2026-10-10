@@ -2,15 +2,24 @@
 
 _Last updated / Son güncelleme: 2026-10-10_
 
-**English.** Devril does not collect, store or share any personal data. Your progress, stars and
-settings are saved only on your device. The app requires no account and no permissions.
-Anonymous gameplay events (for example "level 12 complete, 3 stars") may be recorded on the
-device to improve the game. If a future version shows ads or uses an analytics service, this
-policy will be updated before that version is released, listing the provider and the data it
-receives. Contact: mrtbnymntskn@gmail.com
+**English.** Devril requires no account. Your progress, stars, coins, themes and settings are
+saved only on your device. Anonymous gameplay events (for example "level 12 complete, 3 stars")
+may be recorded on the device to improve the game.
+The app shows ads through Google AdMob (optional rewarded videos and occasional ads between
+levels). AdMob may collect device identifiers (such as the advertising ID), IP address and ad
+interaction data to show and measure ads; see Google's policy at
+https://policies.google.com/technologies/ads. On iOS you are asked for tracking permission
+first; if you decline, only non-personalised ads are shown.
+In-app purchases (starter pack, remove ads, coin packs) are processed entirely by Apple App Store
+or Google Play; the app never sees your payment details. Contact: mrtbnymntskn@gmail.com
 
-**Türkçe.** Devril hiçbir kişisel veri toplamaz, saklamaz veya paylaşmaz. İlerlemen, yıldızların
-ve ayarların yalnızca cihazında saklanır. Uygulama hesap veya izin gerektirmez. Oyunu
-iyileştirmek için anonim oyun olayları (ör. "seviye 12 bitti, 3 yıldız") cihazda kaydedilebilir.
-İleride reklam veya analiz hizmeti eklenirse, o sürüm yayınlanmadan önce bu politika sağlayıcı
-ve paylaşılan veriler belirtilerek güncellenir. İletişim: mrtbnymntskn@gmail.com
+**Türkçe.** Devril hesap gerektirmez. İlerlemen, yıldızların, jetonların, temaların ve ayarların
+yalnızca cihazında saklanır. Oyunu iyileştirmek için anonim oyun olayları (ör. "seviye 12 bitti,
+3 yıldız") cihazda kaydedilebilir.
+Uygulama Google AdMob üzerinden reklam gösterir (isteğe bağlı ödüllü videolar ve seviye aralarında
+zaman zaman reklam). AdMob, reklam göstermek ve ölçmek için cihaz kimlikleri (ör. reklam kimliği),
+IP adresi ve reklam etkileşim verileri toplayabilir; ayrıntılar:
+https://policies.google.com/technologies/ads. iOS'ta önce izleme izni istenir; reddedersen yalnızca
+kişiselleştirilmemiş reklamlar gösterilir.
+Uygulama içi satın almalar (başlangıç paketi, reklamsız, jeton paketleri) tamamen Apple App Store
+veya Google Play tarafından işlenir; ödeme bilgilerin uygulamaya ulaşmaz. İletişim: mrtbnymntskn@gmail.com
