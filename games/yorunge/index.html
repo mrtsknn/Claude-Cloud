@@ -15,37 +15,16 @@
     <div id="app">
       <header class="hud">
         <div class="best" aria-label="best">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.5 3.5L12 5l4.5 6.5L21 8l-2 11H5z" /></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true" id="best-ico"><path d="M3 8l4.5 3.5L12 5l4.5 6.5L21 8l-2 11H5z" /></svg>
+          <svg viewBox="0 0 24 24" aria-hidden="true" id="level-ico" hidden><path d="M6 21V4h11l-2 4 2 4H8v9z" /></svg>
           <span id="best">0</span>
         </div>
         <div class="score" id="score">0</div>
-        <button class="icon-btn" id="settings-btn" aria-label="settings">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
+        <button class="icon-btn" id="pause-btn" aria-label="pause">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.5" /><rect x="14" y="5" width="4" height="14" rx="1.5" /></svg>
         </button>
       </header>
-      <p class="hint" id="hint" data-i18n="tapToStart"></p>
-    </div>
-
-    <div class="overlay" id="settings" hidden>
-      <div class="sheet">
-        <h2 data-i18n="settings"></h2>
-        <label class="row"><span data-i18n="sound"></span><input type="checkbox" id="opt-sound" class="switch" /></label>
-        <label class="row"><span data-i18n="vibration"></span><input type="checkbox" id="opt-haptics" class="switch" /></label>
-        <button class="btn" id="close-settings" data-i18n="close"></button>
-        <p class="foot"><a href="#" id="privacy-link" data-i18n="privacy"></a> · <span id="version"></span></p>
-      </div>
-    </div>
-
-    <div class="overlay" id="gameover" hidden>
-      <div class="sheet center">
-        <p class="eyebrow" id="go-title"></p>
-        <div class="big" id="go-score">0</div>
-        <p class="muted" id="go-best"></p>
-        <button class="btn revive" id="continue-btn">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg><span data-i18n="continue"></span>
-        </button>
-        <button class="btn" id="again-btn" data-i18n="playAgain"></button>
-      </div>
+      <div class="hint" id="hint"><p class="goal" id="goal" hidden></p><p data-i18n="tapToStart"></p></div>
     </div>
 
     <script type="module" src="./src/main.ts"></script>

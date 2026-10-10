@@ -13,7 +13,8 @@ export const PERFECT = 0.3; // impact parameter < 30% of the ring radius
 const MAX_FLIGHT = 3.5;
 
 export interface Planet { x: number; y: number; r: number; ring: number; omega: number; hue: number }
-export interface Star { x: number; y: number; taken: boolean }
+/** `seg` = index of the planet the star leads to (it sits between seg-1 and seg). */
+export interface Star { x: number; y: number; taken: boolean; seg: number }
 export interface Sat {
   flying: boolean;
   planet: number; // current (or last) planet
@@ -35,6 +36,8 @@ export interface GameState {
   score: number;
   reached: number; // highest planet index captured
   combo: number;
+  perfects: number; // scored captures that were perfect
+  starsTaken: number;
   continued: boolean;
   viewH: number;
   camY: number; // smoothed camera bottom edge
@@ -84,7 +87,7 @@ export function ensurePlanets(s: GameState, upTo: number) {
       const p = s.planets[i - 1];
       const len = Math.hypot(pl.x - p.x, pl.y - p.y);
       const off = (rand(s) * 2 - 1) * 40;
-      s.stars.push({ x: (p.x + pl.x) / 2 - ((pl.y - p.y) / len) * off, y: (p.y + pl.y) / 2 + ((pl.x - p.x) / len) * off, taken: false });
+      s.stars.push({ x: (p.x + pl.x) / 2 - ((pl.y - p.y) / len) * off, y: (p.y + pl.y) / 2 + ((pl.x - p.x) / len) * off, taken: false, seg: i });
     }
   }
 }
@@ -99,6 +102,8 @@ export function newGame(seed: number, viewH = 800): GameState {
     score: 0,
     reached: 0,
     combo: 0,
+    perfects: 0,
+    starsTaken: 0,
     continued: false,
     viewH,
     camY: 0,
@@ -165,6 +170,7 @@ export function step(s: GameState): GameEvent[] {
         if (!st.taken && (st.x - sat.x) ** 2 + (st.y - sat.y) ** 2 < STAR_R * STAR_R) {
           st.taken = true;
           s.score++;
+          s.starsTaken++;
           ev.push({ type: 'star', index });
         }
       });
@@ -184,6 +190,7 @@ export function step(s: GameState): GameEvent[] {
         if (scored) {
           s.score++;
           s.reached = hit;
+          if (perfect) s.perfects++;
         }
         s.combo = perfect ? s.combo + 1 : 0;
         ensurePlanets(s, hit + 6);
@@ -258,4 +265,21 @@ export function hitAngles(s: GameState, target = s.sat.planet + 1) {
     }
   }
   return { hits, best };
+}
+
+// ───────────── missions (level mode) ─────────────
+// Level n replays the same seeded generator with seed n and asks for planet levelTarget(n).
+export const LEVEL_COUNT = 100;
+export const levelTarget = (n: number) => 8 + n;
+export const newLevel = (n: number, viewH = 800) => newGame(n, viewH);
+
+export const levelDone = (s: GameState, target: number) => s.reached >= target;
+
+/** 1 star for reaching the target, +1 for perfect captures on a third of the hops, +1 for half the stars on the way. */
+export function levelStars(s: GameState, target: number) {
+  const onRoute = s.stars.filter((st) => st.seg <= target);
+  const taken = onRoute.filter((st) => st.taken).length;
+  const perfectGoal = Math.ceil(target / 3);
+  const starGoal = Math.ceil(onRoute.length / 2);
+  return 1 + (s.perfects >= perfectGoal ? 1 : 0) + (taken >= starGoal ? 1 : 0);
 }
