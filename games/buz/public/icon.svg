@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="0%" r="120%">
+      <stop offset="0" stop-color="#8fdcfa"/><stop offset="1" stop-color="#1f6fb2"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <g transform="translate(0 0)">
+    <path d="M140 620 L300 620" stroke="#ffffff" stroke-width="34" stroke-linecap="round" opacity=".6"/>
+    <path d="M110 710 L280 710" stroke="#ffffff" stroke-width="28" stroke-linecap="round" opacity=".4"/>
+    <ellipse cx="560" cy="808" rx="220" ry="38" fill="#0d3d66" opacity=".28"/>
+    <ellipse cx="560" cy="560" rx="220" ry="250" fill="#1e2b4d"/>
+    <ellipse cx="560" cy="615" rx="150" ry="185" fill="#ffffff"/>
+    <path d="M352 505 Q560 580 768 505 L768 455 Q560 530 352 455 Z" fill="#ff5a5f"/>
+    <circle cx="505" cy="420" r="30" fill="#ffffff"/>
+    <circle cx="615" cy="420" r="30" fill="#ffffff"/>
+    <circle cx="512" cy="424" r="15" fill="#1e2b4d"/>
+    <circle cx="622" cy="424" r="15" fill="#1e2b4d"/>
+    <path d="M530 462 L590 462 L560 500 Z" fill="#ffb347"/>
+    <path d="M780 250 l22 -46 l22 46 l46 22 l-46 22 l-22 46 l-22 -46 l-46 -22 Z" fill="#ffffff"/>
+  </g>
+</svg>

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#dff1fb" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <title>Buz</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="hud">
+        <button class="icon-btn" id="pause-btn" aria-label="pause">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5v14M15 5v14" /></svg>
+        </button>
+        <div class="level">
+          <span class="eyebrow" id="level-label"></span>
+          <b id="level">1</b>
+        </div>
+        <div class="swipes" id="swipes">0/3</div>
+      </header>
+      <div class="fishbar" id="fishbar"></div>
+      <canvas id="stage"></canvas>
+      <div class="toast" id="toast" hidden></div>
+      <nav class="tools">
+        <button class="tool" id="undo-btn">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3" /></svg>
+          <span data-i18n="undo"></span>
+        </button>
+        <button class="tool" id="hint-btn">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" /></svg>
+          <span data-i18n="hint"></span><i class="badge ad" id="hint-badge" hidden>AD</i>
+        </button>
+        <button class="tool" id="restart-btn">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" /></svg>
+          <span data-i18n="restart"></span>
+        </button>
+      </nav>
+    </div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
