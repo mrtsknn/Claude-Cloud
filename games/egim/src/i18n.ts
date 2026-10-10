@@ -1,0 +1,56 @@
+import { createI18n } from '@studio/kit';
+
+const en = {
+  title: 'Tilt',
+  tagline: 'Swipe to tilt. Sink every marble.',
+  level: 'Level',
+  tilts: 'Tilts {n} · Par {p}',
+  undo: 'Undo',
+  hint: 'Hint',
+  restart: 'Restart',
+  howto: 'Swipe to tilt the board',
+  lost: 'Marble lost in a pit — move undone',
+  noUndo: 'Nothing to undo',
+  stuck: 'No way out from here — undo or restart',
+  language: 'Language',
+  mission_levels: 'Complete {n} levels',
+  mission_stars: 'Earn {n} stars',
+  mission_perfect: 'Finish {n} levels at par',
+  mission_marbles: 'Sink {n} marbles',
+  skin_classic: 'Glass',
+  skin_wood: 'Oak',
+  skin_neon: 'Neon',
+  skin_stone: 'Marble stone',
+  skin_candy: 'Candy',
+  skin_gold: 'Gold',
+  skin_night: 'Night sky',
+};
+
+const tr: typeof en = {
+  title: 'Eğim',
+  tagline: 'Kaydır, tahtayı eğ. Her bilyeyi deliğine düşür.',
+  level: 'Seviye',
+  tilts: 'Eğim {n} · Hedef {p}',
+  undo: 'Geri al',
+  hint: 'İpucu',
+  restart: 'Baştan',
+  howto: 'Tahtayı eğmek için kaydır',
+  lost: 'Bilye çukura düştü — hamle geri alındı',
+  noUndo: 'Geri alınacak hamle yok',
+  stuck: 'Buradan çıkış yok — geri al ya da baştan başla',
+  language: 'Dil',
+  mission_levels: '{n} seviye bitir',
+  mission_stars: '{n} yıldız topla',
+  mission_perfect: '{n} seviyeyi hedefte bitir',
+  mission_marbles: '{n} bilye düşür',
+  skin_classic: 'Cam',
+  skin_wood: 'Meşe',
+  skin_neon: 'Neon',
+  skin_stone: 'Mermer',
+  skin_candy: 'Şeker',
+  skin_gold: 'Altın',
+  skin_night: 'Gece göğü',
+};
+
+export const t = createI18n({ en, tr });
+export const lang = navigator.language.slice(0, 2).toLowerCase() === 'tr' ? 'tr' : 'en';
