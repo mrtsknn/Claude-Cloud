@@ -1,0 +1,13 @@
+{
+  "name": "İkiz",
+  "short_name": "İkiz",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#eceff7",
+  "theme_color": "#eceff7",
+  "icons": [
+    { "src": "icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any" },
+    { "src": "icon.svg", "type": "image/svg+xml", "sizes": "any" }
+  ]
+}
