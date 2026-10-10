@@ -40,6 +40,46 @@ Kod: `packages/kit/src/retention/`. Her derin oyun bu beş parçayı kullanır.
 kazanma ekranından sonra; kaybettikten hemen sonra **asla**.
 IAP: reklamsız, başlangıç paketi (jeton + 24 saat sınırsız can), jeton paketleri.
 
+## API kullanımı (kit `packages/kit/src/retention/`, örnek: `games/wordlink/src/main.ts`)
+
+Saf mağazalar (DOM yok, Vitest'li; hepsi `{ game, storage?, now? }` alır, `<game>.<ad>` anahtarına yazar,
+bozuk kayıtta varsayılana döner, `onChange(fn)` verir):
+
+```ts
+import { createLives, createWinStreak, createBuild, createLeague, createAlbum, continueOffer,
+  createInterstitialPolicy, createBuildHero, openBuildScreen, createLivesPill, openLivesSheet,
+  openLeague, showLeagueResult, openAlbum, streakFlames, RICON } from '@studio/kit';
+
+const lives = createLives({ game });            // count, canPlay(), lose(), add(1), refill(), grantUnlimited(ms), nextInMs()
+const streak = createWinStreak({ game });       // win(), fail(), tier (0..3) → oyun bonusu seçer
+const build = createBuild({ game, areas });     // areas: [{ id, tasks: [{ id, cost }], reward: { coins, packs } }]
+                                                // addStars(n), build(taskId), areaComplete(), claimArea()
+const league = createLeague({ game });          // addScore(1), standings(), pendingResult(), claimResult()
+                                                // opponents?: LeagueOpponents → sunucu botların yerine geçer
+const album = createAlbum({ game, sets });      // sets: [{ id, reward }], 9 kart/set; addPacks, openPack, buyCard, claimSet
+const ads = createInterstitialPolicy();         // createMeta({ interstitial: ads, ... })
+```
+
+Ekranlar kitin meta sayfasında açılır (`meta` = `SheetHost`), tema `meta.css` değişkenlerinden:
+
+```ts
+const ui = { build, art: (k) => ({ viewBox, base, layers: { [taskId]: svg }, spots: { [taskId]: [x, y] } }),
+  areaName: (area, k) => '…', taskName: (area, id) => '…', onReward: (r) => { profile.addCoins(r.coins); album.addPacks(r.packs ?? 0); } };
+createMeta({ hero: createBuildHero(ui, () => openBuildScreen(meta, ui)),
+  topExtra: createLivesPill(lives, () => openLivesSheet(meta, lives, { refillPrice: 150, spendCoins: (n) => profile.spend(n) })),
+  homeButtons: [{ id: 'league', icon, label, onClick: () => openLeague(meta, league, onReward) },
+                { id: 'album', icon: RICON.cards, label, badge: () => album.packs || null, onClick: () => openAlbum(meta, albumUi) }],
+  levels: { count, play, canPlay: () => lives.canPlay() || (openLivesSheet(…), false) }, … });
+// kazanınca: streak.win(); ilk geçişte build.addStars(1), league.addScore(1); meta.showWin({ …, extra, buttons })
+// kaybedince: meta.showFail({ level, offer: continueOffer(used), attempt, onContinue, onRetry: () => { lives.lose(); streak.fail(); … } })
+// açılışta: league.pendingResult() && showLeagueResult(meta, league, onReward)
+```
+
+Kurallar: inşa yıldızı / lig puanı yalnızca ilk geçişte (tekrar oynayarak çiftçilik yok); günlük bulmaca
+can harcamaz; süreli seviyede "baştan başla" verilmez (kaybetmeden kaçış olmasın). Olaylar mağazalardan
+otomatik atılır (`build_task`, `build_area`, `lives_empty`, `league_end`, `album_set`; `continue_*` ve
+`level_fail` meta `showFail`'den); `level_start/level_win(level, attempt)` oyunun işi.
+
 ## Ölçüm
 Olaylar: `level_start/level_win/level_fail(level, attempt)`, `continue_offer/accept(kind)`,
 `build_task(area, task)`, `league_end(rank)`, `album_set(set)`, `lives_empty`.

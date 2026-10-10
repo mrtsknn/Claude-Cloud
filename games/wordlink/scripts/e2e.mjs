@@ -2,7 +2,11 @@
 // solve level 1 by real swipes → meta win (chapter row + Share) → next → hint pays with profile
 // coins → word language switch keeps separate progress → pause → reload keeps progress →
 // daily puzzle (swipes, timer, streak + milestone bonus, calendar, Share, solved card) →
-// chapter-complete celebration on level 10; no console errors.
+// chapter-complete celebration on level 10; v1.2 retention: build hero + build screen, league table,
+// album pack, very hard / hard map badges, timed level 20 (tip, clock, fail → ad continue → coin
+// continue → retry costs a life and the streak), lives empty → lives sheet gates Play, twists
+// (coin tiles, mystery tile, locked word), win-streak free hint, end-of-week league result,
+// analytics events; no console errors.
 // Usage: npm run preview -w games/wordlink -- --port 4176, then node games/wordlink/scripts/e2e.mjs <outDir> <url>
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
@@ -51,7 +55,10 @@ await page.addInitScript(() => {
 await page.goto(url);
 await page.waitForTimeout(900);
 check(await page.isVisible('.m-home'), 'home menu on boot');
-check(await page.isVisible('.hero-wheel'), 'hero letter wheel on home');
+check(await page.isVisible('.r-hero .r-scene svg'), 'build hero (area preview) on home');
+check((await page.textContent('.r-hero .r-cta-text')).startsWith('Sıradaki: Taş yol'), 'hero CTA names the next build task');
+check((await page.textContent('.r-lives .r-heart b')) === '5' && (await page.textContent('.r-lives small')) === 'Dolu', 'lives pill: 5, full');
+check(await page.isVisible('[data-home-btn="league"]') && await page.isVisible('[data-home-btn="album"]'), 'league + album buttons on home');
 check(await page.isVisible('[data-act="play-endless"].wl-daily-card'), 'daily puzzle card on home');
 check((await page.textContent('[data-act="play-endless"] b')) === 'Günün Bulmacası', 'daily card title');
 check((await page.textContent('[data-act="play-endless"] small')) === 'Bugün · seriye başla', 'daily card subtitle invites a streak');
@@ -89,6 +96,7 @@ check((await page.locator('.m-lvl').count()) === counts.tr.levels, `level map sh
 check((await page.locator('.m-lvl.locked').count()) === counts.tr.levels - 1, 'only level 1 unlocked');
 check((await page.locator('.wl-ch-head').count()) === counts.tr.levels / 10, 'map has a header for every chapter of 10');
 check((await page.locator('.wl-ch-head').first().textContent()).includes('Bölüm 1'), 'first chapter header');
+check((await page.locator('.m-lvl.veryhard').count()) === counts.tr.levels / 10 && (await page.locator('.m-lvl.hard').count()) === counts.tr.levels / 10, 'map marks every 10th level very hard and every other 5th hard');
 await shot('w5-map');
 await page.locator('.m-lvl').first().click();
 await page.waitForTimeout(1300);
@@ -109,13 +117,16 @@ for (const [i, w] of words.entries()) {
 await page.waitForTimeout(1500);
 check(await page.isVisible('.m-result [data-next]'), 'meta win screen after swiping every word');
 check((await page.locator('.m-stars i.on').count()) === 3, 'no hints → 3 stars');
-check(await visible(`${openSheet} .m-result [data-share]`), 'win sheet has a Share button');
+check(await visible(`${openSheet} .m-result [data-btn="share"]`), 'win sheet has a Share button (kit extra-buttons slot)');
+check(await visible(`${openSheet} .wl-gain.star`), 'win sheet shows the build star');
 check((await page.textContent(`${openSheet} .wl-chap`)).includes('Bölüm 1'), 'win sheet shows chapter progress');
-await page.click(`${openSheet} [data-share]`);
+await page.click(`${openSheet} [data-btn="share"]`);
 await page.waitForTimeout(200);
 await shot('w8-win');
 let p = await profile();
 check(p.coins === 225 && p.stars[0] === 3 && p.unlocked === 2, 'win pays 25 coins, records stars and unlocks level 2');
+const ls = (k) => page.evaluate((k) => JSON.parse(localStorage.getItem(`wordlink.${k}`)), k);
+check((await ls('build')).stars === 1 && (await ls('league')).score === 1 && (await ls('streak')).count === 1, 'first clear: +1 build star, +1 league point, streak 1');
 await page.click('[data-next]');
 await page.waitForTimeout(400);
 check(await page.textContent('#level') === '2', 'next → level 2');
@@ -131,13 +142,17 @@ await swipe(lvl.words[0].w);
 await swipe(lvl.words[0].w);
 check(!(await page.isHidden('#toast')), 'duplicate word shows a toast');
 
-// hint costs profile coins
+// win streak 1 → level 2 starts with a free hint; the next one costs profile coins
 const c1 = (await profile()).coins;
+check(await page.isVisible('#hint-btn.free') && (await page.textContent('#hint-price')) === '×1', 'streak bonus: hint button shows 1 free hint');
+await page.click('#hint-btn');
+await page.waitForTimeout(200);
+check((await profile()).coins === c1 && !(await page.isVisible('#hint-btn.free')), 'streak hint is free');
 await page.click('#hint-btn');
 await page.waitForTimeout(200);
 check((await profile()).coins === c1 - 25, 'hint costs 25 profile coins');
 check((await hudCoins()) === c1 - 25, 'HUD coins follow the profile');
-check(await page.evaluate(() => window.__wordlink.progress.revealed.length) === 1, 'hint revealed one cell');
+check(await page.evaluate(() => window.__wordlink.progress.revealed.length) === 2, 'two hints revealed two cells');
 // no coins → hint opens the coin shop instead
 await page.evaluate(() => { const p = JSON.parse(localStorage.getItem('wordlink.profile')); p.coins = 10; localStorage.setItem('wordlink.profile', JSON.stringify(p)); });
 await page.reload();
@@ -146,11 +161,14 @@ check(await page.isVisible('.m-home'), 'reload returns to home');
 check(await page.textContent('[data-level-title]') === 'Seviye 2', 'home play card resumes level 2');
 await page.click('[data-act="play-level"]');
 await page.waitForTimeout(400);
-check(await page.evaluate(() => window.__wordlink.progress.revealed.length) === 1, 'hint survives reload');
+check(await page.evaluate(() => window.__wordlink.progress.revealed.length) === 2, 'hints survive reload');
 await page.click('#hint-btn');
 await page.waitForTimeout(200);
-check(await page.isVisible('.m-tabs [data-tab="coins"].on'), 'hint without coins opens the coin shop');
-check(await page.evaluate(() => window.__wordlink.progress.revealed.length) === 1, 'no hint given without coins');
+check(await visible(`${openSheet} [data-ad]`), 'hint without coins offers a free hint by video');
+await page.click(`${openSheet} [data-shop]`);
+await page.waitForTimeout(200);
+check(await page.isVisible('.m-tabs [data-tab="coins"].on'), '… or the coin shop');
+check(await page.evaluate(() => window.__wordlink.progress.revealed.length) === 2, 'no hint given without coins');
 await page.click('[data-close]');
 
 // shuffle keeps letters
@@ -276,10 +294,147 @@ await shot('w14-chapter');
 await page.click('.wl-chapter [data-collect]');
 await page.waitForTimeout(400);
 check(await visible(`${openSheet} .m-result [data-next]`), 'win sheet follows the celebration');
-check((await profile()).coins === c0 + 100 + 25, 'chapter reward 100 + level 25 coins');
+check((await profile()).coins === c0 + 100 + 50, 'chapter reward 100 + very hard level 2 × 25 coins');
+check((await page.textContent(`${openSheet} .m-eyebrow`)).startsWith('Çok zor seviye'), 'win sheet names the very hard level');
+check((await ls('build')).stars === 1 + 2 && (await ls('album')).packs === 3, 'very hard first clear: +2 build stars; packs from daily + very hard + chapter');
 await page.click(`${openSheet} [data-next]`);
 await page.waitForTimeout(500);
 check((await page.textContent('#hud-sub')) === 'Zirveler · Akşam · 1/10', 'next level opens chapter 2 with its own scenery');
+
+// ───────────────────────── v1.2 retention ─────────────────────────
+const events = () => page.evaluate(() => JSON.parse(localStorage.getItem('studio.analytics.buffer') ?? '[]').map((e) => e.e));
+await page.click('#settings-btn');
+await page.click('[data-menu]');
+await page.waitForTimeout(300);
+// build: 3 stars → the hero CTA is ready; build the stone path
+check(await page.isVisible('.r-cta.ready'), 'hero CTA pulses when a task is affordable');
+await page.locator('.r-cta').click({ force: true });
+await page.waitForTimeout(300);
+check(await visible(`${openSheet} .r-build`), 'build screen opens from the hero');
+check((await page.locator(`${openSheet} .r-task`).count()) === 6, 'area has 6 tasks');
+await page.locator(`${openSheet} .r-task.ready button`).first().click({ force: true });
+await page.waitForTimeout(1000);
+check((await page.locator(`${openSheet} .r-layer.on`).count()) === 1 && (await page.textContent(`${openSheet} .r-progress span`)) === '1/6', 'task built: its layer is revealed, 1/6');
+check((await ls('build')).done.length === 1 && (await ls('build')).stars === 2, 'build spends the task cost');
+await shot('w15-build');
+await page.click(`${openSheet} [data-close]`);
+await page.waitForTimeout(200);
+check((await page.textContent('.r-hero .r-area-tag')).includes('1/6'), 'hero shows the built task');
+
+// league: 30 players, the player ranked by levels won this week
+await page.locator('[data-home-btn="league"]').click({ force: true });
+await page.waitForTimeout(300);
+check((await page.locator(`${openSheet} .r-row`).count()) === 30, 'league table has 30 players');
+check((await page.textContent(`${openSheet} .r-row.you b`)) === '3', 'league score = 3 wins this week (levels 1, 10 + daily)');
+await shot('w16-league');
+await page.click(`${openSheet} [data-close]`);
+
+// album: open a pack
+await page.locator('[data-home-btn="album"]').click({ force: true });
+await page.waitForTimeout(300);
+await page.click(`${openSheet} [data-open]`);
+await page.waitForTimeout(1100);
+check((await page.locator(`${openSheet} .r-pack .r-card`).count()) === 3, 'a pack holds 3 cards');
+check((await page.locator(`${openSheet} .r-pack em.new`).count()) >= 1, 'first pack card is new');
+await shot('w17-pack');
+await page.click(`${openSheet} [data-done]`);
+await page.waitForTimeout(300);
+check((await ls('album')).have.length >= 1 && (await ls('album')).packs === 2, 'album keeps the cards, 2 packs left');
+await page.click(`${openSheet} [data-close]`);
+
+// timed level 20: tip, clock, fail → continue by video → continue by coins → retry costs a life
+await page.evaluate(() => window.__wordlink.goto(20));
+await page.waitForTimeout(700);
+check(await visible('.wl-tip'), 'first timed level shows the "beat the clock" tip');
+await page.click('.wl-tip [data-ok]');
+await page.waitForTimeout(200);
+check((await page.textContent('#hud-sub')).startsWith('⏱'), 'HUD shows the clock');
+check(await page.evaluate(() => document.getElementById('app').classList.contains('veryhard')), 'very hard badge in the HUD');
+const limit0 = await page.evaluate(() => window.__wordlink.progress.limit);
+check(limit0 > 0, 'level 20 has a time limit');
+await page.click('#settings-btn');
+await page.waitForTimeout(150);
+check(!(await visible(`${openSheet} [data-restart]`)), 'no restart on timed levels');
+await page.click(`${openSheet} [data-resume]`);
+await page.evaluate(() => window.__wordlink.timeUp());
+await page.waitForTimeout(300);
+check(await visible(`${openSheet} [data-cont-ad]`) && (await page.textContent(`${openSheet} [data-cont-coins]`)).includes('100'), 'first fail: continue by video or 100 coins');
+check(await visible(`${openSheet} .wl-streak-warn`), 'fail sheet warns about the win streak');
+await shot('w18-fail');
+await page.click(`${openSheet} [data-cont-ad]`);
+await page.waitForTimeout(300);
+check(await page.evaluate(() => window.__wordlink.progress.limit) === limit0 + 30 && !(await page.isVisible('.m-overlay:not([hidden])')), 'video continue adds 30 seconds');
+await page.evaluate(() => window.__wordlink.timeUp());
+await page.waitForTimeout(300);
+check(!(await visible(`${openSheet} [data-cont-ad]`)) && (await page.textContent(`${openSheet} [data-cont-coins]`)).includes('200'), 'second fail: coins only, price doubles');
+await page.click(`${openSheet} [data-retry]`);
+await page.waitForTimeout(400);
+check(await page.evaluate(() => window.__wordlink.lives.count) === 4 && (await ls('streak')).count === 0, 'retry: one life lost, streak reset');
+check(await page.evaluate(() => window.__wordlink.progress.attempt) === 2 && (await page.textContent('#level')) === '20', 'retry restarts level 20 as attempt 2');
+
+// out of lives: Play opens the lives sheet; a video gives one back
+await page.evaluate(() => { const l = window.__wordlink.lives; while (l.count) l.lose(); });
+await page.click('#settings-btn');
+await page.click('[data-menu]');
+await page.waitForTimeout(300);
+check((await page.textContent('.r-lives .r-heart b')) === '0' && /^\d+:\d\d$/.test(await page.textContent('.r-lives small')), 'lives pill: 0 and a countdown');
+await page.click('[data-act="play-level"]');
+await page.waitForTimeout(300);
+check(await visible(`${openSheet} .r-lives-sheet`) && await page.isVisible('.m-home'), 'no lives: Play opens the lives sheet, stays home');
+await shot('w19-lives');
+await page.click(`${openSheet} [data-ad]`);
+await page.waitForTimeout(200);
+check(await page.evaluate(() => window.__wordlink.lives.count) === 1, 'video: +1 life');
+await page.click(`${openSheet} [data-close]`);
+
+// twists: coin tiles (41), mystery tile (61), locked word (81)
+await page.evaluate(() => window.__wordlink.goto(41));
+await page.waitForTimeout(600);
+await page.click('.wl-tip [data-ok]').catch(() => errors.push('ASSERT: no coin tip'));
+check((await page.locator('#board .cell.coin').count()) === 2, 'level 41 has two coin tiles');
+const coinWord = await page.evaluate(() => { const w = window.__wordlink; const cell = w.twists.coinCells[0]; return w.level.words.find((p) => [...p.w].some((_, i) => `${p.d === 'v' ? p.r + i : p.r},${p.d === 'h' ? p.c + i : p.c}` === cell)).w; });
+const cc0 = (await profile()).coins;
+await page.evaluate((x) => window.__wordlink.submit(x), coinWord);
+await page.waitForTimeout(500);
+check((await profile()).coins >= cc0 + 5 && (await page.locator('#board .cell.coin').count()) < 2, 'a word over a coin tile pays 5 coins');
+await page.evaluate(() => window.__wordlink.goto(61));
+await page.waitForTimeout(600);
+await page.click('.wl-tip [data-ok]').catch(() => errors.push('ASSERT: no mystery tip'));
+check((await page.locator('#board .cell.mystery').count()) === 1 && (await page.textContent('#board .cell.mystery')) === '?', 'level 61 has a ? tile');
+await page.evaluate(() => window.__wordlink.goto(81));
+await page.waitForTimeout(600);
+await page.click('.wl-tip [data-ok]').catch(() => errors.push('ASSERT: no locked tip'));
+const lk = await page.evaluate(() => window.__wordlink.twists.locked);
+check(!!lk && (await page.locator('#board .cell.locked').count()) === lk.word.length, 'level 81 has a padlocked word');
+await page.evaluate((x) => window.__wordlink.submit(x), lk.word);
+await page.waitForTimeout(100);
+check(!(await page.evaluate(() => window.__wordlink.progress.found.length)) && (await page.textContent('#toast')).startsWith('Kilitli'), 'locked word cannot be found early');
+await shot('w20-locked');
+const others = await page.evaluate((lw) => window.__wordlink.level.words.map((p) => p.w).filter((x) => x !== lw), lk.word);
+for (const x of others.slice(0, lk.after)) await page.evaluate((x) => window.__wordlink.submit(x), x);
+await page.waitForTimeout(100);
+check((await page.locator('#board .cell.locked').count()) === 0, 'the lock opens after enough words');
+await page.evaluate((x) => window.__wordlink.submit(x), lk.word);
+check(await page.evaluate((x) => window.__wordlink.progress.found.includes(x), lk.word), 'unlocked word can be found');
+
+// end of week: last week's league result greets the player and pays out
+await page.evaluate(() => {
+  const l = JSON.parse(localStorage.getItem('wordlink.league'));
+  localStorage.setItem('wordlink.league', JSON.stringify({ ...l, week: '2026-01-05', tier: 0, score: 60, result: null }));
+});
+await page.reload();
+await page.waitForTimeout(1300);
+check(await visible(`${openSheet} .r-league-result`), 'league result sheet on the first home visit of a new week');
+check((await page.textContent(`${openSheet} h2`)).includes('1.'), 'finished first with 60 wins');
+await shot('w21-league-result');
+const lc = (await profile()).coins;
+await page.click(`${openSheet} [data-collect]`);
+await page.waitForTimeout(200);
+check((await profile()).coins === lc + 200 && (await ls('league')).tier === 1, 'rank 1 pays 200 coins and promotes to Silver');
+
+const ev = await events();
+for (const e of ['level_start', 'level_win', 'level_fail', 'continue_offer', 'continue_accept', 'build_task', 'lives_empty', 'league_end'])
+  check(ev.includes(e), `analytics: ${e}`);
 await browser.close();
 console.log('errors', errors);
 process.exit(errors.length ? 1 : 0);

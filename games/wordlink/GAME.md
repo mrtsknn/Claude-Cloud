@@ -7,7 +7,7 @@
 | **Hedef kitle** | Herkes — TR ve EN kelime paketleri, uygun olmayan kelimeler elle ayıklandı |
 | **Oturum** | 1–3 dk/seviye, süre baskısı yok |
 | **Platform** | iOS + Android (Capacitor), web (PWA) |
-| **Durum** | v1.1.0 — günün bulmacası, manzaralı bölümler, EN 930 / TR 620 seviye, hatırlatıcı + paylaşım |
+| **Durum** | v1.2.0 — tutma katmanı: okuma dünyası inşası, can, galibiyet serisi, testere dişi zorluk + süreli seviyeler, yeni mekanik ritmi, haftalık lig, kartpostal albümü (v1.1: günün bulmacası, manzaralı bölümler, EN 930 / TR 620 seviye) |
 
 ## Pazar analizi
 
@@ -48,13 +48,14 @@ bugün henüz oynanmadıysa dünkü seri görünür kalır.
 
 ## Meta katmanı (`@studio/kit` meta)
 
-- **Ana menü:** logo, kelime dilini izleyen mini harf çarkı + taş animasyonu (hero; kısa ekranlarda
-  küçülür), jeton, ayarlar, görev şeridi, "Seviye N" kartı, **"Günün Bulmacası" kartı** (kitin `endless`
+- **Ana menü:** logo, **inşa önizlemesi** (hero: inşa edilen bölge + "Sıradaki: Çiçek tarhı · ★ 1/2"
+  düğmesi; kısa ekranlarda logo/slogan gizlenir), jeton, **can hapı** (kitin `topExtra` yuvası), ayarlar,
+  **Lig** ve **Albüm** düğmeleri (kitin `homeButtons` yuvası), görev şeridi, "Seviye N" kartı, **"Günün Bulmacası" kartı** (kitin `endless`
   yuvası; ikon, alt yazı ve seri rozeti oyun tarafından boyanır), alt menü Seviyeler · Görevler · Günlük · Mağaza.
 - **Seviye haritası:** EN 930 / TR 620 seviye, yıldızlı/kilitli; **her kelime dilinin ayrı haritası** var.
-  Harita açılınca her 10 seviyenin başına bölüm başlığı eklenir (bölümün gökyüzü renkleri, ad, ★ x/30).
-  Kit haritası bölüm desteklemediği için başlıklar `MutationObserver` ile kitin ızgarasına eklenir;
-  haritanın uzunluğu `levels.count` alanı dil değişince güncellenerek ayarlanır.
+  Her 10 seviyenin başında bölüm başlığı (bölümün gökyüzü renkleri, ad, ★ x/30) kitin `levels.section`
+  yuvasıyla; zor (turuncu) / çok zor (mor) seviyeler `levels.tag` ile rozetli. Haritanın uzunluğu
+  `levels.count` alanı dil değişince güncellenerek ayarlanır.
 - **Görevler:** standart `levels`, `stars`, `perfect` + oyuna özgü `words` (N kelime bul),
   `bonus` (N bonus kelime bul). **Günlük ödül:** 7 günlük takvim.
 - **Mağaza:** 6 tahta/taş teması (`src/skins.ts`: Lagün, Kâğıt, Gece yarısı, Böğürtlen, Orman, Kor),
@@ -106,6 +107,57 @@ Sonuç: **EN 930** (401+: 231×5, 155×6, 144×7), **TR 620** (148×5, 62×6, 10
 izin listesi (1.282 kelime) yüzünden mümkün değil; daha fazlası için izin listesinin elle genişletilmesi
 gerekir. Paketler dile göre ayrı yüklenir (gzip: EN 95 KB, TR 38 KB; günlük paket EN 43 KB, TR 26 KB).
 
+## v1.2 — tutma katmanı (`docs/RETENTION.md`, kit `packages/kit/src/retention/`)
+
+- **Kurma meta'sı — okuma dünyası (`src/garden.ts`):** 4 yer × 6 görev, her görev kodla çizilmiş bir SVG
+  katmanı (özgün çizim, 320×200): Okuma Bahçesi (taş yol, bank, gölge ağacı, çiçek tarhı, sokak lambası,
+  kitap kutusu), Kütüphane Salonu (kitaplık, halı, kemerli pencere, okuma masası, koltuk, avize), Çatı
+  Terası (ahşap zemin, saksılar, ışık zinciri, minder + kitaplar, teleskop, okuma çadırı), Göl Kulübesi
+  (iskele, saz/nilüfer, kulübe, kayık, kamp ateşi, ağaç salıncağı). Yerler 4 mevsim paletiyle döner, sonra
+  romen rakamıyla tekrar: **64 bölge ≈ 1000 seviye**. Görev 1–3 yıldız (ilk bölge 1-1-2-2-2-3: ilk görev
+  1. seviyeden sonra; sonra 17 yıldız ≈ 15 seviye/bölge). Bölge ödülü 150 + 25×bölge (en çok 400) jeton +
+  1 kart paketi (her 4. bölge 2). İnşa yıldızı **yalnızca ilk geçişte**: normal/zor 1, çok zor 2.
+- **Testere dişi zorluk (`src/difficulty.ts`):** yeni kelime eklenmez; her 10'luk bölümde denetlenmiş
+  seviyelerin sırası değişir: bölümün en zoru 10. ("çok zor", mor rozet, 2× jeton, +2 inşa yıldızı,
+  +1 kart paketi), ikinci en zoru 5. ("zor", turuncu, 1,5× jeton), kalan 8 seviye kendi sırasında; 1–3.
+  öğretici seviyeler yerinde. Zorluk = harf sayısı×100 + cevap harfleri. Eski kayıt: yarım kalan seviye
+  başka bir seviyeye denk gelirse sıfırdan başlar.
+- **Kaybetme durumu = süre:** 20. seviyeden itibaren zor ve çok zor seviyeler saate karşı (zor 60 + 12×kelime
+  sn, çok zor 45 + 10×kelime sn; HUD'da ⏱, son 15 sn kırmızı, son 5 sn tık sesi; duraklat/arka plan saati
+  durdurur). Süre biterse kitin `showFail`'i: **ilk devam ödüllü video veya 100 jeton, sonra 200 / 400
+  jeton** (+30 sn; `continueOffer`), serin varsa "vazgeçersen N galibiyetlik serin biter" uyarısı. Tekrar
+  dene / Menü = **1 can gider + seri sıfırlanır**, deneme sayısı artar. Süreli seviyelerde "Baştan başla" yok.
+- **Can:** 5 can, 30 dk'da 1 dolar (zaman damgasıyla, uygulama kapalıyken de), yalnızca ana seviyelerde;
+  günün bulmacası her zaman ücretsiz. Can bitince Oyna → can sayfası: videoyla +1, 150 jetonla hepsi,
+  "Günün Bulmacası (ücretsiz)". Başlangıç paketi (IAP) + **24 saat sınırsız can** (`onPurchase`).
+- **Galibiyet serisi:** art arda kazanılan seviyeler 1/2/3 kademe → sonraki seviyeye 1/2/3 **bedava ipucu**
+  (ipucu düğmesinde "×N"; kullanılmayan biter). Süreli seviyede vazgeçince sıfırlanır.
+- **Yeni mekanik ritmi (`src/twists.ts`, ilk görüldüğü seviyede bir kez ipucu kartı):**
+
+  | Seviye | Öğe | Kural |
+  |---|---|---|
+  | 20 | Saate karşı | zor/çok zor seviyelerde süre (yukarıda) |
+  | 41 | Jetonlu taş | 2 taş; bir kelimeyle açılınca taş başına 5 jeton (ipucuyla açılan saymaz) |
+  | 61 | Gizemli taş | "?" taşı, ipucu asla açmaz; yalnızca kelimeyle açılır |
+  | 81 | Kilitli kelime | asma kilitli kelime 2 (6+ kelimelik seviyede 3) başka kelime bulununca açılır |
+
+  Tanıtımdan sonra normal seviyelerin ~%40'ında bu üç tahta öğesinden biri (seviye numarasından
+  deterministik); zor seviyelerde yalnızca süre. Sonraki adaylar: süreli bonus kelime, buzlu taş.
+- **Haftalık lig:** 30 kişilik grup (deterministik botlar, gerçek zamana bağlı puan eğrisi), puan = bu hafta
+  ilk kez geçilen seviye + günün bulmacası. Pazartesi 00.00'da sonuç: ilk 5 yükselir, son 5 düşer
+  (Bronz → Gümüş → Altın → Safir → Yakut → Elmas), ödül sıraya göre (1.: 200 jeton + 2 paket …, lig
+  kademesiyle artar). Sonuç sayfası yeni haftanın ilk ana menü açılışında kendiliğinden çıkar.
+- **Albüm — kartpostallar:** 12 set = bölümlerin 12 manzarası; bir setin 9 kartı aynı manzaranın gün
+  saatleri ("Kıyı · Akşam II"; çizim `sceneSvg`, asset yok). Paket = 3 kart (ilk kart yeni garantili,
+  pakette tekrar yok); tekrar → toz (5/15/40), tozla seçilen kart (40/100/250). Set ödülü 150 + 25×set
+  jeton. Paket kaynakları: çok zor seviye, bölüm sonu, günün bulmacası, bölge ödülü, lig.
+- **Reklam değeri:** devam (video), can (+1 video), jetonsuz ipucu → "Bedava ipucu (video)" ya da
+  jeton mağazası, kazanma ekranında 2× (kit). Geçiş reklamı politikası: 3. seviyeden sonra, en sık 2
+  kazanmada bir, kaybettikten hemen sonra ve kaybın ardından ilk kazanmada asla (`createInterstitialPolicy`).
+- **Kazanma ekranı (kit `extra` + `buttons` yuvaları):** bölüm satırı (zor/çok zor noktalar renkli),
+  kazanımlar (+N ★ inşa, +1 kart paketi, N galibiyet serisi), Paylaş · **İnşa et** (yapılabilir görev
+  varsa; ana menüde inşa ekranını açar) · Menü.
+
 ## Özellik listesi (v1.0)
 
 - [x] Harf çarkında kaydırarak kelime kurma; geri kaydırınca son harf silinir; iz çizgisi
@@ -136,11 +188,18 @@ gerekir. Paketler dile göre ayrı yüklenir (gzip: EN 95 KB, TR 38 KB; günlük
 
 | Olay | Parametreler | Ne için |
 |---|---|---|
-| `level_start`, `level_complete` | `level, lang, bonus, hints, stars, duration_s` | seviye hunisi, zorluk |
+| `level_start`, `level_win` (v1.1'de `level_complete`) | `level, lang, attempt, tier, bonus, hints, stars, continues, duration_s` | seviye hunisi, zorluk |
+| `level_fail` | `level, attempt` | süreli seviyede kaybetme oranı (hedef zor %35–50) |
+| `continue_offer`, `continue_accept` | `kind` (`ad` / `coins`), `level`, `price` | en değerli reklam noktası |
+| `lives_empty` | — | can duvarı |
+| `build_task`, `build_area` | `area, task` | kurma meta'sı ilerlemesi |
+| `league_end` | `rank, tier, score` | lig katılımı |
+| `album_set` | `set` | koleksiyon |
+| `twist_intro` | `twist, level` | yeni mekanik hunisi |
 | `level_restart` | `level, lang` | zor seviyeler |
 | `home`, `mission_claim`, `daily_claim`, `skin_buy`, `iap` | — | meta etkileşimi, monetizasyon |
 | `word_found`, `bonus_word` | `level, len` | etkileşim |
-| `hint` | `level` | takılınan seviyeler |
+| `hint` | `level, how` (`coins` / `ad` / `streak`) | takılınan seviyeler |
 | `language` | `lang` | dil tercihi |
 | `ad_rewarded_*`, `ad_interstitial`, `review_prompt` | `placement` | monetizasyon |
 | `daily_start`, `daily_complete` | `lang, resumed` / `streak, time_s, hints, bonus` | günlük bulmaca hunisi, seri |
@@ -169,6 +228,16 @@ gerekir. Paketler dile göre ayrı yüklenir (gzip: EN 95 KB, TR 38 KB; günlük
 - Daha fazla dil (DE, ES) — aynı build scripti, yeni izin listesi gerekir
 
 ## Kontrol listesi durumu
+
+**v1.2:** kit tutma katmanı 18 birim testi (can yenilenmesi/saat geri alma, seri, inşa, lig haftası/botlar/
+yükselme/düşme/sunucu sağlayıcı, albüm paketleri/toz/set, devam fiyatı, geçiş reklamı politikası) + Wordlink
+9 test (oynanış sırası her bölümde permütasyon, 10. en zor / 5. ikinci; saat 20'den; öğeler deterministik ve
+geçerli, ipucu gizemli/kilitli taşı atlar; 64 bölge × 6 görev, her görevin çizimi ve TR/EN adı). `scripts/e2e.mjs`
+127 kontrol (v1.1 akışı + inşa önizlemesi ve ekranı, lig tablosu, paket açma, harita rozetleri, seri bedava
+ipucu, jetonsuz ipucu → video/mağaza, 20. seviye: ipucu kartı, saat, video devam +30 sn → 200 jetonlu devam →
+tekrar dene = −1 can ve seri sıfır, can bitince Oyna → can sayfası, jetonlu/gizemli taş, kilitli kelime,
+hafta sonu lig sonucu + Gümüş'e yükselme, analytics olayları), konsol hatasız. 360×640 ve 430×932'de ana menü,
+inşa, lig, albüm/paket, can, süreli seviye/kaybetme, öğeler, kazanma ekranı ve harita gözle incelendi.
 
 Kodla yapılabilen her madde tamam ve doğrulandı (v1.1): 38 birim/veri testi — her dört pakette (EN/TR
 ana + günlük) her seviye için cevaplar izin listesinde, harflerden kurulabilir, tablo çakışmasız ve tek parça,

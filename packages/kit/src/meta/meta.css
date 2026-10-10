@@ -200,3 +200,32 @@
 @media (prefers-reduced-motion: reduce) {
   .m-logo, .m-badge, .m-day.today, .m-sheet, .m-stars i { animation: none; }
 }
+
+/* ── slots: top-bar extra, quick buttons row, result-sheet extra buttons, map sections/tags ── */
+.m-top-extra { flex: 1; display: flex; justify-content: flex-start; padding-left: 8px; min-width: 0; }
+.m-top-extra:empty { display: none; }
+.m-quick { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; }
+.m-qbtn {
+  position: relative; border: 0; font: inherit; cursor: pointer; color: var(--_ink); text-align: left;
+  display: flex; align-items: center; gap: 8px; padding: 7px 10px; min-width: 0;
+  background: var(--_card); border-radius: 16px; box-shadow: 0 4px 0 rgba(0, 0, 0, 0.25);
+}
+.m-qbtn:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); }
+.m-qico { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: rgba(0, 0, 0, 0.06); flex: none; }
+.meta-root .m-qico svg { width: 24px; height: 24px; }
+.m-qbody { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+.m-qbody b { font-size: 14px; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-qbody small { font-size: 12px; font-weight: 800; color: var(--_muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; }
+.m-pair .m-btn { padding: 12px 8px; white-space: nowrap; min-width: 0; }
+.m-pair:has(> :nth-child(3)) .m-btn { font-size: 15px; gap: 4px; padding: 12px 4px; }
+.m-pair:has(> :nth-child(3)) .m-btn svg { width: 16px; height: 16px; }
+.m-section { grid-column: 1 / -1; }
+.m-lvl { position: relative; }
+.m-lvl.hard:not(.locked) { background: #ff8a5c; color: #3a1300; }
+.m-lvl.veryhard:not(.locked) { background: #b45cf0; color: #fff; }
+.m-lvl.hard::after, .m-lvl.veryhard::after {
+  content: ''; position: absolute; top: -4px; right: -4px; width: 12px; height: 12px; border-radius: 50%;
+  background: #ff6a3d; box-shadow: 0 0 0 2px var(--_card);
+}
+.m-lvl.veryhard::after { background: #8a2be2; }

@@ -217,38 +217,66 @@ html, body {
 .lang-seg button[aria-checked='true'] { background: var(--m-accent); color: var(--m-accent-ink); opacity: 1; }
 .credits { margin: 2px 0 6px; font-size: 12px; font-weight: 600; opacity: 0.6; text-align: center; }
 
-/* home-screen artwork (kit meta hero slot): tiles fill in while the trail traces the wheel */
-.hero { display: flex; flex-direction: column; align-items: center; gap: 16px; }
-.hero-tiles { display: flex; gap: 6px; }
-.hero-tiles i {
-  width: 40px; height: 40px; border-radius: 9px; display: grid; place-items: center;
-  font-style: normal; font-weight: 900; font-size: 22px; color: var(--tile-ink);
-  background: var(--tile); box-shadow: 0 4px 0 rgba(0, 0, 0, 0.22);
-  animation: pop 0.4s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+/* home: the build hero (kit retention) fills the middle; logo and tagline give way on short phones */
+.meta-root .m-hero { gap: 4px; }
+.meta-root .m-art { margin-top: 10px; }
+.meta-root .m-logo { font-size: clamp(38px, 11vw, 60px); }
+@media (min-height: 880px) {
+  .meta-root .r-hero { width: min(390px, calc(100vw - 32px)); }
 }
-.hero-wheel { position: relative; width: 180px; height: 180px; border-radius: 50%; background: rgba(255, 255, 255, 0.1); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.08); }
-.meta-root .hero-wheel svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-.hero-wheel polyline {
-  fill: none; stroke: var(--accent); stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; opacity: 0.9;
-  stroke-dasharray: 1; stroke-dashoffset: 1; animation: hero-trace calc(var(--n) * 0.16s) 0.4s linear forwards;
+@media (max-height: 800px) {
+  .meta-root .m-tag { display: none; }
+  .meta-root .m-art { margin-top: 6px; }
+  .meta-root .r-hero { width: min(300px, calc(100vw - 32px)); gap: 8px; }
 }
-.hero-wheel b {
-  position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%;
-  display: grid; place-items: center; font-size: 24px; font-weight: 900; color: var(--ink);
-  animation: hero-on 0.25s ease both;
+@media (max-height: 700px) {
+  .meta-root .m-logo { display: none; }
+  .meta-root .r-hero { width: min(250px, calc(100vw - 32px)); }
+  .meta-root .r-cta { padding: 5px 8px 5px 5px; }
+  .meta-root .m-bottom { gap: 8px; }
+  .meta-root .m-card-main { padding: 10px 14px; }
+  .meta-root .m-card { padding-top: 8px; padding-bottom: 8px; }
 }
-/* short phones (360×640): the home menu needs the room for the mode cards and the bottom bar */
-@media (max-height: 760px) {
-  .hero { gap: 10px; }
-  .hero-tiles i { width: 32px; height: 32px; font-size: 18px; }
-  .hero-wheel { zoom: 0.78; }
+
+/* ───────── difficulty, clock and twists on the board ───────── */
+#app.hard .eyebrow { color: #ffb08a; }
+#app.veryhard .eyebrow { color: #e3b6ff; }
+#app.hard .level b, #app.veryhard .level b {
+  min-width: 46px; padding: 2px 10px; border-radius: 12px; text-align: center; background: #ff8a5c; color: #3a1300;
 }
-@media (max-height: 680px) {
-  .hero-tiles { display: none; }
-  .hero-wheel { zoom: 0.62; }
+#app.veryhard .level b { background: #b45cf0; color: #fff; }
+#app.timed .hud-sub { color: var(--accent); opacity: 1; font-size: 14px; }
+#app.timed.low .hud-sub { color: #ff6b6b; animation: bump 1s ease infinite; }
+.cell.mystery { color: rgba(255, 255, 255, 0.85); font-size: calc(var(--cell) * 0.5); background: rgba(120, 70, 200, 0.55); box-shadow: inset 0 0 0 1.5px rgba(214, 180, 255, 0.6); }
+.cell.coin .tw-coin, .cell.locked .tw-lock { display: block; width: 52%; height: 52%; }
+.cell.coin .tw-coin {
+  border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ffe7a3, var(--accent) 55%, var(--accent-dark));
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.15); animation: bump 1.6s ease-in-out infinite;
 }
-@keyframes hero-trace { to { stroke-dashoffset: 0; } }
-@keyframes hero-on { to { background: var(--accent); color: var(--tile-ink); } }
+.cell.locked { background: rgba(10, 16, 30, 0.7); }
+.cell.locked .tw-lock {
+  background: no-repeat center/contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffd970' stroke-width='2.4' stroke-linecap='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='2'/%3E%3Cpath d='M8 11V8a4 4 0 0 1 8 0v3'/%3E%3C/svg%3E");
+}
+#hint-btn.free { box-shadow: inset 0 0 0 2px var(--mint), 0 0 16px rgba(94, 224, 184, 0.45); }
+#hint-btn.free .price { background: var(--mint); color: var(--tile-ink); padding-left: 7px; }
+#hint-btn.free .price .coin { display: none; }
+
+/* twist tip + win extras + streak warning (own panel / kit sheet) */
+.wl-tip-art { display: grid; place-items: center; padding: 6px 0 2px; }
+.wl-tip-art .cell { --cell: 64px; border-radius: 14px; font-size: 32px; background: #17323a; }
+.wl-tip-art .cell.on { background: var(--tile); color: var(--tile-ink); animation: none; }
+.wl-win-extra { display: flex; flex-direction: column; gap: 8px; }
+.wl-gains { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.wl-gain { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 99px; background: rgba(0, 0, 0, 0.06); font-size: 13px; font-weight: 900; }
+.meta-root .wl-gain svg { width: 18px; height: 18px; }
+.wl-gain.star svg { color: #ffc83d; filter: drop-shadow(0 1px 0 #b57d10); }
+.wl-gain.pack svg { color: #8a5cf0; }
+.wl-chap i b.hard { box-shadow: 0 0 0 1.5px #ff8a5c; }
+.wl-chap i b.veryhard { box-shadow: 0 0 0 1.5px #d39bff; }
+.wl-streak-warn { color: #e0661c; }
+.wl-pack { color: var(--_ink); }
+.meta-root .wl-pack svg { width: 20px; height: 20px; color: #8a5cf0; }
+.wl-lives-daily { font-size: 15px; }
 
 /* ───────── own sheets on the kit's meta styles (.wl-layer is a second .meta-root) ───────── */
 .meta-root .wl-scene svg, .meta-root .wl-scene { width: 100%; height: 100%; stroke: none; fill: initial; }
@@ -329,5 +357,5 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .cell.on, .overlay, .sheet, .toast, #scenery .scene { animation: none; }
   .wl-confetti { display: none; }
-  .hero-wheel polyline { animation: none; stroke-dashoffset: 0; }
+  .cell.coin .tw-coin, #app.timed.low .hud-sub { animation: none; }
 }

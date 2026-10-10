@@ -1,24 +1,45 @@
 import './style.css';
 import { Capacitor } from '@capacitor/core';
 import {
+  RICON,
+  continueOffer,
+  createAlbum,
+  createBuild,
+  createBuildHero,
+  createInterstitialPolicy,
+  createLeague,
+  createLives,
+  createLivesPill,
   createMeta,
   createProfile,
   createStore,
+  createWinStreak,
   dayKey,
   haptic,
   initAds,
   initStore,
   maybeRequestReview,
+  openAlbum,
+  openBuildScreen,
+  openLeague,
+  openLivesSheet,
   pentatonic,
   scheduleReminders,
   setHapticsEnabled,
   setSoundEnabled,
   setupNative,
   shareResult,
+  showLeagueResult,
+  showRewarded,
+  streakFlames,
+  tierName,
   tone,
   track,
   trackSession,
   unlockAudio,
+  type AlbumUi,
+  type BuildUi,
+  type LeagueReward,
   type Reminder,
 } from '@studio/kit';
 import {
@@ -29,8 +50,12 @@ import {
   isComplete,
   judge,
   shuffleLetters,
+  visibleCells,
   type Level,
 } from './game';
+import { CONTINUE_SECONDS, levelOrder, rewardOf, tierOf } from './difficulty';
+import { COIN_TILE, hintBlocked, introAt, isLocked, twistsFor, type TwistId, type Twists } from './twists';
+import { AREAS, areaArt, areaName, taskName } from './garden';
 import {
   CHAPTER_SIZE,
   chapterCount,
@@ -97,9 +122,18 @@ interface Progress {
   revealed: string[];
   bonusFound: string[];
   order: string; // current wheel order
-  /** Daily puzzle runs only: the date it belongs to and seconds played. */
+  /** Daily puzzle runs: the date it belongs to. Daily and timed levels: seconds played. */
   day?: string;
   elapsed?: number;
+  /** Timed levels: seconds on the clock (grows with each continue) and continues bought. */
+  limit?: number;
+  continues?: number;
+  /** Free hints left from the win-streak bonus (granted when the level starts). */
+  free?: number;
+  /** Attempt number of this level (analytics). */
+  attempt?: number;
+  /** Coin tiles already collected. */
+  coinsGot?: string[];
 }
 /** Daily puzzle history (shared by both word languages: the streak belongs to the player). */
 interface DailyData {
@@ -132,6 +166,9 @@ let busy = false;
 let inGame = false;
 /** What is on the board: a numbered level or today's daily puzzle. */
 let mode: 'level' | 'daily' = 'level';
+const NO_TWISTS: Twists = { timed: 0, coinCells: [], mystery: null, locked: null };
+/** Twists of the level on the board (twists.ts); none on the daily puzzle. */
+let tw: Twists = NO_TWISTS;
 
 const fresh = (n: number): Progress => ({ level: n, found: [], revealed: [], bonusFound: [], order: '' });
 const runKey = () => (mode === 'daily' ? `dailyRun.${settings.lang}` : `progress.${settings.lang}`);
@@ -210,6 +247,23 @@ loadMap(settings.lang);
 profile.onChange(() => store.set(`map.${settings.lang}`, { stars: profile.data.stars, unlocked: profile.data.unlocked }));
 profile.save();
 
+// ───────────────────────── retention layer (kit): lives, streak, build, league, album ─────────────────────────
+// Shared by both word languages, like the coins: they belong to the player, not to a level map.
+const uiLang: Lang = navigator.language.slice(0, 2) === 'tr' ? 'tr' : 'en';
+const LIFE_REFILL = 150;
+const lives = createLives({ game: 'wordlink' });
+const streak = createWinStreak({ game: 'wordlink' });
+const build = createBuild({ game: 'wordlink', areas: AREAS });
+const league = createLeague({ game: 'wordlink' });
+/** Album sets = the 12 chapter landscapes; a set's 9 cards are that place across times of day. */
+const ALBUM_PLACES = 12;
+const album = createAlbum({ game: 'wordlink', sets: Array.from({ length: ALBUM_PLACES }, (_, p) => ({ id: `p${p}`, reward: 150 + 25 * p })) });
+const interstitials = createInterstitialPolicy({ minLevel: 3, every: 2 });
+const payReward = (r: { coins: number; packs?: number }) => {
+  if (r.coins) profile.addCoins(r.coins);
+  if (r.packs) album.addPacks(r.packs);
+};
+
 // ───────────────────────── DOM ─────────────────────────
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const board = $('board');
@@ -258,6 +312,10 @@ function renderBoard(animate: Set<string> = new Set(), flash: Set<string> = new 
   for (const p of level.words) cellsOf(p).forEach((k, i) => letters.set(k, p.w[i]));
   const vis = new Set(revealed);
   for (const p of level.words) if (found.has(p.w)) cellsOf(p).forEach((k) => vis.add(k));
+  const got = new Set(cur.coinsGot ?? []);
+  const lockedCells = new Set(isLocked(tw, found) ? cellsOf(level.words.find((p) => p.w === tw.locked!.word)!) : []);
+  const twist = (k: string): [string, string] =>
+    tw.mystery === k ? ['mystery', '?'] : lockedCells.has(k) ? ['locked', '<i class="tw-lock"></i>'] : tw.coinCells.includes(k) && !got.has(k) ? ['coin', '<i class="tw-coin"></i>'] : ['', ''];
   const html: string[] = [];
   let stagger = 0;
   for (let r = 0; r < level.rows; r++) {
@@ -270,9 +328,10 @@ function renderBoard(animate: Set<string> = new Set(), flash: Set<string> = new 
       }
       const shown = vis.has(k);
       const isFound = level.words.some((p) => found.has(p.w) && cellsOf(p).includes(k));
-      const cls = ['cell', shown ? (isFound ? 'on' : 'hinted') : '', flash.has(k) ? 'flash' : ''].join(' ');
+      const [tcls, tmark] = shown ? ['', ''] : twist(k);
+      const cls = ['cell', shown ? (isFound ? 'on' : 'hinted') : tcls, flash.has(k) ? 'flash' : ''].join(' ');
       const delay = animate.has(k) ? `style="animation-delay:${stagger++ * 60}ms"` : 'style="animation:none"';
-      html.push(`<div class="${cls}" ${shown && !flash.has(k) ? delay : ''}>${shown ? upper(ch) : ''}</div>`);
+      html.push(`<div class="${cls}" ${shown && !flash.has(k) ? delay : ''}>${shown ? upper(ch) : tmark}</div>`);
     }
   }
   board.innerHTML = html.join('');
@@ -398,10 +457,25 @@ function submit(word: string) {
     return;
   }
   const v = judge(level, found, bonusFound, word);
+  if (v === 'answer' && tw.locked?.word === word && isLocked(tw, found)) {
+    settlePreview('bad', word);
+    toast(t('locked', { n: tw.locked.after - found.size }));
+    haptic.error();
+    return;
+  }
   if (v === 'answer') {
+    const before = visibleCells(level, found, revealed);
     found.add(word);
     settlePreview('good', word);
     const placed = level.words.find((p) => p.w === word)!;
+    // coin tiles uncovered by this word (a hinted tile does not pay)
+    const got = cellsOf(placed).filter((k) => tw.coinCells.includes(k) && !before.has(k) && !(cur.coinsGot ?? []).includes(k));
+    if (got.length) {
+      cur.coinsGot = [...(cur.coinsGot ?? []), ...got];
+      profile.addCoins(COIN_TILE * got.length);
+      setTimeout(() => toast(t('coinTile', { n: COIN_TILE * got.length })), 350);
+      tone({ freq: 1318, to: 1760, duration: 0.14, volume: 0.3, delay: 0.2 });
+    }
     renderBoard(new Set(cellsOf(placed)));
     haptic.medium();
     [0, 2, 4].forEach((s, i) => tone({ freq: pentatonic(s + word.length - 3), duration: 0.16, volume: 0.4, delay: i * 0.05 }));
@@ -450,7 +524,7 @@ function renderMeter() {
 }
 
 function afterProgress() {
-  for (const w of completedByReveal(level, found, revealed)) found.add(w);
+  for (const w of completedByReveal(level, found, revealed)) if (!(tw.locked?.word === w && isLocked(tw, found))) found.add(w);
   save();
   if (isComplete(level, found)) {
     busy = true;
@@ -488,17 +562,56 @@ function renderHud() {
     $('hud-sub').textContent = clock(cur.elapsed ?? 0);
     $('app').classList.add('daily');
   } else {
-    $('hud-eyebrow').textContent = t('level');
+    const tier = tierOf(cur.level);
+    $('hud-eyebrow').textContent = tier === 'normal' ? t('level') : t(tier);
     $('level').textContent = String(cur.level);
-    $('hud-sub').textContent = `${chapterName(chapterOf(cur.level), settings.lang)} · ${stepInChapter(cur.level)}/${CHAPTER_SIZE}`;
     $('app').classList.remove('daily');
+    renderClock();
   }
+  const tier = mode === 'level' ? tierOf(cur.level) : 'normal';
+  $('app').classList.toggle('hard', tier === 'hard');
+  $('app').classList.toggle('veryhard', tier === 'veryhard');
+  renderHintPrice();
+}
+
+/** HUD second line on levels: chapter + step, or the clock on timed levels. */
+function renderClock() {
+  const sub = $('hud-sub');
+  if (mode === 'level' && cur.limit) {
+    const left = Math.max(0, cur.limit - (cur.elapsed ?? 0));
+    sub.textContent = `⏱ ${clock(left)}`;
+    $('app').classList.add('timed');
+    $('app').classList.toggle('low', left <= 15);
+  } else {
+    if (mode === 'level') sub.textContent = `${chapterName(chapterOf(cur.level), settings.lang)} · ${stepInChapter(cur.level)}/${CHAPTER_SIZE}`;
+    $('app').classList.remove('timed', 'low');
+  }
+}
+
+/** Hint button label: coin price, or the free hints left from the win streak. */
+function renderHintPrice() {
+  const free = mode === 'level' ? (cur?.free ?? 0) : 0;
+  $('hint-btn').classList.toggle('free', free > 0);
+  $('hint-price').textContent = free > 0 ? `×${free}` : String(HINT_COST);
 }
 
 // ───────────────────────── level flow ─────────────────────────
 function loadLevel(p: Progress, lvl: Level) {
   cur = p;
   level = lvl;
+  tw = mode === 'daily' ? NO_TWISTS : twistsFor(p.level, lvl);
+  const isNew = !p.found.length && !p.revealed.length && !p.elapsed && p.free === undefined;
+  if (mode === 'level') {
+    if (tw.timed && !p.limit) p.limit = tw.timed;
+    p.attempt ??= 1;
+    if (isNew) {
+      // win-streak bonus: 1/2/3 free hints for this level (unused ones expire)
+      p.free = streak.tier;
+      if (p.free) setTimeout(() => toast(p.free === 1 ? t('freeHint') : t('freeHints', { n: p.free! }), 2200), 500);
+      const intro = introAt(p.level);
+      if (intro && !store.get(`tip.${intro}`, false)) setTimeout(() => showTip(intro), 450);
+    }
+  }
   found = new Set(cur.found);
   revealed = new Set(cur.revealed);
   bonusFound = new Set(cur.bonusFound);
@@ -519,11 +632,89 @@ function play(n: number) {
   n = Math.max(1, Math.min(n, levels.length));
   mode = 'level';
   const saved = store.get<Progress | null>(`progress.${settings.lang}`, null);
-  const resumed = !!saved && saved.level === n;
+  // v1.2 plays each chapter in saw-tooth order: a run saved for another level at this number starts over
+  const answers = new Set(levels[n - 1].words.map((w) => w.w));
+  const resumed = !!saved && saved.level === n && saved.found.every((w) => answers.has(w));
   inGame = true;
   setScene(chapterOf(n));
-  loadLevel(resumed ? saved! : fresh(n), levels[n - 1]);
-  track('level_start', { level: n, lang: settings.lang, resumed: resumed && saved!.found.length > 0 });
+  const p = resumed ? saved! : { ...fresh(n), attempt: saved?.level === n ? saved.attempt : undefined };
+  loadLevel(p, levels[n - 1]);
+  track('level_start', { level: n, lang: settings.lang, resumed: resumed && saved!.found.length > 0, attempt: cur.attempt ?? 1, tier: tierOf(n) });
+}
+
+/** Starts a level unless the player is out of lives (then: home + lives sheet). */
+function tryPlay(n: number) {
+  if (lives.canPlay()) return play(n);
+  inGame = false;
+  hideHand();
+  meta.showHome();
+  openLives();
+}
+
+/** A timed level ran out and the player gave up: a life and the win streak are gone. */
+function failLevel() {
+  lives.lose();
+  streak.fail();
+  // the next try starts fresh, counting the attempt
+  store.set(`progress.${settings.lang}`, { ...fresh(cur.level), attempt: (cur.attempt ?? 1) + 1 });
+}
+
+function timeUp() {
+  busy = true;
+  hideHand();
+  save();
+  const n = cur.level;
+  const used = cur.continues ?? 0;
+  const lost = streak.count;
+  const extra = lost ? html(`<p class="m-note wl-streak-warn">${streakFlames(streak.tier)}<span class="wl-warn-text"></span></p>`) : undefined;
+  if (extra) extra.querySelector('.wl-warn-text')!.textContent = t('streakLose', { n: lost });
+  haptic.error();
+  tone({ freq: 330, to: 160, duration: 0.4, type: 'triangle', volume: 0.35 });
+  meta.showFail({
+    level: n,
+    reason: t('timeUp'),
+    offer: continueOffer(used),
+    attempt: cur.attempt ?? 1,
+    extra,
+    onContinue: () => {
+      cur.continues = used + 1;
+      cur.limit = (cur.limit ?? 0) + CONTINUE_SECONDS;
+      busy = false;
+      save();
+      renderClock();
+      toast(t('plusTime', { n: CONTINUE_SECONDS }));
+      scheduleHand();
+    },
+    onRetry: () => {
+      failLevel();
+      tryPlay(n);
+    },
+    onMenu: () => {
+      failLevel();
+      inGame = false;
+      hideHand();
+    },
+  });
+}
+
+/** One-time tip the first time a twist shows up. */
+function showTip(id: TwistId) {
+  if (!inGame || mode !== 'level') return;
+  store.set(`tip.${id}`, true);
+  const el = html(`<div class="m-result wl-tip"><div class="wl-tip-art"></div><h2></h2><p class="m-note"></p><button class="m-btn" data-ok></button></div>`);
+  const art: Record<TwistId, string> = {
+    timed: '<div class="cell on">⏱</div>',
+    coins: '<div class="cell coin"><i class="tw-coin"></i></div>',
+    mystery: '<div class="cell mystery">?</div>',
+    locked: '<div class="cell locked"><i class="tw-lock"></i></div>',
+  };
+  el.querySelector('.wl-tip-art')!.innerHTML = art[id];
+  el.querySelector('h2')!.textContent = t(`tip_${id}_title` as 'tip_timed_title');
+  el.querySelector('.m-note')!.textContent = t(`tip_${id}` as 'tip_timed', { n: id === 'coins' ? COIN_TILE : (tw.locked?.after ?? 2) });
+  el.querySelector('[data-ok]')!.textContent = t('gotIt');
+  el.querySelector('[data-ok]')!.addEventListener('click', () => closePanel());
+  track('twist_intro', { twist: id, level: cur.level });
+  openPanel(el, { modal: true });
 }
 
 /** 3 stars without hints, 2 with one or two hints, 1 otherwise. */
@@ -542,32 +733,63 @@ function win() {
   const hints = revealed.size;
   const stars = starsFor(hints);
   const firstClear = (profile.data.stars[done - 1] ?? 0) === 0;
-  track('level_complete', {
+  const reward = rewardOf(done);
+  const tier = tierOf(done);
+  const attempt = cur.attempt ?? 1;
+  track('level_win', {
     level: done,
     lang: settings.lang,
+    attempt,
+    tier,
     bonus: bonusFound.size,
     hints,
     stars,
+    continues: cur.continues ?? 0,
     duration_s: Math.round((Date.now() - startedAt) / 1000),
   });
   // Persist the next level now so quitting on this screen never loses progress.
   store.set(`progress.${settings.lang}`, fresh(Math.min(done + 1, levels.length)));
   store.set('completed', Math.max(store.get('completed', 0), done));
+  // retention: streak always; build stars, league points and packs only on a first clear (no farming)
+  streak.win();
+  const gains = { build: 0, packs: 0 };
+  if (firstClear) {
+    gains.build = reward.buildStars;
+    gains.packs = reward.packs;
+    build.addStars(gains.build);
+    league.addScore(1);
+    if (gains.packs) album.addPacks(gains.packs);
+  }
   const firstWin = !store.get('remindAsked', false);
   const after = () => {
     if (firstWin) maybeAskReminders();
   };
   const showWin = () => {
+    const canBuild = build.canBuild() || build.areaComplete();
     meta.showWin({
       level: done,
       stars,
-      coins: 10 + stars * 5,
+      coins: Math.round((10 + stars * 5) * reward.mult),
+      eyebrow: tier === 'normal' ? undefined : `${t(tier)} · ${done}`,
+      extra: winExtra(done, gains),
+      buttons: [
+        { id: 'share', label: t('share'), icon: ICON.share, keepOpen: true, onClick: () => void share(t('shareLevel', { n: done, how: hintWords(hints), stars }), 'level_win') },
+        ...(canBuild
+          ? [{ id: 'build', label: t('build'), icon: RICON.hammer, cls: 'alt' as const, onClick: () => {
+              inGame = false;
+              hideHand();
+              meta.showHome();
+              openBuild();
+              after();
+            } }]
+          : []),
+      ],
       onNext: () => {
         if (done >= levels.length) {
           inGame = false;
           meta.showHome();
           meta.toast(t('allDone'));
-        } else play(done + 1);
+        } else tryPlay(done + 1);
         after();
       },
       onMenu: () => {
@@ -576,7 +798,6 @@ function win() {
         after();
       },
     });
-    decorateWin(done, stars, hints);
     maybeRequestReview(done, done >= 6);
   };
   setTimeout(() => {
@@ -587,11 +808,31 @@ function win() {
   }, 500);
 }
 
+/** Win sheet extras (kit slot): chapter progress, build stars, card pack, win streak. */
+function winExtra(done: number, gains: { build: number; packs: number }): HTMLElement {
+  const c = chapterOf(done);
+  const step = stepInChapter(done);
+  const box = html(`<div class="wl-win-extra">
+    <div class="wl-chap" style="background:${skyGradient(c, '90deg')}"><span></span><i>${Array.from({ length: CHAPTER_SIZE }, (_, i) => `<b class="${i < step ? 'on' : ''} ${tierOf(c * CHAPTER_SIZE + i + 1)}"></b>`).join('')}</i></div>
+    <div class="wl-gains"></div></div>`);
+  box.querySelector('.wl-chap span')!.textContent = `${t('chapter', { n: c + 1 })} · ${chapterName(c, settings.lang)}`;
+  const gainsEl = box.querySelector('.wl-gains')!;
+  const chip = (icon: string, text: string, cls = '') => {
+    const e = html(`<span class="wl-gain ${cls}">${icon}<b></b></span>`);
+    e.querySelector('b')!.textContent = text;
+    gainsEl.appendChild(e);
+  };
+  if (gains.build) chip(RICON.star, t('winBuild', { n: gains.build }), 'star');
+  if (gains.packs) chip(RICON.cards, t('winPack'), 'pack');
+  if (streak.count >= 2) chip(streakFlames(streak.tier), t('winStreak', { n: streak.count }), 'streak');
+  if (!gainsEl.children.length) gainsEl.remove();
+  return box;
+}
+
 // ───────────────────────── own sheets (styled by the kit's meta.css) ─────────────────────────
 // The kit meta root is created by createMeta (below); this layer is appended after it so own
 // sheets always sit on top of the kit's screens.
 let kitRoot!: HTMLElement;
-const kitSheet = () => kitRoot.querySelector<HTMLElement>('.m-sheet')!;
 const layer = document.createElement('div');
 layer.className = 'meta-root wl-layer';
 layer.innerHTML = '<div class="m-overlay" hidden><div class="m-sheet"></div></div>';
@@ -641,23 +882,6 @@ async function share(text: string, placement: string) {
   if (ok && !Capacitor.isNativePlatform() && !nav.share) meta.toast(t('copied'));
 }
 
-/** Adds the chapter progress row and a Share button to the kit's level win sheet. */
-function decorateWin(done: number, stars: number, hints: number) {
-  const res = kitSheet().querySelector<HTMLElement>('.m-result');
-  if (!res || res.querySelector('.wl-chap')) return;
-  const c = chapterOf(done);
-  const step = stepInChapter(done);
-  const row = html(`<div class="wl-chap" style="background:${skyGradient(c, '90deg')}"><span></span><i>${Array.from({ length: CHAPTER_SIZE }, (_, i) => `<b class="${i < step ? 'on' : ''}"></b>`).join('')}</i></div>`);
-  row.querySelector('span')!.textContent = `${t('chapter', { n: c + 1 })} · ${chapterName(c, settings.lang)}`;
-  res.querySelector('h2')!.after(row);
-  const menu = res.querySelector<HTMLElement>('[data-menu]')!;
-  const pair = html(`<div class="wl-pair"><button class="m-btn ghost" data-share>${ICON.share}<span></span></button></div>`);
-  pair.querySelector('span')!.textContent = t('share');
-  menu.replaceWith(pair);
-  pair.appendChild(menu);
-  pair.querySelector('[data-share]')!.addEventListener('click', () => void share(t('shareLevel', { n: done, how: hintWords(hints), stars }), 'level_win'));
-}
-
 // ───────────────────────── chapters ─────────────────────────
 function showChapterDone(c: number, then: () => void) {
   const reward = chapterReward(c);
@@ -672,13 +896,16 @@ function showChapterDone(c: number, then: () => void) {
     <p class="m-eyebrow"></p><h2>${t('chapterDone')}</h2>
     <p class="m-note" data-next-name></p>
     <p class="m-reward">${ICON.coin}<b>+${reward}</b></p>
+    <p class="m-note wl-pack">${RICON.cards}<span></span></p>
     <button class="m-btn" data-collect></button></div>`);
   el.querySelector('.m-eyebrow')!.textContent = `${t('chapter', { n: c + 1 })} · ${chapterName(c, settings.lang)}`;
+  el.querySelector('.wl-pack span')!.textContent = t('winPack');
   el.querySelector('[data-next-name]')!.textContent = next >= 0 ? t('chapterNext', { name: chapterName(next, settings.lang) }) : t('allDone');
   el.querySelector('[data-collect]')!.textContent = t('collect');
   el.querySelector('[data-collect]')!.addEventListener('click', () => {
     unlockAudio();
     profile.addCoins(reward);
+    album.addPacks(1);
     haptic.success();
     closePanel();
     then();
@@ -720,6 +947,9 @@ function dailyWin() {
   const bonus = milestoneBonus(streak);
   const coins = DAILY_COINS + (result.h === 0 ? DAILY_PERFECT_COINS : 0);
   profile.addCoins(coins + bonus);
+  // the daily puzzle counts in the league and pays a card pack; it never costs a life
+  league.addScore(1);
+  album.addPacks(1);
   track('daily_complete', { lang: settings.lang, streak, time_s: result.t, hints: result.h, bonus });
   paintDailyCard();
   void refreshReminders(); // today's reminder is no longer needed
@@ -762,7 +992,7 @@ function showDailySheet(justSolved: boolean, coins = 0, bonus = 0) {
       <div><b>${res ? res.h : '–'}</b><small>${t('dailyHints')}</small></div>
       <div class="streak">${ICON.flame}<b>${streak}</b><small>${t('dailyStreak')}</small></div>
     </div>
-    ${justSolved ? `<p class="m-reward">${ICON.coin}<b>+${coins}</b></p>` : ''}
+    ${justSolved ? `<p class="m-reward">${ICON.coin}<b>+${coins}</b></p><p class="m-note wl-pack">${RICON.cards}<span></span></p>` : ''}
     ${bonus ? `<p class="wl-bonus">${ICON.flame}<span></span><b>+${bonus}</b></p>` : ''}
     ${calendarHtml(today)}
     <p class="m-note" data-note></p>
@@ -771,6 +1001,7 @@ function showDailySheet(justSolved: boolean, coins = 0, bonus = 0) {
   el.querySelector('.m-eyebrow')!.textContent = `${t('dailyHud')} · ${fmtDate(today, { day: 'numeric', month: 'long' })}`;
   el.querySelector('h2')!.textContent = res ? t('dailySolved') : t('daily');
   if (bonus) el.querySelector('.wl-bonus span')!.textContent = t('dailyBonus', { n: streak });
+  if (justSolved) el.querySelector('.wl-pack span')!.textContent = t('winPack');
   el.querySelector('[data-note]')!.textContent = res ? `${t('dailyNext', { n: next.days - streak, d: next.days })}. ${t('dailyCome', { t: until() })}.` : t('dailyNext', { n: next.days - streak, d: next.days });
   el.querySelector('[data-share] span')!.textContent = t('share');
   el.querySelector('[data-share]')!.addEventListener('click', () => {
@@ -782,7 +1013,7 @@ function showDailySheet(justSolved: boolean, coins = 0, bonus = 0) {
     toLevels.addEventListener('click', () => {
       panelClose = null;
       closePanel();
-      play(profile.data.unlocked);
+      tryPlay(profile.data.unlocked);
       maybeAskReminders();
     });
   }
@@ -822,18 +1053,28 @@ function paintDailyCard() {
     ico.setAttribute('data-day', dayNum);
     ico.innerHTML = `<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/><text x="12" y="18.6" text-anchor="middle" font-size="8" font-weight="900" fill="currentColor" stroke="none">${dayNum}</text></svg>`;
   }
-  card.querySelector('.m-card-body small')!.textContent = solved ? t('dailySolvedSub', { n: streak }) : streak ? t('dailyToday', { n: streak }) : t('dailyStart');
-  const badge = card.querySelector<HTMLElement>('.m-best')!;
-  badge.innerHTML = streak ? `${solved ? ICON.check : ICON.flame}<b>${streak}</b>` : '';
-  badge.setAttribute('aria-label', `${t('dailyStreak')} ${streak}`);
+  meta.setEndless({
+    subtitle: solved ? t('dailySolvedSub', { n: streak }) : streak ? t('dailyToday', { n: streak }) : t('dailyStart'),
+    badge: streak ? `${solved ? ICON.check : ICON.flame}<b>${streak}</b>` : '',
+  });
+  card.querySelector<HTMLElement>('.m-best')!.setAttribute('aria-label', `${t('dailyStreak')} ${streak}`);
 }
 document.addEventListener('visibilitychange', () => !document.hidden && paintDailyCard());
 
 // Timer for the daily puzzle: runs only while the board is visible and playable.
+// Timed levels count the same way and end in timeUp() at the limit.
 setInterval(() => {
-  if (mode !== 'daily' || !inGame || busy || document.hidden || covering()) return;
-  cur.elapsed = (cur.elapsed ?? 0) + 1;
-  $('hud-sub').textContent = clock(cur.elapsed);
+  if (!inGame || busy || document.hidden || covering()) return;
+  if (mode === 'daily') {
+    cur.elapsed = (cur.elapsed ?? 0) + 1;
+    $('hud-sub').textContent = clock(cur.elapsed);
+  } else if (cur.limit) {
+    cur.elapsed = (cur.elapsed ?? 0) + 1;
+    renderClock();
+    const left = cur.limit - cur.elapsed;
+    if (left <= 5 && left > 0) tone({ freq: 880, duration: 0.06, volume: 0.2, type: 'triangle' });
+    if (left <= 0) return timeUp();
+  } else return;
   if (cur.elapsed % 5 === 0) save();
 }, 1000);
 
@@ -889,22 +1130,44 @@ $('shuffle-btn').addEventListener('click', () => {
 $('hint-btn').addEventListener('click', () => {
   unlockAudio();
   if (busy) return;
-  const k = hintCell(level, found, revealed);
-  if (!k) return;
-  if (!profile.spend(HINT_COST)) {
-    // Free coins (rewarded video) and coin packs live in the meta shop.
-    haptic.error();
-    meta.openShop('coins');
-    meta.toast(t('notEnough'));
+  const blocked = hintBlocked(tw, level, found);
+  const k = hintCell(level, found, revealed, blocked);
+  if (!k) {
+    if (blocked.size) toast(t('noHint'));
     return;
   }
+  if (mode === 'level' && (cur.free ?? 0) > 0) {
+    cur.free!--;
+    return giveHint(k, 'streak');
+  }
+  if (profile.spend(HINT_COST)) return giveHint(k, 'coins');
+  // Out of coins: a rewarded video pays for this hint, or the coin shop.
+  haptic.error();
+  const el = html(`<div class="m-result"><h2></h2><button class="m-btn alt" data-ad>${RICON.ad}<span></span></button><button class="m-btn" data-shop></button><button class="m-btn ghost" data-close></button></div>`);
+  el.querySelector('h2')!.textContent = t('hintTitle');
+  el.querySelector('[data-ad] span')!.textContent = t('hintVideo');
+  el.querySelector('[data-shop]')!.textContent = t('getCoins');
+  el.querySelector('[data-close]')!.textContent = t('close');
+  el.querySelector('[data-ad]')!.addEventListener('click', async () => {
+    if (!(await showRewarded('hint'))) return;
+    meta.closeSheet();
+    const again = hintCell(level, found, revealed, hintBlocked(tw, level, found));
+    if (again) giveHint(again, 'ad');
+  });
+  el.querySelector('[data-shop]')!.addEventListener('click', () => meta.openShop('coins'));
+  el.querySelector('[data-close]')!.addEventListener('click', () => meta.closeSheet());
+  meta.openSheet(el);
+});
+
+function giveHint(k: string, how: 'coins' | 'ad' | 'streak') {
   revealed.add(k);
   renderBoard(new Set([k]));
+  renderHintPrice();
   haptic.light();
   tone({ freq: 880, duration: 0.12, volume: 0.3 });
-  track('hint', { level: cur.level });
+  track('hint', { level: cur.level, how });
   afterProgress();
-});
+}
 
 $('coins-pill').addEventListener('click', () => {
   unlockAudio();
@@ -984,35 +1247,52 @@ function applySkin(id: string) {
 }
 applySkin(profile.data.skin);
 
-// ───────────────────────── home artwork ─────────────────────────
-const HERO: Record<Lang, { word: string; slots: number[] }> = {
-  en: { word: 'LINK', slots: [0, 2, 3, 1] },
-  tr: { word: 'KELİME', slots: [0, 3, 1, 4, 2, 5] },
+// ───────────────────────── retention screens (kit retention ui in the kit sheet) ─────────────────────────
+const buildUi: BuildUi = {
+  build,
+  art: areaArt,
+  areaName: (_a, k) => areaName(k, uiLang),
+  taskName: (_a, id) => taskName(id, uiLang),
+  onReward: (r) => payReward(r),
 };
-/** A mini letter wheel tracing the word into a row of tiles above it (follows the word language). */
-function heroArt() {
-  const el = document.createElement('div') as HTMLDivElement & { repaint: () => void };
-  el.className = 'hero';
-  el.repaint = () => {
-    const { word, slots } = HERO[settings.lang];
-    const letters = [...word];
-    const n = letters.length;
-    const pos = (slot: number) => {
-      const a = -Math.PI / 2 + (slot * 2 * Math.PI) / n;
-      return { x: 90 + Math.cos(a) * 60, y: 90 + Math.sin(a) * 60 };
-    };
-    const pts = slots.map((s) => pos(s));
-    el.innerHTML = `
-      <div class="hero-tiles">${letters.map((ch, i) => `<i style="animation-delay:${400 + i * 160}ms">${ch}</i>`).join('')}</div>
-      <div class="hero-wheel">
-        <svg viewBox="0 0 180 180"><polyline points="${pts.map((p) => `${p.x},${p.y}`).join(' ')}" pathLength="1" style="--n:${n}"/></svg>
-        ${letters.map((ch, i) => `<b style="left:${pts[i].x}px;top:${pts[i].y}px;animation-delay:${400 + i * 160}ms">${ch}</b>`).join('')}
-      </div>`;
-  };
-  el.repaint();
-  return el;
+function openBuild() {
+  openBuildScreen(meta, buildUi, () => meta.refresh());
 }
-const hero = heroArt();
+/** Home hero (kit slot): the area being built + "next task" call to action. */
+const hero = createBuildHero(buildUi, () => {
+  unlockAudio();
+  haptic.light();
+  openBuild();
+});
+
+function openLives() {
+  const daily = html(`<button class="m-btn ghost wl-lives-daily"></button>`);
+  daily.textContent = t('livesDaily');
+  daily.addEventListener('click', () => {
+    meta.closeSheet();
+    meta.hideHome();
+    void startDaily();
+  });
+  openLivesSheet(meta, lives, { refillPrice: LIFE_REFILL, spendCoins: (n) => profile.spend(n), extra: daily });
+}
+const livesPill = createLivesPill(lives, () => {
+  unlockAudio();
+  haptic.light();
+  openLives();
+});
+
+const leagueReward = (r: LeagueReward) => payReward(r);
+const albumUi: AlbumUi = {
+  album,
+  setName: (set) => chapterName(Number(set.slice(1)), uiLang).split(' · ')[0],
+  // card i of place p = chapter p + 12·i: the same landscape at another time of day
+  cardName: (set, i) => chapterName(Number(set.slice(1)) + ALBUM_PLACES * i, uiLang).split(' · ')[1],
+  cardArt: (set, i) => sceneSvg(Number(set.slice(1)) + ALBUM_PLACES * i, 'card'),
+  onSetReward: (_set, coins) => profile.addCoins(coins),
+};
+const ICON_LEAGUE = '<svg viewBox="0 0 24 24"><path d="M7 4h10v5a5 5 0 0 1-10 0zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4M12 14v4M8 21h8"/></svg>';
+// any change in the retention stores refreshes the home screen (pill, hero, quick buttons)
+for (const s of [build, league, album, lives]) s.onChange(() => meta.refresh());
 
 // ───────────────────────── word language (meta settings row) ─────────────────────────
 function langRow() {
@@ -1028,6 +1308,12 @@ function renderLang() {
   extraSettings.querySelectorAll<HTMLElement>('[data-lang]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.lang === settings.lang)));
 }
 
+/** A word pack in v1.2 play order (saw-tooth difficulty inside each chapter, difficulty.ts). */
+async function loadPack(lang: Lang): Promise<Level[]> {
+  const pack = (await PACKS[lang]()).default as Level[];
+  return levelOrder(pack).map((i) => pack[i]);
+}
+
 async function setLang(lang: Lang) {
   if (lang === settings.lang) return;
   haptic.light();
@@ -1036,10 +1322,9 @@ async function setLang(lang: Lang) {
   store.set('settings', settings);
   renderLang();
   loadMap(lang);
-  levels = (await PACKS[lang]()).default as Level[];
+  levels = await loadPack(lang);
   levelsCfg.count = LEVEL_COUNT[lang]; // the kit reads this when it draws the map / home card
   profile.save(); // writes the map under the new language and refreshes the home screen
-  hero.repaint();
   if (inGame) {
     if (mode === 'daily') void startDaily();
     else play(store.get<Progress | null>(`progress.${lang}`, null)?.level ?? profile.data.unlocked);
@@ -1048,7 +1333,29 @@ async function setLang(lang: Lang) {
 }
 
 // ───────────────────────── meta (menu, missions, daily, shop) ─────────────────────────
-const levelsCfg = { count: LEVEL_COUNT[settings.lang], play };
+/** Level map header before the first level of each chapter (kit `levels.section` slot). */
+function chapterHead(n: number): HTMLElement | null {
+  if ((n - 1) % CHAPTER_SIZE) return null;
+  const c = chapterOf(n);
+  const [a, b] = chapterRange(c);
+  const stars = profile.data.stars.slice(a - 1, Math.min(b, levelsCfg.count)).reduce((x, y) => x + y, 0);
+  const head = html(`<div class="wl-ch-head ${a > profile.data.unlocked ? 'locked' : ''}" style="background:${skyGradient(c, '100deg')}"><b></b><span></span><small>★ ${stars}/${CHAPTER_SIZE * 3}</small></div>`);
+  head.querySelector('b')!.textContent = t('chapter', { n: c + 1 });
+  head.querySelector('span')!.textContent = chapterName(c, settings.lang);
+  return head;
+}
+
+const levelsCfg = {
+  count: LEVEL_COUNT[settings.lang],
+  play,
+  canPlay: (_n: number) => {
+    if (lives.canPlay()) return true;
+    openLives();
+    return false;
+  },
+  section: chapterHead,
+  tag: (n: number) => (tierOf(n) === 'normal' ? '' : tierOf(n)),
+};
 const meta = createMeta({
   title: 'Wordlink',
   tagline: t('tagline'),
@@ -1071,6 +1378,28 @@ const meta = createMeta({
     store.set('settings', settings);
   },
   extraSettings,
+  topExtra: livesPill,
+  homeButtons: [
+    {
+      id: 'league',
+      icon: ICON_LEAGUE,
+      label: t('league'),
+      sub: () => (league.score > 0 ? t('leagueSub', { n: league.standings().rank, tier: tierName(league.tier) }) : tierName(league.tier)),
+      badge: () => (league.pendingResult() ? '!' : null),
+      onClick: () => openLeague(meta, league, leagueReward),
+    },
+    {
+      id: 'album',
+      icon: RICON.cards,
+      label: t('album'),
+      sub: () => `${album.total().have}/${album.total().all}`,
+      badge: () => album.packs + album.claimable().length || null,
+      onClick: () => openAlbum(meta, albumUi),
+    },
+  ],
+  interstitial: interstitials,
+  // Starter pack: 500 coins + no ads (kit) + 24 h of unlimited lives (RETENTION.md IAP)
+  onPurchase: (id) => id === 'starter_pack' && lives.grantUnlimited(24 * 3_600_000),
 });
 kitRoot = document.querySelector<HTMLElement>('.meta-root')!;
 document.body.appendChild(layer);
@@ -1079,25 +1408,6 @@ profile.onChange(paintDailyCard);
 panel.addEventListener('click', (e) => {
   if (e.target === panel && !panelModal) closePanel();
 });
-// Level map: chapter headers between every 10 levels (decorates the kit's map when it opens).
-new MutationObserver(() => {
-  const grid = kitRoot.querySelector<HTMLElement>('.m-grid');
-  if (grid && !grid.dataset.chapters) decorateMap(grid);
-}).observe(kitSheet(), { childList: true });
-
-function decorateMap(grid: HTMLElement) {
-  grid.dataset.chapters = '1';
-  const buttons = [...grid.querySelectorAll<HTMLElement>('.m-lvl')];
-  for (let c = 0; c * CHAPTER_SIZE < buttons.length; c++) {
-    const [a, b] = chapterRange(c);
-    const stars = profile.data.stars.slice(a - 1, Math.min(b, buttons.length)).reduce((x, y) => x + y, 0);
-    const head = html(`<div class="wl-ch-head ${a > profile.data.unlocked ? 'locked' : ''}" style="background:${skyGradient(c, '100deg')}"><b></b><span></span><small>★ ${stars}/${CHAPTER_SIZE * 3}</small></div>`);
-    head.querySelector('b')!.textContent = t('chapter', { n: c + 1 });
-    head.querySelector('span')!.textContent = chapterName(c, settings.lang);
-    grid.insertBefore(head, buttons[a - 1]);
-  }
-  grid.querySelector('.current')?.scrollIntoView({ block: 'center' });
-}
 
 $('settings-btn').addEventListener('click', () => {
   unlockAudio();
@@ -1105,11 +1415,15 @@ $('settings-btn').addEventListener('click', () => {
   hideHand();
   meta.showPause({
     onResume: () => scheduleHand(),
-    onRestart: () => {
-      track('level_restart', { level: cur.level, lang: settings.lang, daily: mode === 'daily' });
-      if (mode === 'daily') loadLevel({ ...fresh(0), day: cur.day, elapsed: cur.elapsed }, level); // the clock keeps running
-      else loadLevel(fresh(cur.level), level);
-    },
+    // timed levels have no restart: a new clock would dodge the fail (lives, streak)
+    onRestart:
+      mode === 'level' && cur.limit
+        ? undefined
+        : () => {
+            track('level_restart', { level: cur.level, lang: settings.lang, daily: mode === 'daily' });
+            if (mode === 'daily') loadLevel({ ...fresh(0), day: cur.day, elapsed: cur.elapsed }, level); // the clock keeps running
+            else loadLevel({ ...fresh(cur.level), attempt: cur.attempt, free: 0 }, level);
+          },
     onMenu: () => {
       save();
       inGame = false;
@@ -1129,7 +1443,7 @@ trackSession('wordlink');
 renderCoins();
 renderMeter();
 renderLang();
-levels = (await PACKS[settings.lang]()).default as Level[];
+levels = await loadPack(settings.lang);
 
 void initAds();
 void initStore();
@@ -1153,6 +1467,10 @@ void setupNative({
   },
 });
 meta.showHome();
+// last week's league result greets the player on the home screen
+setTimeout(() => {
+  if (league.pendingResult() && meta.onHome && !meta.sheetOpen && panel.hidden) showLeagueResult(meta, league, leagueReward);
+}, 700);
 void refreshReminders(); // keeps the rolling week of evening reminders fresh (only after opt-in)
 setTimeout(() => void DAILY_PACKS[settings.lang](), 1500); // warm the daily pack so the card opens instantly
 
@@ -1163,6 +1481,9 @@ setTimeout(() => void DAILY_PACKS[settings.lang](), 1500); // warm the daily pac
   },
   get progress() {
     return cur;
+  },
+  get twists() {
+    return tw;
   },
   submit,
   goto: (n: number) => {
@@ -1177,4 +1498,10 @@ setTimeout(() => void DAILY_PACKS[settings.lang](), 1500); // warm the daily pac
     return mode;
   },
   setLang,
+  lives,
+  streak,
+  build,
+  league,
+  album,
+  timeUp,
 };
