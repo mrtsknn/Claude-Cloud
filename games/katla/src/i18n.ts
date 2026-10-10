@@ -1,0 +1,61 @@
+import { createI18n } from '@studio/kit';
+
+const en = {
+  title: 'Fold',
+  tagline: 'Fold the paper into the shape',
+  level: 'Level',
+  target: 'Target',
+  folds: 'Folds {n}',
+  par: 'Par {n}',
+  undo: 'Undo',
+  hint: 'Hint',
+  restart: 'Restart',
+  pause: 'Pause',
+  swipe: 'Swipe across a crease to fold',
+  noUndo: 'Nothing to undo',
+  deadEnd: 'The target can’t be reached from here — undo',
+  offTrack: 'No short way from here — try undo',
+  last: 'You folded every sheet!',
+  mission_levels: 'Finish {n} levels',
+  mission_stars: 'Collect {n} stars',
+  mission_perfect: 'Fold {n} levels at par',
+  mission_folds: 'Make {n} folds',
+  skin_plain: 'Plain',
+  skin_graph: 'Graph paper',
+  skin_kraft: 'Kraft',
+  skin_dots: 'Polka dots',
+  skin_notebook: 'Notebook',
+  skin_washi: 'Washi',
+};
+
+const tr: typeof en = {
+  title: 'Katla',
+  tagline: 'Kâğıdı katla, şekli tamamla',
+  level: 'Seviye',
+  target: 'Hedef',
+  folds: 'Kat {n}',
+  par: 'Par {n}',
+  undo: 'Geri al',
+  hint: 'İpucu',
+  restart: 'Baştan',
+  pause: 'Duraklat',
+  swipe: 'Katlamak için bir çizginin üstünden kaydır',
+  noUndo: 'Geri alınacak kat yok',
+  deadEnd: 'Buradan hedefe ulaşılamaz — geri al',
+  offTrack: 'Buradan kısa yol yok — geri almayı dene',
+  last: 'Bütün kâğıtları katladın!',
+  mission_levels: '{n} seviye bitir',
+  mission_stars: '{n} yıldız topla',
+  mission_perfect: '{n} seviyeyi par ile bitir',
+  mission_folds: '{n} kez katla',
+  skin_plain: 'Düz',
+  skin_graph: 'Kareli',
+  skin_kraft: 'Kraft',
+  skin_dots: 'Puantiyeli',
+  skin_notebook: 'Defter',
+  skin_washi: 'Washi',
+};
+
+export const lang: 'en' | 'tr' = navigator.language.slice(0, 2).toLowerCase() === 'tr' ? 'tr' : 'en';
+export const t = createI18n({ en, tr });
+export type Key = keyof typeof en;
