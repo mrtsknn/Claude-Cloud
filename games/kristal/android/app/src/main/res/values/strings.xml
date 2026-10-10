@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Kristal</string>
+    <string name="title_activity_main">Kristal</string>
+    <string name="package_name">com.indiestudio.kristal</string>
+    <string name="custom_url_scheme">com.indiestudio.kristal</string>
+</resources>
