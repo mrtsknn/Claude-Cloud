@@ -3,14 +3,31 @@
 Bu dosya, bu repoda çalışacak yeni bir ajanın (veya insanın) **önce okuyacağı** yer. Sırayla
 `CLAUDE.md` → bu dosya → `docs/META.md` → `docs/RETENTION.md`.
 
-## Şu anki durum (2026-10)
+## Şu anki durum (2026-10-10)
 - 23 oyun `games/*` altında: hepsi v1 (oynanış + meta katmanı + AdMob test kimlikleri + IAP +
   i18n tr/en + testler + mağaza görselleri + PRIVACY). Tablo: `README.md`.
-- Derinleştirilen 5 aday (v1.1): **Wordlink, Snapgrid, Kovan, Çömlek, Çoban** — günlük bulmaca,
-  bölümler/macera modu, hatırlatma bildirimi, paylaşma, efektler.
-- Tutma katmanı (`docs/RETENTION.md`) kit'te hazır (`packages/kit/src/retention/`) ve **Wordlink v1.2**'de
-  tam entegre (okuma dünyası inşası, can, seri, testere dişi zorluk + süreli seviyeler, yeni mekanik
-  ritmi, lig, albüm). Sıradaki: Snapgrid'e aynı API ile uygulamak (2026-10-10: kredi bittiği için başlanıp durduruldu, sıfırdan yapılacak; ardından 5 oyunun telefon test linki yenilenecek) (rehber: RETENTION.md "API kullanımı").
+- Son doğrulama (ana dal): `typecheck` temiz, 28 test dosyası / 396 test geçiyor, 23 oyunun build'i temiz.
+
+| Oyun | Sürüm | Öne çıkanlar |
+|---|---|---|
+| **Wordlink** | 1.2.0 | Tutma katmanı tam: okuma dünyası inşası, can, seri→bedava ipucu, zor/çok zor + süreli seviyeler (20+), yeni mekanik ritmi (41 jetonlu taş, 61 "?" taşı, 81 kilitli kelime), lig, albüm; günlük bulmaca + seri takvimi, 48 manzaralı bölümler, EN 930 / TR 620 seviye |
+| **Snapgrid** | 1.1.0 | Macera modu 200 seviye, güçlendiriciler, günün bulmacası, efektler, hatırlatma/paylaşma |
+| **Kovan** | 1.1.0 | Derinleştirme turu (günlük/mod, hatırlatma, paylaşma, efektler) |
+| **Çömlek** | 1.1.0 | Derinleştirme turu (günlük/mod, hatırlatma, görselli paylaşma, efektler) |
+| **Çoban** | 1.1.0 | Adil seviyeler (bot 120 seviyeyi ≥%15 süre artarak bitiriyor), Havla düğmesi, yeni hayvan/engeller (8 kuzu, 16 çamur, 20 keçi, 32 kilitli kapı, 40 kaz), köpek eğitimi, Sonsuz Koşu modu |
+| Diğer 18 oyun | 1.0.0 | v1 meta katmanı; tutma katmanı yok |
+
+## Sıradaki işler (öncelik sırasıyla)
+1. **Snapgrid 1.2:** tutma katmanını Wordlink'teki gibi uygula (rehber: `docs/RETENTION.md` "API kullanımı",
+   örnek: `games/wordlink/src/main.ts`). 2026-10-10'da başlandı, kredi bittiği için durduruldu; **sıfırdan** yapılacak
+   (yarım iş dala girmedi). Kapsam: kurma meta'sı (kasaba/atölye temalı SVG), maceraya can, kaybedince devam,
+   seri→başlangıç güçlendiricisi, testere dişi zorluk, her ~20 seviyede yeni hücre/engel, lig, albüm,
+   sonuç ekranı düğmelerini `extra`/`buttons` yuvasına taşıma, mağaza görüntülerini yenileme, sürüm 1.2.0.
+2. **Telefon test linki:** claude.ai artifact'ında Wordlink 1.2, Çoban 1.1 (ve sonra Snapgrid 1.2) yok — eski build'ler.
+   Değişen oyunların `dist/` klasörünü yükleyerek güncelle (yüklemede tek seferde en fazla 255 dosya).
+3. **Wordlink mağaza ekran görüntüleri:** v1.1'den kalma; `scripts/screenshots.mjs` ile yeniden çek.
+4. Kovan / Çömlek / Çoban'a tutma katmanı (Snapgrid'den sonra, aynı yöntemle).
+5. README sürüm sütunu güncel tutulmalı (her sürüm yükseltmesinde).
 
 ## Strateji (neden böyle)
 1. **Yeni oyun ekleme dönemi bitti.** 23 yüzeysel oyun yerine 2–3 derin oyun para kazanır.
@@ -51,6 +68,13 @@ Bu dosya, bu repoda çalışacak yeni bir ajanın (veya insanın) **önce okuyac
 - ~~Günlük bulmaca `showWin({level:0})` görev sayacını ilerletiyor~~ → **düzeldi:** `level <= 0` haritaya ve
   `levels/stars/perfect` görevlerine dokunmaz (Snapgrid'in günlüğü de otomatik düzeldi).
 - Wordlink mağaza ekran görüntüleri v1.1'den (yeni ana menü yok); yayın öncesi yeniden çekilmeli.
+- Wordlink 1.2 ayar değerleri tahmin: süre (zor 60+12×kelime sn, çok zor 45+10×kelime sn), can doldurma 150 jeton,
+  bölge ≈17 yıldız. Yayından sonra ölçülüp ayarlanmalı (hedef: zor seviyede ilk denemede kayıp %35–50).
+- Analytics: Wordlink'te `level_complete` → `level_win` oldu.
+- Wordlink seviye sırası değişti: yarıda bırakılmış seviye başka seviyeye denk gelirse baştan başlar (yıldızlar korunur).
+- Çoban Sonsuz Koşu zorluğu yalnızca botla ayarlandı; gerçek oyuncuyla test edilmeli.
+- Çoban/Kovan/Çömlek/Snapgrid sonuç ekranına Paylaş düğmesini hâlâ DOM'a ekliyor; yeni `buttons` yuvasına taşınabilir.
+- `STORE_URL` yer tutucusu: Wordlink, Snapgrid, Kovan, Çömlek, Çoban `src/main.ts`.
 - Lig botları istemci tarafında; gerçek sunucu için `LeagueOpponents` arayüzünü uygulayan sağlayıcı yazılmalı.
 - `scheduleReminders` reddedilmiş izni her çağrıda tekrar istiyor (oyunlar yalnızca "evet" sonrası çağırıyor).
 - Wordlink TR: denetlenmiş liste 620 seviyeye yetiyor; daha fazlası için liste elle genişletilmeli.

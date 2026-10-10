@@ -5,9 +5,9 @@ Kurallar ve iş akışı: [`CLAUDE.md`](CLAUDE.md).
 
 | Oyun | Tür | Durum |
 |---|---|---|
-| [Snapgrid](games/snapgrid/GAME.md) | Blok yerleştirme (sonsuz) | v1 — meta + AdMob/IAP hazır |
+| [Snapgrid](games/snapgrid/GAME.md) | Blok yerleştirme (sonsuz + macera) | v1.1 — macera, günlük, güçlendirici |
 | [Pour Sort](games/poursort/GAME.md) | Sıvı renk sıralama | v1 — meta + AdMob/IAP hazır |
-| [Wordlink](games/wordlink/GAME.md) | Kelime bulmaca (TR/EN) | v1 — meta + AdMob/IAP hazır |
+| [Wordlink](games/wordlink/GAME.md) | Kelime bulmaca (TR/EN) | v1.2 — tutma katmanı (inşa, can, lig, albüm) |
 | [Devril](games/devril/GAME.md) | Domino zinciri | v1 — meta + AdMob/IAP hazır |
 | [Fener](games/fener/GAME.md) | Işıkla tam örtme | v1 — meta + AdMob/IAP hazır |
 | [Gelgit](games/gelgit/GAME.md) | Dalgaya karşı kale (sonsuz) | v1 — meta + AdMob/IAP hazır |
@@ -22,12 +22,12 @@ Kurallar ve iş akışı: [`CLAUDE.md`](CLAUDE.md).
 | [Fırın](games/firin/GAME.md) | Fırın yönetimi (zaman) | v1 — meta + AdMob/IAP hazır |
 | [İkiz](games/ikiz/GAME.md) | Ayna ikizler | v1 — meta + AdMob/IAP hazır |
 | [Eğim](games/egim/GAME.md) | Tahtayı eğip bilye düşürme | v1 — meta + AdMob/IAP hazır |
-| [Çoban](games/coban/GAME.md) | Koyun gütme | v1 — meta + AdMob/IAP hazır |
+| [Çoban](games/coban/GAME.md) | Koyun gütme | v1.1 — derinleştirildi |
 | [Paraşüt](games/parasut/GAME.md) | Zamanlama arcade | v1 — meta + AdMob/IAP hazır |
-| [Kovan](games/kovan/GAME.md) | Birleştirmeli idle arı kovanı | v1 — meta + AdMob/IAP hazır |
+| [Kovan](games/kovan/GAME.md) | Birleştirmeli idle arı kovanı | v1.1 — derinleştirildi |
 | [Katla](games/katla/GAME.md) | Kâğıt katlama | v1 — meta + AdMob/IAP hazır |
 | [Buz](games/buz/GAME.md) | Buzda kayma bulmacası | v1 — meta + AdMob/IAP hazır |
-| [Çömlek](games/comlek/GAME.md) | Çömlek şekillendirme | v1 — meta + AdMob/IAP hazır |
+| [Çömlek](games/comlek/GAME.md) | Çömlek şekillendirme | v1.1 — derinleştirildi |
 
 ```bash
 npm install
