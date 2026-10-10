@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Çark</string>
+    <string name="title_activity_main">Çark</string>
+    <string name="package_name">com.indiestudio.cark</string>
+    <string name="custom_url_scheme">com.indiestudio.cark</string>
+</resources>
