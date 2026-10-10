@@ -1,5 +1,6 @@
-// Builds src/levels/{en,tr}.json: deterministic crossword levels from frequency-ranked
-// dictionaries. Run with `npm run levels -w games/wordlink` (only needed when tuning).
+// Builds src/levels/{en,tr}.json (main levels), daily-{en,tr}.json (daily puzzles) and counts.json:
+// deterministic crossword levels from frequency-ranked dictionaries. Run with
+// `npm run levels -w games/wordlink` (only needed when tuning).
 //
 // Sources (dev dependencies, not shipped):
 //   English: SCOWL frequency tiers via `wordlist-english` (10/20 = answers, up to 50 = bonus)
@@ -17,7 +18,17 @@ const here = dirname(fileURLToPath(import.meta.url));
 const pkgDir = (name) => dirname(require.resolve(`${name}/package.json`));
 const json = (p) => JSON.parse(readFileSync(p, 'utf8'));
 
-const LEVELS = 400;
+/** v1.0 shipped 400 levels per language; they never change (saved progress points into them). */
+const BASE_LEVELS = 400;
+/** Upper bound for the v1.1 extension; the allowlist decides how many there really are. */
+const MAX_LEVELS = 1000;
+/** Levels per chapter (src/chapters.ts); the extension always ends on a full chapter. */
+const CHAPTER = 10;
+/** [min, max] grid answers per wheel size for levels 401+. */
+const EXTENSION_WORDS = { 5: [4, 6], 6: [5, 8], 7: [6, 9] };
+/** A year of daily puzzles before the cycle repeats. */
+const DAILY_PUZZLES = 366;
+const DAILY_WORDS = { 6: [5, 7], 7: [6, 8] };
 const MAX_GRID = 10;
 
 // ───────────────────────── dictionaries ─────────────────────────
@@ -200,7 +211,32 @@ function build(lang, dict) {
   const usedSeeds = new Set();
   const levels = [];
 
-  for (let level = 1; levels.length < LEVELS; level++) {
+  /**
+   * One crossword level from a seed word: the seed plus up to maxW - 1 of its sub-words
+   * (only reviewed answers), laid out greedily. `avoid` pushes words to the end of the queue
+   * (the daily pack uses it to differ from the main level with the same letters).
+   */
+  function makeLevel(seed, n, minW, maxW, rankLimit, avoid = new Set()) {
+    const pool = counts(seed);
+    const subs = answers.filter((w) => w.length <= n && formable(w, pool) && (answerRank.get(w) ?? 1e9) < rankLimit);
+    if (subs.length < minW - 1) return null;
+    // Prefer the seed itself, then longer and more common words, skipping near-duplicates
+    // such as "age" next to "ages" (those stay valid as bonus words).
+    const sorted = subs
+      .filter((w) => w !== seed)
+      .sort((a, b) => Number(avoid.has(a)) - Number(avoid.has(b)) || b.length - a.length || answerRank.get(a) - answerRank.get(b));
+    const ordered = [seed];
+    for (const w of sorted) if (!ordered.some((o) => o.startsWith(w) && o.length - w.length <= 2)) ordered.push(w);
+    const grid = layout(ordered.slice(0, maxW));
+    if (grid.words.length < minW) return null;
+    const answerSet = new Set(grid.words.map((x) => x.w));
+    const bonus = valid.filter((w) => w.length <= n && !answerSet.has(w) && formable(w, pool));
+    return { rows: grid.rows, cols: grid.cols, words: grid.words, bonus };
+  }
+
+  // v1.0 levels 1–400. This loop must stay exactly as it is: saved player progress points into
+  // these levels, and the shared rng sequence makes every later level depend on it too.
+  for (let level = 1; levels.length < BASE_LEVELS; level++) {
     const n = lettersFor(level);
     const [minW, maxW] = targetWords(n, level);
     // Early levels pick seeds from the most common words; later ones from the wider pool.
@@ -211,25 +247,78 @@ function build(lang, dict) {
       const seed = seeds[Math.floor(rng() * seeds.length)];
       const key = [...seed].sort().join('');
       if (usedSeeds.has(key)) continue;
-      const pool = counts(seed);
-      const subs = answers.filter((w) => w.length <= n && formable(w, pool) && (answerRank.get(w) ?? 1e9) < Math.max(poolSize * 2, 2000));
-      if (subs.length < minW - 1) continue;
-      // Prefer the seed itself, then longer and more common words, skipping near-duplicates
-      // such as "age" next to "ages" (those stay valid as bonus words).
-      const sorted = subs.filter((w) => w !== seed).sort((a, b) => b.length - a.length || answerRank.get(a) - answerRank.get(b));
-      const ordered = [seed];
-      for (const w of sorted) if (!ordered.some((o) => o.startsWith(w) && o.length - w.length <= 2)) ordered.push(w);
-      const grid = layout(ordered.slice(0, maxW));
-      if (grid.words.length < minW) continue;
-      const answerSet = new Set(grid.words.map((x) => x.w));
-      const bonus = valid.filter((w) => w.length <= n && !answerSet.has(w) && formable(w, pool));
+      const lvl = makeLevel(seed, n, minW, maxW, Math.max(poolSize * 2, 2000));
+      if (!lvl) continue;
       usedSeeds.add(key);
-      made = { letters: shuffle(seed, rng), rows: grid.rows, cols: grid.cols, words: grid.words, bonus };
+      made = { letters: shuffle(seed, rng), ...lvl };
     }
     if (!made) throw new Error(`${lang}: could not build level ${level} (${n} letters)`);
     levels.push(made);
   }
-  return levels;
+
+  // v1.1 extension (401+): every letter set the allowlist still has — no wheel ever repeats.
+  // 7-letter sets are nearly used up by then, so chapters mix 5-, 6- and 7-letter wheels in even
+  // proportions and climb inside each chapter of 10 (5 → 6 → 7 letters) for a steady ramp.
+  const unusedSeeds = (n) => {
+    const byKey = new Map();
+    for (const w of answers) {
+      if (w.length !== n) continue;
+      const key = [...w].sort().join('');
+      if (!usedSeeds.has(key) && !byKey.has(key)) byKey.set(key, w); // most common anagram
+    }
+    return mix([...byKey.values()], rng);
+  };
+  const pools = {};
+  for (const n of [7, 6, 5]) {
+    const [minW, maxW] = EXTENSION_WORDS[n];
+    pools[n] = [];
+    for (const seed of unusedSeeds(n)) {
+      const lvl = makeLevel(seed, n, minW, maxW, Infinity);
+      if (!lvl) continue;
+      usedSeeds.add([...seed].sort().join(''));
+      pools[n].push({ letters: shuffle(seed, rng), ...lvl });
+    }
+  }
+  const total = Math.min(MAX_LEVELS - BASE_LEVELS, pools[7].length + pools[6].length + pools[5].length);
+  // Usable chapter count only: a trailing partial chapter would end without a celebration.
+  const ext = [];
+  const size = { 7: pools[7].length, 6: pools[6].length, 5: pools[5].length };
+  const left = { ...size };
+  for (let i = 0; i < total - (total % CHAPTER); i++) {
+    // Take from the pool that is furthest behind its share, so the mix stays even.
+    const n = [7, 6, 5].filter((k) => left[k] > 0).sort((a, b) => left[b] / size[b] - left[a] / size[a])[0];
+    ext.push(pools[n][size[n] - left[n]]);
+    left[n]--;
+  }
+  for (let c = 0; c < ext.length; c += CHAPTER) {
+    const chapter = ext.slice(c, c + CHAPTER).sort((a, b) => a.letters.length - b.letters.length || a.words.length - b.words.length);
+    levels.push(...chapter);
+  }
+
+  // Daily puzzles: 6- and 7-letter wheels, same for every player on the same calendar day
+  // (src/daily.ts picks one by day number). They may share letters with a main level, but the
+  // grid prefers the words that level does not use.
+  const mainAnswers = new Map(levels.map((l) => [[...l.letters].sort().join(''), new Set(l.words.map((p) => p.w))]));
+  const dailyRng = seededRng(lang === 'en' ? 4321 : 8765);
+  const dailySeeds = new Map();
+  for (const w of answers) {
+    if (w.length < 6) continue;
+    const key = [...w].sort().join('');
+    if (!dailySeeds.has(key)) dailySeeds.set(key, w);
+  }
+  const daily = [];
+  for (const seed of mix([...dailySeeds.values()], dailyRng)) {
+    if (daily.length >= DAILY_PUZZLES) break;
+    const [minW, maxW] = DAILY_WORDS[seed.length];
+    const lvl = makeLevel(seed, seed.length, minW, maxW, Infinity, mainAnswers.get([...seed].sort().join('')));
+    if (lvl) daily.push({ letters: shuffle(seed, dailyRng), ...lvl });
+  }
+  return { levels, daily };
+}
+
+/** Deterministic shuffle of a whole list. */
+function mix(list, rng) {
+  return list.map((w) => [rng(), w]).sort((x, y) => x[0] - y[0]).map(([, w]) => w);
 }
 
 function shuffle(word, rng) {
@@ -246,9 +335,15 @@ function shuffle(word, rng) {
 
 const outDir = join(here, '..', 'src', 'levels');
 mkdirSync(outDir, { recursive: true });
+const counts_ = {};
 for (const [lang, dict] of [['en', loadEnglish()], ['tr', loadTurkish()]]) {
-  const levels = build(lang, dict);
+  const { levels, daily } = build(lang, dict);
   writeFileSync(join(outDir, `${lang}.json`), JSON.stringify(levels));
+  writeFileSync(join(outDir, `daily-${lang}.json`), JSON.stringify(daily));
+  counts_[lang] = { levels: levels.length, daily: daily.length };
   const words = levels.reduce((s, l) => s + l.words.length, 0);
-  console.log(`${lang}: ${levels.length} levels, ${words} answers, sample:`, levels.slice(0, 3).map((l) => l.words.map((w) => w.w).join('/')).join('  '));
+  const mixOf = (from, to) => [5, 6, 7].map((n) => `${n}:${levels.slice(from, to).filter((l) => l.letters.length === n).length}`).join(' ');
+  console.log(`${lang}: ${levels.length} levels (401+ mix ${mixOf(BASE_LEVELS)}), ${words} answers, ${daily.length} daily puzzles`);
 }
+// Level counts for the app (profile size, map length) without loading the packs.
+writeFileSync(join(outDir, 'counts.json'), JSON.stringify(counts_));

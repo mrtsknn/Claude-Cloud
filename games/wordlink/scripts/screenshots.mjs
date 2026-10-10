@@ -6,16 +6,19 @@ import { chromium } from 'playwright';
 import { mkdirSync, readFileSync } from 'node:fs';
 const [url, outDir] = process.argv.slice(2);
 mkdirSync(outDir, { recursive: true });
+const counts = JSON.parse(readFileSync(new URL('../src/levels/counts.json', import.meta.url), 'utf8'));
 
 const captions = {
-  en: ['400 levels, daily rewards & themes', 'Swipe letters, make words', 'Crosswords that grow with you', 'Find bonus words, earn coins'],
-  tr: ['400 seviye, günlük ödül ve temalar', 'Harfleri kaydır, kelime kur', 'Seninle büyüyen bulmacalar', 'Bonus kelime bul, jeton kazan'],
+  en: [`${counts.en.levels} levels and a Daily Puzzle`, 'Swipe letters, make words', 'Crosswords that grow with you', 'Find bonus words, earn coins', 'Keep your daily streak going', 'Travel through 48 landscapes'],
+  tr: [`${counts.tr.levels} seviye ve günün bulmacası`, 'Harfleri kaydır, kelime kur', 'Seninle büyüyen bulmacalar', 'Bonus kelime bul, jeton kazan', 'Her gün yeni bulmaca, seriyi koru', '48 farklı manzarada yolculuk'],
 };
 const scenes = [
   { name: '0-home', home: true },
   { name: '1-swipe', level: 24, solved: 2, swipeLongest: true },
   { name: '2-grid', level: 160, solved: 4 },
   { name: '3-bonus', level: 60, solved: 3, bonus: true },
+  { name: '4-daily', daily: true },
+  { name: '5-scenery', level: 176, solved: 3 },
 ];
 
 const browser = await chromium.launch();
@@ -28,14 +31,32 @@ for (const lang of ['en', 'tr']) {
       localStorage.setItem('wordlink.coins', '340');
       localStorage.setItem('wordlink.bonusMeter', '6');
       // a player some way in: 23 levels cleared, mostly with 3 stars
-      const stars = Array.from({ length: 400 }, (_, i) => (i < 23 ? (i % 5 === 3 ? 2 : 3) : 0));
+      const stars = Array.from({ length: 1000 }, (_, i) => (i < 23 ? (i % 5 === 3 ? 2 : 3) : 0));
       localStorage.setItem(`wordlink.map.${l}`, JSON.stringify({ stars, unlocked: 24 }));
+      // daily history: most days of the last two weeks solved, a 6-day streak running into today
+      const key = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const solved = {};
+      for (let n = 1; n <= 13; n++) if (n !== 7 && n !== 10) solved[key(new Date(Date.now() - n * 86400000))] = { t: 80 + n * 7, h: n % 3 === 0 ? 1 : 0 };
+      localStorage.setItem('wordlink.daily', JSON.stringify({ solved }));
+      localStorage.setItem(`wordlink.dailyRun.${l}`, JSON.stringify({ level: 0, found: [], revealed: [], bonusFound: [], order: '', day: key(new Date()), elapsed: 102 }));
     }, lang);
     const page = await ctx.newPage();
     await page.goto(url);
     await page.waitForTimeout(500);
     if (sc.home) {
       await page.waitForTimeout(1800); // hero trail finishes tracing
+      const file = `${outDir}/raw-${lang}-${sc.name}.png`;
+      await page.screenshot({ path: file });
+      raw[`${lang}-${sc.name}`] = file;
+      await ctx.close();
+      continue;
+    }
+    if (sc.daily) {
+      await page.evaluate(() => window.__wordlink.daily());
+      await page.waitForTimeout(300);
+      const words = await page.evaluate(() => window.__wordlink.level.words.map((w) => w.w));
+      for (const w of words) await page.evaluate((x) => window.__wordlink.submit(x), w);
+      await page.waitForTimeout(2200);
       const file = `${outDir}/raw-${lang}-${sc.name}.png`;
       await page.screenshot({ path: file });
       raw[`${lang}-${sc.name}`] = file;
