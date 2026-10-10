@@ -2,7 +2,8 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "types": ["vite/client"],
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true
   },
-  "include": ["src", "vite.config.ts", "capacitor.config.ts"]
+  "include": ["src", "scripts/*.mts", "vite.config.ts", "capacitor.config.ts"]
 }

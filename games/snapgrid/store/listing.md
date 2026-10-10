@@ -4,8 +4,8 @@
 
 - **Name (30):** Snapgrid: Block Puzzle
 - **Subtitle (iOS, 30):** Relaxing block puzzle, no timer
-- **Short description (Play, 80):** Drag blocks, fill lines, chain combos. A calm, beautiful puzzle for everyone.
-- **Keywords (iOS, 100):** block,puzzle,blast,grid,brain,relax,offline,classic,tetris,wood,sudoku,cube,logic,1010
+- **Short description (Play, 80):** Block puzzle with 200 adventure levels, power-ups and a daily challenge.
+- **Keywords (iOS, 100):** block,puzzle,blast,adventure,levels,daily,brain,relax,offline,classic,wood,sudoku,cube,logic,1010
 - **Description:**
 
   Snapgrid is the block puzzle you already know — rebuilt to feel smooth, fair and beautiful.
@@ -14,6 +14,16 @@
   ▸ Fill a full row or column to clear it
   ▸ Clear several lines at once and chain combos for huge scores
   ▸ No timer, no rush — play at your own pace, fully offline
+
+  200 ADVENTURE LEVELS
+  Collect gems, break ice, clear lines and hit target scores with a limited number of pieces.
+  Earn up to three stars on every level.
+
+  POWER-UPS
+  Stuck? Blast a 3×3 area with a Bomb, Shuffle your pieces or drop a Single block anywhere.
+
+  A NEW PUZZLE EVERY DAY
+  The daily challenge is the same for everyone — keep your streak alive for bigger rewards.
 
   Why Snapgrid?
   • Fair piece dealing: no "impossible" trays out of nowhere
@@ -25,7 +35,7 @@
 
 - **Ad:** Snapgrid: Blok Bulmaca
 - **Alt başlık:** Rahatlatıcı blok bulmaca, süresiz
-- **Kısa açıklama:** Blokları sürükle, satırları doldur, kombo yap. Herkes için sakin ve güzel bir bulmaca.
+- **Kısa açıklama:** 200 macera seviyesi, güçlendiriciler ve günün bulmacasıyla blok bulmaca.
 - **Anahtar kelimeler:** blok,bulmaca,puzzle,zeka,küp,klasik,çevrimdışı,rahatlatıcı,tetris,sudoku,mantık,ahşap
 - **Açıklama:**
 
@@ -36,6 +46,16 @@
   ▸ Aynı anda birden fazla satır temizle, kombo zincirleriyle puanını katla
   ▸ Süre yok, acele yok — internetsiz, kendi temponda oyna
 
+  200 MACERA SEVİYESİ
+  Sınırlı parçayla elmasları topla, buzları kır, satırları temizle, hedef puana ulaş.
+  Her seviyede üç yıldızı kap.
+
+  GÜÇLENDİRİCİLER
+  Sıkıştın mı? Bombayla 3×3 alanı patlat, parçaları karıştır ya da istediğin yere tek blok koy.
+
+  HER GÜN YENİ BULMACA
+  Günün bulmacası herkes için aynı — seriyi bozma, ödül büyüsün.
+
   Neden Snapgrid?
   • Adil parça dağıtımı: birdenbire "imkânsız" parçalar yok
   • Tatmin edici animasyonlar, sesler ve titreşimler
@@ -45,9 +65,10 @@
 ## Kategori ve derecelendirme
 
 - **Kategori:** Games → Puzzle (Board ikincil)
-- **Yaş derecesi:** 4+ (iOS) / PEGI 3 / Everyone (IARC anketi: şiddet yok, kullanıcı etkileşimi yok, satın alma yok)
+- **Yaş derecesi:** 4+ (iOS) / PEGI 3 / Everyone (IARC anketi: şiddet yok, kullanıcı etkileşimi yok; uygulama içi satın alma var)
 - **Veri güvenliği (Play) / Gizlilik etiketi (iOS):** "Veri toplanmıyor" — reklam/analiz sağlayıcısı eklenirse güncelle.
 
 ## Ekran görüntüleri
 
 `store/screenshots/<dil>/<boyut>/` — `ios-6.9` (1290×2796), `ios-6.5` (1242×2688), `android` (1080×1920).
+Sıra: 1-play, 2-adventure, 3-combo, 4-boosters, 5-home (günün bulmacası), 6-calm. Yeniden üret: `scripts/screenshots.mjs`.

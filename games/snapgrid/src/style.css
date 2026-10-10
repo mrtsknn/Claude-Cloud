@@ -4,8 +4,9 @@
   --ink: #f4f6ff;
   --muted: #9aa3c7;
   --accent: #ffcf5c;
-  --sheet: #1f2752;
-  --line: rgba(255, 255, 255, 0.08);
+  --danger: #ff5a6a;
+  --gem: #5ee7ff;
+  --chip: rgba(255, 255, 255, 0.08);
   /* meta layer theme (kit meta.css) */
   --m-bg: radial-gradient(120% 80% at 50% 0%, #2a3570, #10142a);
   --m-ink: #1b2142;
@@ -41,33 +42,55 @@ html, body {
   padding-bottom: var(--safe-bottom);
 }
 
+/* ───────────── HUD ───────────── */
 .hud {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  padding: 14px 18px 0;
-  height: 76px;
+  padding: 10px 16px 0;
+  height: 66px;
   flex: none;
 }
-
+.hud-left { min-width: 0; }
 .best {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-weight: 700;
+  font-weight: 800;
   font-size: 18px;
   color: var(--accent);
+  font-variant-numeric: tabular-nums;
 }
 .best svg { width: 20px; height: 20px; fill: currentColor; }
+.lvl {
+  display: inline-block;
+  height: 32px;
+  line-height: 32px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--chip);
+  font-weight: 900;
+  font-size: 15px;
+  color: var(--accent);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.best[hidden], .lvl[hidden], .score-sub[hidden] { display: none; }
 
+.score-wrap { display: flex; flex-direction: column; align-items: center; line-height: 1; }
 .score {
-  font-size: 44px;
+  font-size: 42px;
   font-weight: 800;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
-  transition: transform 0.15s ease;
+  transition: transform 0.15s ease, color 0.2s;
 }
 .score.bump { transform: scale(1.12); }
+.score.low { color: var(--danger); animation: low 0.9s ease-in-out infinite; }
+.score-sub { font-size: 12px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-top: 2px; }
+@keyframes low { 50% { transform: scale(1.08); } }
 
 .icon-btn {
   justify-self: end;
@@ -75,7 +98,7 @@ html, body {
   height: 44px;
   border: 0;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--chip);
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -83,137 +106,195 @@ html, body {
 .icon-btn svg { width: 22px; height: 22px; fill: var(--ink); }
 .icon-btn:active { transform: scale(0.94); }
 
-#stage {
-  flex: 1;
-  width: 100%;
-  min-height: 0;
-  touch-action: none;
-  display: block;
+/* ───────────── goals + boosters row ───────────── */
+.subbar {
+  flex: none;
+  height: 54px;
+  padding: 6px 16px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
+.subbar.endless { justify-content: center; }
+.goals { display: flex; gap: 6px; min-width: 0; }
+.goals:empty { display: none; }
+.goal {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 40px;
+  padding: 0 10px 0 6px;
+  border-radius: 14px;
+  background: var(--chip);
+  font-weight: 900;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transition: transform 0.15s, background 0.3s;
+}
+.goal svg { width: 26px; height: 26px; flex: none; }
+.goal small { font-size: 12px; color: var(--muted); font-weight: 800; }
+.goal.done { background: rgba(61, 217, 164, 0.22); }
+.goal.done b { color: #3dd9a4; }
+.goal.bump { transform: scale(1.15); }
 
-.overlay {
-  position: fixed;
-  inset: 0;
+.boosters { display: flex; gap: 8px; flex: none; }
+.boost {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--chip);
   display: grid;
   place-items: center;
-  background: rgba(8, 10, 24, 0.62);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  animation: fade 0.25s ease;
-  z-index: 10;
-}
-.overlay[hidden] { display: none; }
-
-.sheet {
-  width: min(340px, calc(100% - 40px));
-  background: var(--sheet);
-  border: 1px solid var(--line);
-  border-radius: 28px;
-  padding: 26px 22px 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
-  animation: pop 0.35s cubic-bezier(0.2, 1.4, 0.4, 1);
-}
-.sheet.center { text-align: center; align-items: stretch; }
-.sheet h2 { margin: 0 0 6px; font-size: 22px; }
-
-.eyebrow {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--accent);
-}
-.big { font-size: 64px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
-.muted { margin: 0; color: var(--muted); font-weight: 600; }
-
-.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 8px 0; }
-.stats div {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 16px;
-  padding: 12px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.stats b { font-size: 22px; }
-.stats span { font-size: 13px; color: var(--muted); font-weight: 600; }
-
-.row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 2px;
-  font-size: 17px;
-  font-weight: 600;
-  border-bottom: 1px solid var(--line);
-}
-
-.switch {
-  appearance: none;
-  width: 50px;
-  height: 30px;
-  border-radius: 99px;
-  background: rgba(255, 255, 255, 0.15);
-  position: relative;
   cursor: pointer;
-  transition: background 0.2s;
-  margin: 0;
+  color: var(--ink);
+  padding: 0;
+  transition: transform 0.12s, background 0.2s, box-shadow 0.2s;
 }
-.switch::after {
-  content: '';
+.boost svg { width: 26px; height: 26px; }
+.boost:active { transform: scale(0.92); }
+.boost i {
   position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: #fff;
-  transition: transform 0.2s;
+  right: -5px;
+  bottom: -5px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: #3dd9a4;
+  color: #06261b;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 900;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
 }
-.switch:checked { background: #3dd9a4; }
-.switch:checked::after { transform: translateX(20px); }
+.boost i.buy { background: var(--accent); color: #2a1a00; font-size: 15px; }
+.boost.on { background: var(--accent); color: #2a1a00; box-shadow: 0 0 0 3px rgba(255, 207, 92, 0.35); }
+.boost.nudge { animation: nudge 1s ease-in-out infinite; }
+.boost[disabled] { opacity: 0.4; }
+@keyframes nudge { 50% { transform: translateY(-4px) scale(1.06); } }
 
-.btn {
-  border: 0;
-  border-radius: 18px;
-  padding: 16px;
-  font: inherit;
-  font-size: 18px;
+/* ───────────── stage + overlays on it ───────────── */
+.stage-wrap { position: relative; flex: 1; min-height: 0; }
+#stage { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; }
+
+.aim, .stuck {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  border-radius: 14px;
   font-weight: 800;
-  color: #1a1530;
-  background: linear-gradient(180deg, #ffd977, #ffb547);
-  box-shadow: 0 6px 0 #c9852a;
-  cursor: pointer;
-  margin-top: 6px;
+  font-size: 15px;
+  pointer-events: none;
+  animation: drop-in 0.25s cubic-bezier(0.2, 1.4, 0.4, 1);
 }
-.btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #c9852a; }
-.btn.ghost { background: rgba(255, 255, 255, 0.08); color: var(--ink); box-shadow: none; }
-.btn.ghost:active { transform: scale(0.98); }
-
-@keyframes fade { from { opacity: 0; } }
-@keyframes pop { from { transform: scale(0.85); opacity: 0; } }
-
-.btn.revive {
+.aim { padding: 8px 14px; background: var(--accent); color: #2a1a00; }
+.stuck {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: #06261b;
-  background: linear-gradient(180deg, #6cf0c2, #3dd9a4);
-  box-shadow: 0 6px 0 #22a179;
+  gap: 10px;
+  padding: 6px 6px 6px 14px;
+  background: #2a1830;
+  border: 1px solid rgba(255, 90, 106, 0.5);
+  pointer-events: auto;
 }
-.btn.revive:active { box-shadow: 0 2px 0 #22a179; }
-.btn.revive svg { width: 20px; height: 20px; fill: currentColor; }
-.btn[hidden], .muted[hidden] { display: none; }
+.stuck button {
+  border: 0;
+  font: inherit;
+  font-weight: 900;
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--ink);
+  cursor: pointer;
+}
+.aim[hidden], .stuck[hidden], .intro[hidden] { display: none; }
+@keyframes drop-in { from { transform: translate(-50%, -12px); opacity: 0; } }
 
-.foot { margin: 4px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
-.foot a { color: var(--muted); }
+.intro {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  transform: translate(-50%, -50%);
+  min-width: 240px;
+  max-width: calc(100% - 40px);
+  padding: 18px 22px;
+  border-radius: 22px;
+  background: rgba(16, 20, 42, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+  text-align: center;
+  pointer-events: none;
+  animation: intro 2.2s ease both;
+}
+.intro h3 { margin: 0 0 10px; font-size: 22px; font-weight: 900; color: var(--accent); }
+.intro p { margin: 6px 0 0; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 800; font-size: 17px; }
+.intro p svg { width: 28px; height: 28px; flex: none; }
+.intro small { display: block; margin-top: 8px; color: var(--muted); font-weight: 700; font-size: 13px; }
+@keyframes intro {
+  0% { opacity: 0; transform: translate(-50%, -40%) scale(0.9); }
+  12%, 80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -56%) scale(0.98); }
+}
+
+/* ───────────── juice ───────────── */
+.flash { position: fixed; inset: 0; pointer-events: none; background: #fff; opacity: 0; z-index: 20; }
+.flash.go { animation: flash 0.38s ease-out; }
+@keyframes flash { 0% { opacity: var(--flash, 0.35); } 100% { opacity: 0; } }
+
+/* Above the game, below the kit's result sheets (z 40) so it never covers their buttons. */
+.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 38; overflow: hidden; }
+.confetti i {
+  position: absolute;
+  top: -20px;
+  width: 9px;
+  height: 14px;
+  border-radius: 2px;
+  animation: confetti var(--d, 2s) cubic-bezier(0.25, 0.6, 0.5, 1) forwards;
+}
+@keyframes confetti {
+  to { transform: translate(var(--x, 0), 105vh) rotate(var(--r, 540deg)); opacity: 0.9; }
+}
+
+.flyer { position: fixed; z-index: 25; pointer-events: none; width: 28px; height: 28px; margin: -14px 0 0 -14px; }
+.flyer svg { width: 100%; height: 100%; }
+
+/* home: daily challenge card (sits with the kit's mode cards) */
+.m-card .m-card-ico.daily { background: #3dd9a4; color: #06261b; }
+.m-card .m-card-ico.daily svg { stroke-width: 2.4; }
+.m-card.daily-done .m-card-ico.daily { background: rgba(0, 0, 0, 0.08); color: inherit; }
+.m-card[data-daily] .m-card-body b { font-size: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-card[data-daily] .m-card-body small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-card .m-streak { display: flex; align-items: center; gap: 3px; font-weight: 900; font-size: 18px; }
+.m-card .m-streak svg { width: 20px; height: 20px; fill: #ff8a3d; stroke: none; }
+
+/* booster purchase sheet */
+.bst-head { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+.bst-ico { width: 72px; height: 72px; border-radius: 22px; background: #1d2550; color: #fff; display: grid; place-items: center; }
+.meta-root .bst-ico svg { width: 44px; height: 44px; }
+.bst-head p { margin: 0; font-weight: 700; color: var(--m-muted, #6b7395); }
 
 /* home-screen artwork (kit meta hero slot) */
 .hero { display: grid; grid-template-columns: repeat(4, 46px); gap: 6px; padding: 10px; border-radius: 22px; background: rgba(5, 8, 25, 0.35); }
 .hero i { width: 46px; height: 46px; border-radius: 11px; animation: hero-drop 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
 @keyframes hero-drop { from { transform: translateY(-40px); opacity: 0; } }
+/* Three mode cards: small phones trade the hero artwork for room. */
+@media (max-height: 700px) {
+  .meta-root .m-art { display: none; }
+}
+@media (max-height: 860px) {
+  .hero { grid-template-columns: repeat(4, 34px); gap: 5px; padding: 8px; border-radius: 18px; }
+  .hero i { width: 34px; height: 34px; border-radius: 9px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .score.low, .boost.nudge, .intro, .confetti i { animation: none; }
+  .confetti { display: none; }
+}
