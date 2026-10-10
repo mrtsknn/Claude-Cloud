@@ -39,3 +39,10 @@ Açık renkli ana menüde `--m-home-ink` koyu bir renge ayarlanır.
   `<meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-3940256099942544~3347511713"/>`
 - iOS Info.plist: `GADApplicationIdentifier` = `ca-app-pub-3940256099942544~1458002511`, `NSUserTrackingUsageDescription`.
 - Yayın öncesi: gerçek AdMob kimlikleri `initAds({ units, testing: false })`, ürünler Play Console / App Store Connect'te aynı kimliklerle.
+
+## Geri getirme ve yayılma (kit `engage.ts`)
+- `scheduleReminders([{ id, title, body, dailyHour: 19 }])`: günlük ödül, can/enerji dolumu, idle üretim dolması gibi
+  hatırlatmalar. İzni ilk ekranda değil, iyi bir anda iste (ör. ilk kazanmadan sonra). Native için oyuna
+  `@capacitor/local-notifications` bağımlılığı eklenir.
+- `shareResult({ title, text, url })`: skor/eser paylaşma (native paylaşım sayfası, web'de Web Share ya da kopyalama).
+  Native için `@capacitor/share` eklenir. Metne mağaza bağlantısı koy.
