@@ -1,0 +1,63 @@
+import { createI18n } from '@studio/kit';
+
+const en = {
+  title: 'Clay',
+  tagline: 'Shape it. Fire it. Relax.',
+  level: 'Level {n}',
+  match: 'Match',
+  fire: 'Fire',
+  hint: 'Press the spinning clay to match the dashed shape',
+  glaze: 'Pick a glaze',
+  done: 'Put on the shelf',
+  failed: '{n}% — not quite the shape',
+  pause: 'Pause',
+  mission_levels: 'Finish {n} levels',
+  mission_stars: 'Collect {n} stars',
+  mission_perfect: 'Make {n} perfect pots (3 stars)',
+  mission_pots: 'Glaze {n} pots',
+  cup: 'Cup',
+  bowl: 'Bowl',
+  vase: 'Vase',
+  pitcher: 'Pitcher',
+  g_terracotta: 'Terracotta',
+  g_celadon: 'Celadon',
+  g_cobalt: 'Cobalt stripes',
+  g_honey: 'Honey',
+  g_speckle: 'Speckled cream',
+  g_iznik: 'Iznik dots',
+  g_obsidian: 'Obsidian & gold',
+  g_rose: 'Rose',
+};
+
+const tr: typeof en = {
+  title: 'Çömlek',
+  tagline: 'Şekil ver. Fırınla. Rahatla.',
+  level: 'Seviye {n}',
+  match: 'Uyum',
+  fire: 'Fırınla',
+  hint: 'Dönen çamura bastırıp kesikli şekle benzet',
+  glaze: 'Sır rengini seç',
+  done: 'Rafa koy',
+  failed: '%{n} — şekil tam tutmadı',
+  pause: 'Duraklat',
+  mission_levels: '{n} seviye bitir',
+  mission_stars: '{n} yıldız topla',
+  mission_perfect: '{n} kusursuz çömlek yap (3 yıldız)',
+  mission_pots: '{n} çömleği sırla',
+  cup: 'Fincan',
+  bowl: 'Kâse',
+  vase: 'Vazo',
+  pitcher: 'Testi',
+  g_terracotta: 'Pişmiş toprak',
+  g_celadon: 'Seladon',
+  g_cobalt: 'Kobalt çizgili',
+  g_honey: 'Bal',
+  g_speckle: 'Benekli krem',
+  g_iznik: 'İznik benekli',
+  g_obsidian: 'Obsidyen ve altın',
+  g_rose: 'Gül',
+};
+
+export const t = createI18n({ en, tr });
+export type Key = keyof typeof en;
+export const lang: 'tr' | 'en' = navigator.language.slice(0, 2).toLowerCase() === 'tr' ? 'tr' : 'en';

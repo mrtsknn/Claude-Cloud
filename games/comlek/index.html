@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#f3e7d8" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <title>Çömlek</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="hud">
+        <button class="icon-btn" id="pause-btn" aria-label="pause">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5v14M15 5v14" /></svg>
+        </button>
+        <div class="title">
+          <span class="eyebrow" id="level"></span>
+          <b id="kind"></b>
+        </div>
+        <div class="match"><span class="eyebrow" id="match-label"></span><b id="match">0%</b></div>
+      </header>
+      <canvas id="stage"></canvas>
+      <p class="hint" id="hint"></p>
+      <div class="glazes" id="glazes" hidden></div>
+      <footer class="bar">
+        <button class="btn" id="fire-btn"></button>
+      </footer>
+    </div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
