@@ -160,3 +160,9 @@ export function generateLevel(level: number): Tubes {
   }
   throw new Error(`could not generate level ${level}`);
 }
+
+/** Level rating: 3 = no undo/hint/extra tube, 2 = at most two helps, 1 otherwise. */
+export function starsFor(h: { undosUsed: number; hintsUsed: number; extra: number }): number {
+  const helps = h.undosUsed + h.hintsUsed + h.extra;
+  return helps === 0 ? 3 : helps <= 2 ? 2 : 1;
+}

@@ -1,6 +1,6 @@
 // Usage: npm run preview -w games/poursort, then
 //   node games/poursort/scripts/screenshots.mjs <preview url> games/poursort/store/screenshots
-// Captures gameplay scenes at phone size and composes captioned images at store resolutions.
+// Captures gameplay + meta scenes at phone size and composes captioned images at store resolutions.
 import { chromium } from 'playwright';
 import { mkdirSync, readFileSync } from 'node:fs';
 const [url, outDir] = process.argv.slice(2);
@@ -10,22 +10,21 @@ const scenes = [
   {
     name: '1-pour',
     // mid-game level with two sealed tubes, captured mid-pour
-    state: { level: 18, tubes: [[1, 1, 1, 1], [2, 3, 3], [4, 2, 2, 5], [5, 5, 4], [3, 6, 6, 6], [7, 7, 7, 7], [8, 8, 3], [2, 4, 4, 5], [6, 8, 8], []], history: [], undos: 5, extraUsed: false, moves: 23, hintsUsed: 0 },
+    state: { level: 18, tubes: [[1, 1, 1, 1], [2, 3, 3], [4, 2, 2, 5], [5, 5, 4], [3, 6, 6, 6], [7, 7, 7, 7], [8, 8, 3], [2, 4, 4, 5], [6, 8, 8], []], history: [], undos: 5, moves: 23, hintsUsed: 0 },
     pour: [6, 1],
   },
+  { name: '2-home', home: true },
+  { name: '3-levels', level: 60 },
+  { name: '4-symbols', level: 120, symbols: true },
   {
-    name: '2-levels',
-    level: 60,
-  },
-  {
-    name: '3-symbols',
-    level: 120,
-    symbols: true,
+    name: '5-win',
+    state: { level: 18, tubes: [[1, 1, 1, 1], [2, 2, 2], [2], [3, 3, 3, 3], [4, 4, 4, 4], [5, 5, 5, 5], []], history: [], undos: 5, moves: 31, hintsUsed: 0 },
+    win: [2, 1],
   },
 ];
 const captions = {
-  en: ['Pour, sort, relax', 'Hundreds of levels, all solvable', 'Colour symbols for every eye'],
-  tr: ['Dök, sırala, rahatla', 'Yüzlerce seviye, hepsi çözülebilir', 'Herkes için renk sembolleri'],
+  en: ['Pour, sort, relax', 'Daily missions, rewards & 6 styles', '500 levels, all solvable', 'Colour symbols for every eye', 'Collect every star'],
+  tr: ['Dök, sırala, rahatla', 'Günlük görevler, ödüller ve 6 görünüm', '500 seviye, hepsi çözülebilir', 'Herkes için renk sembolleri', 'Tüm yıldızları topla'],
 };
 
 const browser = await chromium.launch();
@@ -33,15 +32,29 @@ const raw = {};
 for (const lang of ['en', 'tr']) {
   for (const sc of scenes) {
     const ctx = await browser.newContext({ viewport: { width: 430, height: 932 }, deviceScaleFactor: 3, hasTouch: true, locale: lang === 'tr' ? 'tr-TR' : 'en-US' });
-    await ctx.addInitScript((symbols) => {
+    await ctx.addInitScript(({ symbols, home }) => {
       localStorage.setItem('poursort.settings', JSON.stringify({ sound: false, haptics: false, symbols }));
-    }, !!sc.symbols);
+      const d = new Date();
+      const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      // A returning player: 17 levels cleared, Jewel style equipped, today's reward already taken.
+      const stars = Array(500).fill(0).map((_, i) => (i < 17 ? [3, 3, 2, 3, 3, 1, 3, 2][i % 8] : 0));
+      localStorage.setItem('poursort.profile', JSON.stringify({
+        coins: 1240, stars, unlocked: 18, best: 0, dailyLast: today, dailyStreak: 3, owned: ['classic', 'jewel'],
+        skin: home ? 'jewel' : 'classic', firstRun: false,
+      }));
+    }, { symbols: !!sc.symbols, home: !!sc.home });
     const page = await ctx.newPage();
     await page.goto(url);
-    await page.waitForTimeout(300);
-    if (sc.state) await page.evaluate((s) => window.__poursort.load(s), sc.state);
-    else await page.evaluate((l) => window.__poursort.goto(l), sc.level);
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(400);
+    if (!sc.home) {
+      await page.click('[data-act="play-level"]');
+      await page.waitForTimeout(200);
+      if (sc.state) await page.evaluate((s) => window.__poursort.load(s), sc.state);
+      else await page.evaluate((l) => window.__poursort.goto(l), sc.level);
+      await page.waitForTimeout(500);
+    } else {
+      await page.waitForTimeout(800); // hero tubes settle
+    }
     if (sc.pour) {
       await page.evaluate(([a, b]) => {
         window.__poursort.tap(a);
@@ -49,6 +62,14 @@ for (const lang of ['en', 'tr']) {
         window.__poursort.freezePour(330); // mid-flow: tilted tube, stream, rising level
       }, sc.pour);
       await page.waitForTimeout(150);
+    }
+    if (sc.win) {
+      await page.evaluate(([a, b]) => {
+        window.__poursort.tap(a);
+        window.__poursort.tap(b);
+      }, sc.win);
+      await page.waitForSelector('.m-result [data-next]');
+      await page.waitForTimeout(900); // stars pop in
     }
     const file = `${outDir}/raw-${lang}-${sc.name}.png`;
     await page.screenshot({ path: file });

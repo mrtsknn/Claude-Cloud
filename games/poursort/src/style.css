@@ -8,6 +8,12 @@
   --sheet: #ffffff;
   --chip: rgba(31, 39, 71, 0.06);
   --line: rgba(31, 39, 71, 0.08);
+  /* meta layer theme (kit meta.css) */
+  --m-bg: linear-gradient(170deg, #4d82ff, #2f6bff 45%, #7c3aed);
+  --m-ink: #1f2747;
+  --m-accent: #ffd25c;
+  --m-accent-ink: #3a2600;
+  --m-alt: #22c55e;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   font-family: ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -110,7 +116,7 @@ html, body {
 .tool[disabled] { opacity: 0.45; }
 .badge {
   position: absolute;
-  top: -6px;
+  top: -10px;
   right: 10px;
   min-width: 22px;
   height: 22px;
@@ -124,7 +130,9 @@ html, body {
   display: grid;
   place-items: center;
 }
-.badge.ad { background: #16a34a; font-size: 10px; letter-spacing: 0.04em; }
+.badge.free { background: #16a34a; font-size: 10px; letter-spacing: 0.04em; }
+.badge.coin { background: #ffd25c; color: #3a2600; gap: 2px; display: flex; align-items: center; padding: 0 6px 0 3px; }
+.badge.coin svg { width: 15px; height: 15px; stroke: none; }
 .badge[hidden] { display: none; }
 
 .toast {
@@ -144,94 +152,16 @@ html, body {
 }
 .toast[hidden] { display: none; }
 
-.overlay {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgba(31, 39, 71, 0.35);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
-  animation: fade 0.25s ease;
-  z-index: 10;
-}
-.overlay[hidden] { display: none; }
-
-.sheet {
-  width: min(340px, calc(100% - 40px));
-  background: var(--sheet);
-  border-radius: 28px;
-  padding: 26px 22px 22px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  box-shadow: 0 30px 80px rgba(31, 39, 71, 0.3);
-  animation: pop 0.35s cubic-bezier(0.2, 1.4, 0.4, 1);
-}
-.sheet.center { text-align: center; }
-.sheet h2 { margin: 0 0 6px; font-size: 22px; }
-.big { font-size: 40px; font-weight: 800; line-height: 1.05; letter-spacing: -0.02em; text-wrap: balance; }
-.muted { margin: 0; color: var(--muted); font-weight: 600; }
-
-.row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 2px;
-  font-size: 17px;
-  font-weight: 600;
-  border-bottom: 1px solid var(--line);
-}
-
-.switch {
-  appearance: none;
-  flex: none;
-  width: 50px;
-  height: 30px;
-  border-radius: 99px;
-  background: rgba(31, 39, 71, 0.15);
-  position: relative;
-  cursor: pointer;
-  transition: background 0.2s;
-  margin: 0;
-}
-.switch::after {
-  content: '';
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s;
-}
-.switch:checked { background: var(--accent); }
-.switch:checked::after { transform: translateX(20px); }
-
-.btn {
-  border: 0;
-  border-radius: 18px;
-  padding: 16px;
-  font: inherit;
-  font-size: 18px;
-  font-weight: 800;
-  color: #fff;
-  background: linear-gradient(180deg, #4d82ff, var(--accent));
-  box-shadow: 0 6px 0 var(--accent-dark);
-  cursor: pointer;
-  margin-top: 6px;
-}
-.btn:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--accent-dark); }
-
-.foot { margin: 4px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
-.foot a { color: var(--muted); }
-
-@keyframes fade { from { opacity: 0; } }
-@keyframes pop { from { transform: scale(0.85); opacity: 0; } }
 @keyframes rise { from { transform: translate(-50%, 10px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .overlay, .sheet, .toast { animation: none; }
+  .toast { animation: none; }
 }
+
+/* home-screen artwork (kit meta hero slot) */
+.meta-root .hero svg { display: block; width: min(300px, 72vw); height: auto; overflow: visible; fill: none; stroke: none; }
+.hero-tube { animation: hero-bob 2.6s ease-in-out infinite; }
+@keyframes hero-bob { 50% { transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) { .hero-tube { animation: none; } }
+
+/* coin/video offer for paid helps (built from kit meta classes) */
+.pay .m-btn.short { opacity: 0.55; }
