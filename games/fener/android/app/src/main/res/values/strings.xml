@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Fener</string>
+    <string name="title_activity_main">Fener</string>
+    <string name="package_name">com.indiestudio.fener</string>
+    <string name="custom_url_scheme">com.indiestudio.fener</string>
+</resources>
