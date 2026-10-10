@@ -52,7 +52,8 @@ const str = (v: unknown, d: string) => (typeof v === 'string' ? v : d);
 
 export interface ProfileOptions {
   game: string;
-  levelCount: number;
+  /** 0 for games without a level mode. */
+  levelCount?: number;
   missions: MissionDef[];
   defaultSkin: string;
   skinIds: string[];
@@ -63,6 +64,7 @@ export interface ProfileOptions {
 }
 
 export function createProfile(opts: ProfileOptions) {
+  const levelCount = opts.levelCount ?? 0;
   const key = `${opts.game}.profile`;
   const rng = opts.rng ?? Math.random;
   const storage = opts.storage ?? (typeof localStorage !== 'undefined' ? localStorage : undefined);
@@ -70,7 +72,7 @@ export function createProfile(opts: ProfileOptions) {
 
   const defaults = (): Profile => ({
     coins: opts.startCoins ?? 100,
-    stars: Array(opts.levelCount).fill(0),
+    stars: Array(levelCount).fill(0),
     unlocked: 1,
     best: 0,
     dailyLast: '',
@@ -99,7 +101,7 @@ export function createProfile(opts: ProfileOptions) {
     const d = defaults();
     p.coins = num(raw.coins, d.coins);
     p.stars = d.stars.map((_, i) => num(Array.isArray(raw!.stars) ? raw!.stars[i] : 0, 0, 0, 3));
-    p.unlocked = num(raw.unlocked, 1, 1, Math.max(1, opts.levelCount));
+    p.unlocked = num(raw.unlocked, 1, 1, Math.max(1, levelCount));
     p.best = num(raw.best, 0);
     p.dailyLast = str(raw.dailyLast, '');
     p.dailyStreak = num(raw.dailyStreak, 0);
@@ -168,7 +170,7 @@ export function createProfile(opts: ProfileOptions) {
       const before = p.stars[i] ?? 0;
       const firstClear = before === 0;
       if (i >= 0 && i < p.stars.length) p.stars[i] = Math.max(before, Math.min(3, stars));
-      if (level >= p.unlocked) p.unlocked = Math.min(opts.levelCount, level + 1);
+      if (level >= p.unlocked) p.unlocked = Math.min(levelCount, level + 1);
       save();
       return { newStars: Math.max(0, stars - before), firstClear };
     },

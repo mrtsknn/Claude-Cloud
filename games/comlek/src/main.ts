@@ -138,13 +138,9 @@ function fire() {
   if (!state.stars) {
     haptic.error();
     tone({ freq: 220, to: 150, duration: 0.3, volume: 0.4 });
-    meta.showLose({
-      score: state.pct,
-      coins: 0,
-      label: t('failed', { n: state.pct }),
-      continuesUsed: 0,
-      canContinue: false,
-      onContinue: () => {},
+    meta.showFail({
+      level: state.level,
+      reason: t('failed', { n: state.pct }),
       onRetry: () => startLevel(state.level),
     });
     return;

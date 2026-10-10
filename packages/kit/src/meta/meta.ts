@@ -74,7 +74,7 @@ export interface MetaConfig {
   privacyUrl: string;
   profile: ProfileStore;
   levels?: { count: number; play: (level: number) => void };
-  endless?: { title?: string; play: () => void };
+  endless?: { title?: string; subtitle?: string; play: () => void };
   missionText: (id: string, target: number) => string;
   skins: MetaSkin[];
   onSkin?: (id: string) => void;
@@ -125,7 +125,7 @@ export function createMeta(cfg: MetaConfig) {
   }
   if (cfg.endless) {
     cards.appendChild(
-      el(`<button class="m-card ${cfg.levels ? '' : 'm-card-main'}" data-act="play-endless"><span class="m-card-ico">${ICON.inf}</span><span class="m-card-body"><b>${cfg.endless.title ?? tt('endless')}</b><small>${tt('play')}</small></span><span class="m-best">${ICON.trophy}<b data-best></b></span></button>`),
+      el(`<button class="m-card ${cfg.levels ? '' : 'm-card-main'}" data-act="play-endless"><span class="m-card-ico">${ICON.inf}</span><span class="m-card-body"><b>${cfg.endless.title ?? tt('endless')}</b><small>${cfg.endless.subtitle ?? tt('play')}</small></span><span class="m-best">${ICON.trophy}<b data-best></b></span></button>`),
     );
   }
   root.appendChild(home);
@@ -436,6 +436,7 @@ export function createMeta(cfg: MetaConfig) {
   // ───────────────────────── results ─────────────────────────
   /** Level win: stars, coin reward with optional x2 video, next / menu. */
   function showWin(o: { level: number; stars: number; coins: number; onNext: () => void; onMenu?: () => void }) {
+    if (P.data.firstRun) P.finishFirstRun();
     const rec = P.recordLevel(o.level, o.stars);
     P.addCoins(o.coins);
     P.progress('levels');
@@ -484,6 +485,7 @@ export function createMeta(cfg: MetaConfig) {
     onRetry: () => void;
     onMenu?: () => void;
   }) {
+    if (P.data.firstRun) P.finishFirstRun();
     const isBest = P.recordBest(o.score);
     P.addCoins(o.coins);
     P.progress('games');
@@ -554,17 +556,17 @@ export function createMeta(cfg: MetaConfig) {
     openSheet(wrap, () => delete sheetBody.dataset.modal);
   }
 
-  function showPause(o: { onResume: () => void; onRestart: () => void; onMenu?: () => void }) {
+  function showPause(o: { onResume: () => void; onRestart?: () => void; onMenu?: () => void }) {
     const wrap = el(`<div><h2>${tt('paused')}</h2>
       <button class="m-btn" data-resume>${tt('resume')}</button>
-      <button class="m-btn ghost" data-restart>${tt('restart')}</button>
+      ${o.onRestart ? `<button class="m-btn ghost" data-restart>${tt('restart')}</button>` : ''}
       <button class="m-btn ghost" data-settings>${tt('settings')}</button>
       <button class="m-btn ghost" data-menu>${tt('menu')}</button></div>`);
     wrap.querySelector('[data-resume]')!.addEventListener('click', closeSheet);
-    wrap.querySelector('[data-restart]')!.addEventListener('click', () => {
+    wrap.querySelector('[data-restart]')?.addEventListener('click', () => {
       onSheetClose = null;
       closeSheet();
-      o.onRestart();
+      o.onRestart?.();
     });
     wrap.querySelector('[data-settings]')!.addEventListener('click', () => openSettings(o.onResume));
     wrap.querySelector('[data-menu]')!.addEventListener('click', () => {

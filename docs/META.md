@@ -26,6 +26,8 @@ meta.showHome();
 //           seviye başarısız  meta.showFail({ level, reason, continuesUsed?, onContinue?, onRetry })  (rekora dokunmaz)
 // Android geri: setupNative({ onBack: () => meta.back() || (pause(), true) })
 ```
+İlk sonuç ekranından sonra `firstRun` otomatik kapanır (günlük ödül sonraki menü açılışında kendiliğinden açılır).
+`showPause({ onResume, onRestart? })`: idle oyunlarda `onRestart` verilmez. `endless.subtitle` kart alt yazısını değiştirir.
 Standart görev kimlikleri meta tarafından otomatik ilerletilir: `levels`, `stars`, `perfect` (showWin), `games` (showLose).
 Tema: `:root { --m-bg; --m-ink; --m-card; --m-muted; --m-accent; --m-accent-ink; --m-alt; --m-font }` (bkz. meta.css).
 

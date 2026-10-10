@@ -258,8 +258,10 @@ async function hint() {
   haptic.medium();
   refreshHud();
 }
+/** No way out from here (moves are not always reversible): say so, then reset the level. */
 function restartNudge() {
   haptic.error();
+  toast(t('stuck'));
   restart();
 }
 
