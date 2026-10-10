@@ -10,7 +10,7 @@ Bu dosya, bu repoda çalışacak yeni bir ajanın (veya insanın) **önce okuyac
   bölümler/macera modu, hatırlatma bildirimi, paylaşma, efektler.
 - Tutma katmanı (`docs/RETENTION.md`) kit'te hazır (`packages/kit/src/retention/`) ve **Wordlink v1.2**'de
   tam entegre (okuma dünyası inşası, can, seri, testere dişi zorluk + süreli seviyeler, yeni mekanik
-  ritmi, lig, albüm). Sıradaki: Snapgrid'e aynı API ile uygulamak (rehber: RETENTION.md "API kullanımı").
+  ritmi, lig, albüm). Sıradaki: Snapgrid'e aynı API ile uygulamak (2026-10-10: kredi bittiği için başlanıp durduruldu, sıfırdan yapılacak; ardından 5 oyunun telefon test linki yenilenecek) (rehber: RETENTION.md "API kullanımı").
 
 ## Strateji (neden böyle)
 1. **Yeni oyun ekleme dönemi bitti.** 23 yüzeysel oyun yerine 2–3 derin oyun para kazanır.
