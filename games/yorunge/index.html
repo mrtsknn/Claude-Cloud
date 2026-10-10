@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0f24" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <title>Yörünge</title>
+  </head>
+  <body>
+    <canvas id="stage"></canvas>
+    <div id="app">
+      <header class="hud">
+        <div class="best" aria-label="best">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8l4.5 3.5L12 5l4.5 6.5L21 8l-2 11H5z" /></svg>
+          <span id="best">0</span>
+        </div>
+        <div class="score" id="score">0</div>
+        <button class="icon-btn" id="settings-btn" aria-label="settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
+        </button>
+      </header>
+      <p class="hint" id="hint" data-i18n="tapToStart"></p>
+    </div>
+
+    <div class="overlay" id="settings" hidden>
+      <div class="sheet">
+        <h2 data-i18n="settings"></h2>
+        <label class="row"><span data-i18n="sound"></span><input type="checkbox" id="opt-sound" class="switch" /></label>
+        <label class="row"><span data-i18n="vibration"></span><input type="checkbox" id="opt-haptics" class="switch" /></label>
+        <button class="btn" id="close-settings" data-i18n="close"></button>
+        <p class="foot"><a href="#" id="privacy-link" data-i18n="privacy"></a> · <span id="version"></span></p>
+      </div>
+    </div>
+
+    <div class="overlay" id="gameover" hidden>
+      <div class="sheet center">
+        <p class="eyebrow" id="go-title"></p>
+        <div class="big" id="go-score">0</div>
+        <p class="muted" id="go-best"></p>
+        <button class="btn revive" id="continue-btn">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg><span data-i18n="continue"></span>
+        </button>
+        <button class="btn" id="again-btn" data-i18n="playAgain"></button>
+      </div>
+    </div>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

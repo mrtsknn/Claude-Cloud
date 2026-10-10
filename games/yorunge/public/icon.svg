@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#232a62"/><stop offset="1" stop-color="#0b0f24"/></linearGradient></defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <g id="mark">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#232a62"/><stop offset="1" stop-color="#0b0f24"/>
+    </linearGradient>
+    <radialGradient id="planet" cx="38%" cy="34%" r="70%">
+      <stop offset="0" stop-color="#e6ddff"/><stop offset=".6" stop-color="#c3b0fa"/><stop offset="1" stop-color="#9a86e0"/>
+    </radialGradient>
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset=".45" stop-color="#c3b0fa" stop-opacity=".45"/><stop offset="1" stop-color="#c3b0fa" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="sat" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#fff2c8"/><stop offset=".35" stop-color="#ffe39a" stop-opacity=".8"/><stop offset="1" stop-color="#ffe39a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+    <circle cx="512" cy="512" r="300" fill="url(#halo)"/>
+    <circle cx="512" cy="512" r="330" fill="none" stroke="#ffffff" stroke-opacity=".55" stroke-width="22" stroke-linecap="round" stroke-dasharray="0 62"/>
+    <circle cx="512" cy="512" r="180" fill="url(#planet)"/>
+    <path d="M360 470 Q512 440 664 470" fill="none" stroke="#ffffff" stroke-opacity=".22" stroke-width="26" stroke-linecap="round"/>
+    <path d="M370 570 Q512 600 654 570" fill="none" stroke="#ffffff" stroke-opacity=".18" stroke-width="22" stroke-linecap="round"/>
+    <circle cx="745" cy="279" r="90" fill="url(#sat)"/>
+    <circle cx="745" cy="279" r="34" fill="#ffffff"/>
+  </g>
+</svg>
