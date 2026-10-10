@@ -1,0 +1,854 @@
+import './style.css';
+import {
+  createStore,
+  haptic,
+  interstitialMoment,
+  maybeRequestReview,
+  pentatonic,
+  setHapticsEnabled,
+  setSoundEnabled,
+  setupNative,
+  showRewarded,
+  tone,
+  track,
+  trackSession,
+  unlockAudio,
+} from '@studio/kit';
+import {
+  PATTERNS,
+  STREET,
+  WALL,
+  WINDOW,
+  applyHint,
+  canPlace,
+  evaluate,
+  generateLevel,
+  hintMove,
+  patternCells,
+  starsFor,
+  type Evaluation,
+  type Level,
+  type Pattern,
+  type Placement,
+  type Pos,
+} from './game';
+import { t } from './i18n';
+
+// TODO(mağaza): gizlilik politikasını yayınladığın adresle değiştir.
+const PRIVACY_URL = 'https://github.com/mrtsknn/Claude-Cloud/blob/main/games/fener/PRIVACY.md';
+declare const __APP_VERSION__: string;
+
+const theme = {
+  board: '#121839',
+  street: '#1a2152',
+  streetDot: 'rgba(255,255,255,0.09)',
+  house: '#2b336f',
+  houseLit: '#3a3a6e',
+  roof: '#1f2659',
+  pane: '#0a0e2c',
+  amber: '#ffc861',
+  amberHi: '#fff1c9',
+  red: '#ff5a6e',
+  tree: '#1c4651',
+  treeHi: '#286069',
+  trunk: '#3b3049',
+  tile: '#1b2156',
+  tileLine: 'rgba(255,255,255,0.09)',
+};
+
+// ───────────────────────── persistence ─────────────────────────
+interface Snapshot { p: Placement; l: boolean[] }
+interface Save {
+  level: number;
+  placement: Placement;
+  locked: boolean[];
+  history: Snapshot[];
+  moves: number;
+  hints: number;
+  undos: number;
+}
+
+const store = createStore('fener');
+const settings = store.get('settings', { sound: true, haptics: true });
+setSoundEnabled(settings.sound);
+setHapticsEnabled(settings.haptics);
+const bestStars = store.get<Record<string, number>>('stars', {});
+
+function freshLevel(level: number): Save {
+  const n = generateLevel(level).tray.length;
+  return { level, placement: new Array(n).fill(null), locked: new Array(n).fill(false), history: [], moves: 0, hints: 0, undos: 0 };
+}
+
+let S: Save = store.get<Save | null>('save', null) ?? freshLevel(1);
+let lvl: Level = generateLevel(S.level);
+if (S.placement.length !== lvl.tray.length) S = freshLevel(S.level); // corrupt/old save
+let ev: Evaluation = evaluate(lvl, S.placement);
+let levelStartedAt = Date.now();
+const save = () => store.set('save', S);
+
+trackSession('fener');
+track('level_start', { level: S.level, size: lvl.size, lamps: lvl.tray.length, resumed: S.moves > 0 });
+
+// ───────────────────────── DOM ─────────────────────────
+const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+const canvas = $<HTMLCanvasElement>('stage');
+const ctx = canvas.getContext('2d')!;
+
+document.documentElement.lang = navigator.language.slice(0, 2).toLowerCase() === 'tr' ? 'tr' : 'en';
+document.querySelectorAll<HTMLElement>('[data-i18n]').forEach((el) => {
+  el.textContent = t(el.dataset.i18n as Parameters<typeof t>[0]);
+});
+$('version').textContent = `v${__APP_VERSION__}`;
+
+let toastTimer = 0;
+function toast(text: string, ms = 2200) {
+  const el = $('toast');
+  el.textContent = text;
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => (el.hidden = true), ms);
+}
+
+function refreshHud() {
+  $('level').textContent = String(S.level);
+  const badge = $('hint-badge');
+  badge.textContent = S.hints === 0 ? '1' : 'AD';
+  badge.classList.toggle('ad', S.hints > 0);
+}
+
+// ───────────────────────── layout ─────────────────────────
+let W = 0;
+let H = 0;
+let dpr = 1;
+const L = { bx: 0, by: 0, bs: 0, cell: 0, slot: 0, gap: 10, perRow: 1, ty: 0, slots: [] as { x: number; y: number }[] };
+
+function layout() {
+  dpr = Math.min(window.devicePixelRatio || 1, 3);
+  W = canvas.clientWidth;
+  H = canvas.clientHeight;
+  canvas.width = Math.round(W * dpr);
+  canvas.height = Math.round(H * dpr);
+  const n = lvl.tray.length;
+  const perRow = n <= 5 ? n : Math.ceil(n / 2);
+  const rows = Math.ceil(n / perRow);
+  const usableW = Math.min(W - 32, 520);
+  const gap = 10;
+  let slot = Math.min(72, (usableW - gap * (Math.max(perRow, 4) - 1)) / Math.max(perRow, 4));
+  const between = 22;
+  let trayH = rows * slot + (rows - 1) * gap;
+  let bs = Math.floor(Math.min(usableW, H - trayH - between - 16, 560));
+  if (bs < usableW * 0.82 && slot > 50) {
+    // short screens: shrink the tray a little before the board
+    slot = Math.max(50, slot - (usableW * 0.82 - bs) / rows);
+    trayH = rows * slot + (rows - 1) * gap;
+    bs = Math.floor(Math.min(usableW, H - trayH - between - 16, 560));
+  }
+  const total = bs + between + trayH;
+  L.bs = bs;
+  L.cell = bs / lvl.size;
+  L.bx = (W - bs) / 2;
+  L.by = Math.max(8, (H - total) * 0.42);
+  L.ty = L.by + bs + between;
+  L.slot = slot;
+  L.gap = gap;
+  L.perRow = perRow;
+  L.slots = lvl.tray.map((_, i) => {
+    const row = Math.floor(i / perRow);
+    const inRow = Math.min(perRow, n - row * perRow);
+    const col = i - row * perRow;
+    return { x: W / 2 + (col - (inRow - 1) / 2) * (slot + gap), y: L.ty + slot / 2 + row * (slot + gap) };
+  });
+  // Exposed for the e2e/screenshot scripts so they never duplicate layout maths.
+  canvas.dataset.layout = JSON.stringify({ bx: L.bx, by: L.by, cell: L.cell, size: lvl.size, slots: L.slots, slot });
+}
+window.addEventListener('resize', layout);
+layout();
+
+const cellCenter = (r: number, c: number) => ({ x: L.bx + (c + 0.5) * L.cell, y: L.by + (r + 0.5) * L.cell });
+
+// ───────────────────────── animation state ─────────────────────────
+const ease = (x: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
+const easeBack = (x: number) => {
+  x = Math.min(1, Math.max(0, x));
+  const c = 1.7;
+  return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2);
+};
+
+interface Drag { idx: number; from: 'tray' | 'board'; x: number; y: number; sx: number; sy: number; lift: number; liftTarget: number; moved: boolean; touch: boolean }
+let drag: Drag | null = null;
+let hover: Pos | null = null;
+const litAt = new Map<number, number>();
+const flickerAt = new Map<number, number>();
+const placedAt = new Map<number, number>();
+const flying = new Map<number, { x: number; y: number; t0: number }>();
+const shakeAt = new Map<number, number>();
+let winAt = 0;
+let winPending = false;
+let nextLevel: Save | null = null;
+let trayDealtAt = performance.now();
+let frozenAt: number | null = null; // screenshot hook
+
+function syncLit(now: number) {
+  litAt.clear();
+  ev.counts.forEach((n, i) => n === 1 && litAt.set(i, now - 1000));
+}
+syncLit(0);
+
+// Sky: fixed pseudo-random stars.
+const stars = Array.from({ length: 70 }, (_, i) => {
+  const r = (k: number) => {
+    const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453;
+    return x - Math.floor(x);
+  };
+  return { x: r(1), y: r(2), s: 0.6 + r(3) * 1.4, p: r(4) * Math.PI * 2, f: 0.6 + r(5) * 1.6 };
+});
+
+// ───────────────────────── drawing ─────────────────────────
+function rr(x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+}
+
+function glow(x: number, y: number, radius: number, color: string, alpha: number) {
+  if (alpha <= 0.01) return;
+  const g = ctx.createRadialGradient(x, y, 0, x, y, radius);
+  g.addColorStop(0, color.replace('A', String(alpha)));
+  g.addColorStop(1, color.replace('A', '0'));
+  ctx.fillStyle = g;
+  ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+}
+
+/** A lamp's light pattern on a 5x5 mini grid around a glowing centre. */
+function drawMini(x: number, y: number, size: number, type: Pattern, alpha = 1, grid = true) {
+  const m = size / 5;
+  const set = new Set(PATTERNS[type].map(([dr, dc]) => `${dr},${dc}`));
+  ctx.globalAlpha = alpha;
+  for (let dr = -2; dr <= 2; dr++) {
+    for (let dc = -2; dc <= 2; dc++) {
+      const cx = x + dc * m;
+      const cy = y + dr * m;
+      if (dr === 0 && dc === 0) {
+        ctx.fillStyle = theme.amberHi;
+        ctx.beginPath();
+        ctx.arc(cx, cy, m * 0.42, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (set.has(`${dr},${dc}`)) {
+        ctx.fillStyle = theme.amber;
+        rr(cx - m * 0.34, cy - m * 0.34, m * 0.68, m * 0.68, m * 0.18);
+        ctx.fill();
+      } else if (grid) {
+        ctx.fillStyle = 'rgba(255,255,255,0.09)';
+        ctx.beginPath();
+        ctx.arc(cx, cy, m * 0.1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+/** Lamp standing on a board cell: dark round base with its pattern, warm halo. */
+function drawLamp(x: number, y: number, c: number, type: Pattern, alpha = 1, scale = 1, locked = false) {
+  const s = c * scale;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  glow(x, y, s * 1.05, 'rgba(255,190,90,A)', 0.32 * alpha);
+  ctx.restore();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = '#0d1233';
+  ctx.beginPath();
+  ctx.arc(x, y, s * 0.46, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.lineWidth = Math.max(1.5, s * 0.045);
+  ctx.strokeStyle = locked ? 'rgba(255,255,255,0.75)' : 'rgba(255,200,97,0.55)';
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  drawMini(x, y, s * 0.72, type, alpha, false);
+}
+
+function drawHouse(x: number, y: number, c: number, count: number, i: number, now: number) {
+  const g = c * 0.07;
+  const lit = count === 1;
+  const hot = count >= 2;
+  // roof
+  ctx.fillStyle = theme.roof;
+  ctx.beginPath();
+  ctx.moveTo(x + g * 0.6, y + c * 0.4);
+  ctx.lineTo(x + c / 2, y + g);
+  ctx.lineTo(x + c - g * 0.6, y + c * 0.4);
+  ctx.closePath();
+  ctx.fill();
+  // body
+  ctx.fillStyle = lit ? theme.houseLit : theme.house;
+  rr(x + g * 1.5, y + c * 0.36, c - g * 3, c * 0.58, c * 0.06);
+  ctx.fill();
+  // window
+  const ww = c * 0.36;
+  const wh = c * 0.3;
+  const wx = x + c / 2 - ww / 2;
+  const wy = y + c * 0.5;
+  let k = 0;
+  if (lit) k = ease((now - (litAt.get(i) ?? now - 1000)) / 320);
+  if (hot) {
+    const f = flickerAt.get(i) ?? 0;
+    const e = now - f;
+    const flick = e < 600 ? (Math.sin(e / 28) > 0 ? 1 : 0.45) : 0.75 + 0.25 * Math.sin(now / 160);
+    ctx.fillStyle = theme.red;
+    ctx.globalAlpha = flick;
+    rr(wx, wy, ww, wh, c * 0.04);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  } else {
+    ctx.fillStyle = theme.pane;
+    rr(wx, wy, ww, wh, c * 0.04);
+    ctx.fill();
+    if (k > 0) {
+      const grad = ctx.createLinearGradient(wx, wy, wx, wy + wh);
+      grad.addColorStop(0, theme.amberHi);
+      grad.addColorStop(1, theme.amber);
+      ctx.fillStyle = grad;
+      ctx.globalAlpha = k;
+      rr(wx, wy, ww, wh, c * 0.04);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+  // mullions
+  ctx.strokeStyle = lit ? 'rgba(120,70,20,0.55)' : 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = Math.max(1, c * 0.03);
+  ctx.beginPath();
+  ctx.moveTo(wx + ww / 2, wy);
+  ctx.lineTo(wx + ww / 2, wy + wh);
+  ctx.moveTo(wx, wy + wh / 2);
+  ctx.lineTo(wx + ww, wy + wh / 2);
+  ctx.stroke();
+  return k;
+}
+
+function drawTree(x: number, y: number, c: number) {
+  ctx.fillStyle = theme.trunk;
+  rr(x + c * 0.45, y + c * 0.6, c * 0.1, c * 0.28, c * 0.03);
+  ctx.fill();
+  ctx.fillStyle = theme.tree;
+  ctx.beginPath();
+  ctx.arc(x + c / 2, y + c * 0.44, c * 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = theme.treeHi;
+  ctx.beginPath();
+  ctx.arc(x + c * 0.42, y + c * 0.36, c * 0.13, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawSky(now: number) {
+  const boost = winAt ? Math.min(1, (now - winAt) / 800) : 0;
+  for (const s of stars) {
+    const a = 0.25 + 0.35 * (0.5 + 0.5 * Math.sin(now / (700 / s.f) + s.p)) + boost * 0.4 * Math.max(0, Math.sin(now / 150 + s.p));
+    ctx.fillStyle = `rgba(230,234,255,${Math.min(1, a)})`;
+    ctx.beginPath();
+    ctx.arc(s.x * W, s.y * H, s.s, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function placedIndexAt(r: number, c: number): number {
+  return S.placement.findIndex((p, i) => p && p.r === r && p.c === c && !(drag && drag.idx === i));
+}
+
+function drawBoard(now: number) {
+  const { bx, by, bs, cell } = L;
+  const n = lvl.size;
+  ctx.fillStyle = theme.board;
+  rr(bx - 6, by - 6, bs + 12, bs + 12, 18);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  const winOrder = winAt ? winRank : null;
+  const glows: { x: number; y: number; k: number; hot: boolean; bloom: number }[] = [];
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      const i = r * n + c;
+      const x = bx + c * cell;
+      const y = by + r * cell;
+      const type = lvl.cells[i];
+      ctx.fillStyle = theme.street;
+      rr(x + 1.5, y + 1.5, cell - 3, cell - 3, cell * 0.16);
+      ctx.fill();
+      if (type === STREET) {
+        if (placedIndexAt(r, c) < 0) {
+          ctx.fillStyle = theme.streetDot;
+          ctx.beginPath();
+          ctx.arc(x + cell / 2, y + cell / 2, cell * 0.06, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (type === WALL) {
+        drawTree(x, y, cell);
+      } else {
+        const count = ev.counts[i];
+        const k = drawHouse(x, y, cell, count, i, now);
+        let bloom = 0;
+        if (winOrder) {
+          const e = now - winAt - (winOrder.get(i) ?? 0) * 70;
+          if (e > 0) bloom = Math.max(0, 1 - e / 700) * ease(e / 120);
+        }
+        if (k > 0 || count >= 2 || bloom > 0) glows.push({ x: x + cell / 2, y: y + cell * 0.65, k, hot: count >= 2, bloom });
+      }
+    }
+  }
+
+  // light pass
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (const g of glows) {
+    if (g.hot) glow(g.x, g.y, cell * 0.9, 'rgba(255,70,90,A)', 0.3 + 0.12 * Math.sin(now / 120));
+    else glow(g.x, g.y, cell * (0.85 + g.bloom * 0.6), 'rgba(255,186,80,A)', 0.3 * g.k + 0.45 * g.bloom);
+  }
+  if (winAt) {
+    const k = ease((now - winAt) / 1200);
+    glow(bx + bs / 2, by + bs / 2, bs * 0.8, 'rgba(255,190,100,A)', 0.12 * k);
+  }
+  ctx.restore();
+
+  // lamps on the board
+  S.placement.forEach((p, i) => {
+    if (!p || drag?.idx === i) return;
+    const { x, y } = cellCenter(p.r, p.c);
+    const pop = placedAt.get(i);
+    const scale = pop !== undefined ? 0.7 + 0.3 * easeBack((now - pop) / 260) : 1;
+    let dx = 0;
+    const sh = shakeAt.get(i);
+    if (sh !== undefined && now - sh < 320) dx = Math.sin(((now - sh) / 320) * Math.PI * 6) * (1 - (now - sh) / 320) * cell * 0.12;
+    drawLamp(x + dx, y, cell, lvl.tray[i], 1, scale, S.locked[i]);
+  });
+
+  // drop preview: which windows this lamp would light, and which would get too bright
+  if (drag && hover) {
+    const type = lvl.tray[drag.idx];
+    const pulse = 0.5 + 0.5 * Math.sin(now / 140);
+    const own = drag.from === 'board' ? S.placement[drag.idx] : null;
+    const ownCells = own ? new Set(patternCells(n, type, own.r, own.c)) : new Set<number>();
+    for (const k of patternCells(n, type, hover.r, hover.c)) {
+      const x = bx + (k % n) * cell;
+      const y = by + Math.floor(k / n) * cell;
+      if (lvl.cells[k] !== WINDOW) {
+        ctx.fillStyle = 'rgba(255,200,97,0.18)';
+        ctx.beginPath();
+        ctx.arc(x + cell / 2, y + cell / 2, cell * 0.1, 0, Math.PI * 2);
+        ctx.fill();
+        continue;
+      }
+      const base = ev.counts[k] - (ownCells.has(k) ? 1 : 0);
+      ctx.lineWidth = Math.max(2, cell * 0.07);
+      ctx.strokeStyle = base >= 1 ? `rgba(255,90,110,${0.6 + 0.4 * pulse})` : `rgba(255,200,97,${0.55 + 0.35 * pulse})`;
+      rr(x + 3, y + 3, cell - 6, cell - 6, cell * 0.18);
+      ctx.stroke();
+    }
+    const c = cellCenter(hover.r, hover.c);
+    drawLamp(c.x, c.y, cell, type, 0.45);
+  }
+}
+
+function drawTray(now: number) {
+  const s = L.slot;
+  lvl.tray.forEach((type, i) => {
+    const { x, y } = L.slots[i];
+    ctx.fillStyle = 'rgba(255,255,255,0.03)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 5]);
+    rr(x - s / 2, y - s / 2, s, s, s * 0.24);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    if (S.placement[i] || drag?.idx === i) return;
+    let px = x;
+    let py = y;
+    let k = easeBack((now - trayDealtAt - i * 60) / 320);
+    const f = flying.get(i);
+    if (f) {
+      const p = ease((now - f.t0) / 240);
+      if (p >= 1) flying.delete(i);
+      px = f.x + (x - f.x) * p;
+      py = f.y + (y - f.y) * p;
+      k = 1;
+    }
+    if (k <= 0) return;
+    const sz = s * k;
+    ctx.fillStyle = theme.tile;
+    rr(px - sz / 2, py - sz / 2, sz, sz, sz * 0.24);
+    ctx.fill();
+    ctx.strokeStyle = theme.tileLine;
+    ctx.setLineDash([]);
+    ctx.stroke();
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    glow(px, py, sz * 0.45, 'rgba(255,190,90,A)', 0.18);
+    ctx.restore();
+    drawMini(px, py, sz * 0.74, type);
+  });
+}
+
+function drawDrag() {
+  if (!drag) return;
+  const type = lvl.tray[drag.idx];
+  drawLamp(drag.x, drag.y - drag.lift, Math.max(L.cell, 40) * 1.05, type, 1);
+}
+
+function drawTutorial(now: number) {
+  if (S.level !== 1 || drag || winPending) return;
+  const i = S.placement.findIndex((p, k) => !p && !flying.has(k));
+  if (i < 0) return;
+  const target = lvl.solution[i];
+  if (placedIndexAt(target.r, target.c) >= 0) return;
+  const from = L.slots[i];
+  const to = cellCenter(target.r, target.c);
+  const cyc = ((now - trayDealtAt) % 2400) / 2400;
+  if (now - trayDealtAt < 700) return;
+  const move = ease((cyc - 0.15) / 0.55);
+  const x = from.x + (to.x - from.x) * move;
+  const y = from.y + (to.y - from.y) * move;
+  const fade = cyc < 0.08 ? cyc / 0.08 : cyc > 0.85 ? Math.max(0, 1 - (cyc - 0.85) / 0.15) : 1;
+  if (cyc > 0.15) drawLamp(x, y, L.cell * 0.9, lvl.tray[i], 0.55 * fade);
+  // finger
+  const press = cyc > 0.1 && cyc < 0.75 ? 0.85 : 1;
+  ctx.globalAlpha = fade * 0.9;
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.beginPath();
+  ctx.arc(x + 10, y + 16, 22 * press, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(x + 10, y + 16, 12 * press, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function frame(now: number) {
+  if (frozenAt !== null) now = frozenAt;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  if (drag) drag.lift += (drag.liftTarget - drag.lift) * 0.35;
+  drawSky(now);
+  drawBoard(now);
+  drawTray(now);
+  drawTutorial(now);
+  drawDrag();
+  requestAnimationFrame(frame);
+}
+
+// ───────────────────────── game flow ─────────────────────────
+let winRank = new Map<number, number>();
+
+/** Commits a new placement: history, save, sound/haptic feedback for what changed. */
+function commit(next: Placement, opts: { locked?: boolean[]; record?: boolean } = {}) {
+  if (opts.record !== false) {
+    S.history.push({ p: S.placement, l: S.locked });
+    if (S.history.length > 80) S.history.shift();
+    S.moves++;
+  }
+  const before = ev.counts;
+  S.placement = next;
+  if (opts.locked) S.locked = opts.locked;
+  ev = evaluate(lvl, S.placement);
+  save();
+  const now = performance.now();
+  const newlyLit: number[] = [];
+  let newlyHot = 0;
+  ev.counts.forEach((n, i) => {
+    if (lvl.cells[i] !== WINDOW) return;
+    if (n === 1 && before[i] !== 1) {
+      if (before[i] === 0) newlyLit.push(i);
+      litAt.set(i, before[i] === 0 ? now : now - 1000);
+    }
+    if (n !== 1) litAt.delete(i);
+    if (n >= 2 && before[i] < 2) {
+      flickerAt.set(i, now);
+      newlyHot++;
+    }
+  });
+  newlyLit.sort((a, b) => a - b);
+  newlyLit.forEach((_, k) => tone({ freq: pentatonic(k + 2), duration: 0.3, volume: 0.32, delay: k * 0.07 }));
+  if (newlyHot) {
+    tone({ freq: 196, duration: 0.28, type: 'sawtooth', volume: 0.16 });
+    tone({ freq: 208, duration: 0.28, type: 'sawtooth', volume: 0.16 });
+    haptic.error();
+  } else if (newlyLit.length) haptic.light();
+  if (ev.solved) {
+    winPending = true;
+    setTimeout(win, 380);
+  } else if (ev.allPlaced && newlyHot === 0) {
+    toast(t('allPlaced'), 2600);
+  }
+}
+
+function placeLamp(idx: number, pos: Pos | null) {
+  const next = S.placement.slice();
+  next[idx] = pos;
+  if (pos) placedAt.set(idx, performance.now());
+  commit(next);
+}
+
+function win() {
+  const now = performance.now();
+  winAt = now;
+  const mid = (lvl.size - 1) / 2;
+  const windows = lvl.cells.map((_, i) => i).filter((i) => lvl.cells[i] === WINDOW);
+  windows.sort((a, b) => Math.hypot(Math.floor(a / lvl.size) - mid, (a % lvl.size) - mid) - Math.hypot(Math.floor(b / lvl.size) - mid, (b % lvl.size) - mid));
+  winRank = new Map(windows.map((w, k) => [w, k]));
+  windows.slice(0, 12).forEach((_, k) => tone({ freq: pentatonic(k), duration: 0.35, volume: 0.28, delay: 0.1 + k * 0.07 }));
+  haptic.success();
+  const stars = starsFor(S.hints, S.undos);
+  track('level_complete', {
+    level: S.level,
+    moves: S.moves,
+    hints: S.hints,
+    undos: S.undos,
+    stars,
+    duration_s: Math.round((Date.now() - levelStartedAt) / 1000),
+  });
+  $('win-title').textContent = t('levelN', { n: S.level });
+  $('win-moves').textContent = t('moves', { n: S.moves });
+  document.querySelectorAll('#win-stars svg').forEach((el, k) => el.classList.toggle('on', k < stars));
+  const completed = S.level;
+  bestStars[completed] = Math.max(bestStars[completed] ?? 0, stars);
+  store.set('stars', bestStars);
+  store.set('completed', Math.max(store.get('completed', 0), completed));
+  // Persist progress now so quitting on the win screen never loses the level.
+  nextLevel = freshLevel(completed + 1);
+  store.set('save', nextLevel);
+  const delay = Math.min(1600, 500 + windows.length * 70);
+  setTimeout(() => {
+    $('win').hidden = false;
+    [0, 4, 7].forEach((st, k) => k < stars && tone({ freq: pentatonic(st + 5), duration: 0.25, volume: 0.3, delay: 0.2 + k * 0.15 }));
+  }, delay);
+  maybeRequestReview(completed, stars === 3 && completed >= 5);
+}
+
+function startLevel(state: Save, resumed = false) {
+  S = state;
+  lvl = generateLevel(S.level);
+  ev = evaluate(lvl, S.placement);
+  save();
+  drag = null;
+  hover = null;
+  winPending = false;
+  winAt = 0;
+  placedAt.clear();
+  flying.clear();
+  flickerAt.clear();
+  levelStartedAt = Date.now();
+  trayDealtAt = performance.now();
+  layout();
+  syncLit(performance.now());
+  refreshHud();
+  $('toast').hidden = true;
+  if (!resumed) track('level_start', { level: S.level, size: lvl.size, lamps: lvl.tray.length, resumed: false });
+}
+
+// ───────────────────────── input ─────────────────────────
+function pointerPos(e: PointerEvent) {
+  const rect = canvas.getBoundingClientRect();
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
+function cellAt(x: number, y: number): Pos | null {
+  const c = Math.floor((x - L.bx) / L.cell);
+  const r = Math.floor((y - L.by) / L.cell);
+  return r >= 0 && c >= 0 && r < lvl.size && c < lvl.size ? { r, c } : null;
+}
+
+function updateHover() {
+  if (!drag) return;
+  const cell = cellAt(drag.x, drag.y - drag.lift);
+  const prev = hover;
+  hover = cell && canPlace(lvl, S.placement, drag.idx, cell.r, cell.c) ? cell : null;
+  if (hover && (!prev || prev.r !== hover.r || prev.c !== hover.c)) {
+    tone({ freq: 880, duration: 0.03, type: 'triangle', volume: 0.08 });
+  }
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+  unlockAudio();
+  if (drag || winPending) return;
+  const { x, y } = pointerPos(e);
+  const touch = e.pointerType !== 'mouse';
+  const liftBy = touch ? Math.max(L.cell, 40) * 1.25 : 0;
+  // tray lamp?
+  const half = L.slot / 2 + L.gap / 2;
+  const idx = L.slots.findIndex((s, i) => !S.placement[i] && Math.abs(x - s.x) <= half && Math.abs(y - s.y) <= half);
+  if (idx >= 0) {
+    flying.delete(idx);
+    drag = { idx, from: 'tray', x, y, sx: x, sy: y, lift: 0, liftTarget: liftBy, moved: false, touch };
+  } else {
+    const cell = cellAt(x, y);
+    const at = cell ? placedIndexAt(cell.r, cell.c) : -1;
+    if (at < 0) return;
+    if (S.locked[at]) {
+      shakeAt.set(at, performance.now());
+      tone({ freq: 160, to: 120, duration: 0.12, type: 'triangle', volume: 0.25 });
+      toast(t('locked'), 1600);
+      return;
+    }
+    drag = { idx: at, from: 'board', x, y, sx: x, sy: y, lift: 0, liftTarget: 0, moved: false, touch };
+    hover = { ...S.placement[at]! };
+  }
+  canvas.setPointerCapture(e.pointerId);
+  haptic.light();
+  tone({ freq: 520, to: 660, duration: 0.07, type: 'triangle', volume: 0.22 });
+  updateHover();
+});
+
+canvas.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  const p = pointerPos(e);
+  drag.x = p.x;
+  drag.y = p.y;
+  if (!drag.moved && Math.hypot(p.x - drag.sx, p.y - drag.sy) > 8) {
+    drag.moved = true;
+    if (drag.from === 'board' && drag.touch) drag.liftTarget = Math.max(L.cell, 40) * 1.25;
+  }
+  updateHover();
+});
+
+function sendBack(idx: number, x: number, y: number) {
+  flying.set(idx, { x, y, t0: performance.now() });
+  tone({ freq: 340, to: 240, duration: 0.09, type: 'triangle', volume: 0.2 });
+}
+
+function endDrag() {
+  if (!drag) return;
+  const d = drag;
+  drag = null;
+  const target = hover;
+  hover = null;
+  if (d.from === 'board') {
+    const own = S.placement[d.idx]!;
+    if (!d.moved || !target) {
+      // tap (or drop off the board): back to the tray
+      const c = d.moved ? { x: d.x, y: d.y - d.lift } : cellCenter(own.r, own.c);
+      sendBack(d.idx, c.x, c.y);
+      placeLamp(d.idx, null);
+    } else if (target.r !== own.r || target.c !== own.c) {
+      placeLamp(d.idx, target);
+    }
+    return;
+  }
+  if (target) placeLamp(d.idx, target);
+  else sendBack(d.idx, d.x, d.y - d.lift);
+}
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
+
+// ───────────────────────── buttons ─────────────────────────
+$('next-btn').addEventListener('click', async () => {
+  $('win').hidden = true;
+  haptic.medium();
+  const completed = S.level;
+  startLevel(nextLevel ?? freshLevel(S.level + 1));
+  nextLevel = null;
+  if (completed >= 5) await interstitialMoment('next_level');
+});
+
+$('restart-btn').addEventListener('click', () => {
+  unlockAudio();
+  if (winPending) return;
+  track('level_restart', { level: S.level, moves: S.moves });
+  const back = S.placement.map((p) => p && cellCenter(p.r, p.c));
+  startLevel(freshLevel(S.level), true);
+  back.forEach((c, i) => c && sendBack(i, c.x, c.y));
+  haptic.medium();
+});
+
+$('undo-btn').addEventListener('click', () => {
+  unlockAudio();
+  if (winPending || drag) return;
+  const prev = S.history.pop();
+  if (!prev) return toast(t('noUndo'));
+  S.undos++;
+  commit(prev.p, { locked: prev.l, record: false });
+  S.moves++;
+  save();
+  haptic.light();
+  tone({ freq: 500, to: 380, duration: 0.1, type: 'triangle', volume: 0.25 });
+  track('undo', { level: S.level });
+});
+
+$('hint-btn').addEventListener('click', async () => {
+  unlockAudio();
+  if (winPending || drag) return;
+  const move = hintMove(lvl, S.placement, S.locked);
+  if (!move) return toast(t('hintDone'));
+  // First hint in a level is free; more are behind a rewarded ad.
+  if (S.hints > 0 && !(await showRewarded('hint'))) return;
+  S.hints++;
+  for (const i of move.evict) {
+    const p = S.placement[i]!;
+    sendBack(i, cellCenter(p.r, p.c).x, cellCenter(p.r, p.c).y);
+  }
+  const locked = S.locked.slice();
+  locked[move.idx] = true;
+  placedAt.set(move.idx, performance.now());
+  commit(applyHint(S.placement, move), { locked });
+  refreshHud();
+  track('hint', { level: S.level, n: S.hints });
+});
+
+// settings
+const opts: [string, 'sound' | 'haptics'][] = [
+  ['opt-sound', 'sound'],
+  ['opt-haptics', 'haptics'],
+];
+for (const [id, k] of opts) {
+  const el = $<HTMLInputElement>(id);
+  el.checked = settings[k];
+  el.addEventListener('change', () => {
+    settings[k] = el.checked;
+    setSoundEnabled(settings.sound);
+    setHapticsEnabled(settings.haptics);
+    store.set('settings', settings);
+    if (k === 'haptics') haptic.medium();
+  });
+}
+$('settings-btn').addEventListener('click', () => {
+  unlockAudio();
+  $('settings').hidden = false;
+});
+$('close-settings').addEventListener('click', () => ($('settings').hidden = true));
+$('settings').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) $('settings').hidden = true;
+});
+$('privacy-link').addEventListener('click', (e) => {
+  e.preventDefault();
+  window.open(PRIVACY_URL, '_blank');
+});
+
+// ───────────────────────── boot ─────────────────────────
+refreshHud();
+void setupNative({
+  darkBackground: true,
+  onPause: save,
+  onBack: () => {
+    if (!$('settings').hidden) {
+      $('settings').hidden = true;
+      return true;
+    }
+    return false;
+  },
+});
+requestAnimationFrame(frame);
+
+// Exposed for e2e/screenshot scripts.
+(window as unknown as { __fener: unknown }).__fener = {
+  get state() { return S; },
+  get level() { return lvl; },
+  get eval() { return ev; },
+  busy: () => winPending || !!drag,
+  evaluate: (p: Placement) => evaluate(lvl, p),
+  goto: (level: number) => startLevel(freshLevel(level)),
+  load: (s: Save) => startLevel(s),
+  freeze: (ms: number | null) => (frozenAt = ms === null ? null : performance.now() + ms),
+  dragTo: (idx: number, pos: Pos) => {
+    hover = pos;
+    drag = { idx, from: 'tray', x: cellCenter(pos.r, pos.c).x + 6, y: cellCenter(pos.r, pos.c).y + L.cell * 1.3, sx: 0, sy: 0, lift: L.cell * 1.3, liftTarget: L.cell * 1.3, moved: true, touch: true };
+  },
+};
