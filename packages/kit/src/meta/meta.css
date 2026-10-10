@@ -5,6 +5,7 @@
  *   --m-muted   secondary text              --m-accent primary button / highlights
  *   --m-accent-ink text on accent           --m-alt    secondary (video) button
  *   --m-font    display font stack
+ *   --m-alt-ink text on the secondary (video) button
  *   --m-home-ink text on the home background (default white; set dark for light homes)
  *   --m-strip   mission strip background on home
  * Style: solid cards with a hard offset shadow (no blur/glow) so it reads as a game UI.
@@ -115,7 +116,7 @@
   box-shadow: 0 5px 0 rgba(0, 0, 0, 0.25); display: flex; align-items: center; justify-content: center; gap: 6px;
 }
 .m-btn:active { transform: translateY(4px); box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25); }
-.m-btn.alt { background: var(--_alt); color: #06261b; }
+.m-btn.alt { background: var(--_alt); color: var(--m-alt-ink, #06261b); }
 .m-btn.ghost { background: rgba(0, 0, 0, 0.06); color: var(--_ink); box-shadow: none; font-size: 16px; }
 .m-btn.small { padding: 8px 12px; font-size: 15px; min-width: 76px; }
 .m-btn[disabled] { opacity: 0.45; pointer-events: none; }
